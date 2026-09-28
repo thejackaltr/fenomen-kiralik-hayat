@@ -13,11 +13,32 @@ export function showDetails(ui) {
       h('button', { class: 'btn primary', 'data-test': 'tel-details-close', onclick: close }, t('common.close')));
   });
 }
+// Keeps --nb-space (px from the band's top edge to the viewport bottom + 8) on <html> while the band is shown, so the
+// layout can keep every action above it (src/style.css). Returns a cleanup function.
+export const NB_SPACE = '--nb-space';
+function reserveSpace(band, doc = document, win = window) {
+  const root = doc.documentElement;
+  let last = '', raf = 0;
+  const fit = () => { if (!band.isConnected) return; const r = band.getBoundingClientRect(); const v = Math.ceil(Math.max(0, win.innerHeight - r.top) + 8) + 'px'; if (v !== last) { last = v; root.style.setProperty(NB_SPACE, v); } };
+  const soon = () => { if (!raf) raf = win.requestAnimationFrame(() => { raf = 0; fit(); }); };   // at most once per frame
+  const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null;
+  if (ro) ro.observe(band);
+  // the band moves when the tab bar appears (character created) or the viewport changes
+  const mo = typeof MutationObserver === 'function' ? new MutationObserver(soon) : null;
+  if (mo) mo.observe(doc.body, { childList: true, subtree: true });
+  win.addEventListener('resize', fit); fit();
+  return () => { if (ro) ro.disconnect(); if (mo) mo.disconnect(); if (raf) win.cancelAnimationFrame(raf); win.removeEventListener('resize', fit); root.style.removeProperty(NB_SPACE); };
+}
+// remove the band (answered here, in Settings, or by an imported save that carries the answer)
+export function dismissNoticeBand(doc = document) {
+  const b = doc.querySelector('[data-test=tel-banner]'); if (!b) return;
+  if (b.__release) b.__release(); b.remove();
+}
 // band stays outside #ui (the game UI rebuilds its root); resolves when answered
 export function showNoticeBand(tel, ui, host = document.body) {
   if (!tel.noticeNeeded()) return null;
   // Umami follows the same answer at once: "Tamam" loads it now (sync), "Kapat" keeps it off (src/analytics.js)
-  const answer = (ok) => { tel.answerNotice(ok); analytics().sync(); band.remove(); if (!ok) ui.toast(t('telemetry.offToast')); };
+  const answer = (ok) => { tel.answerNotice(ok); analytics().sync(); dismissNoticeBand(); if (!ok) ui.toast(t('telemetry.offToast')); };
   const band = h('div', { class: 'notice-band', role: 'region', 'aria-label': t('telemetry.title'), 'data-test': 'tel-banner' },
     h('p', { class: 'nb-text' }, h('b', { text: t('telemetry.title') }), ' ', t('telemetry.body')),
     h('div', { class: 'nb-row' },
@@ -26,5 +47,6 @@ export function showNoticeBand(tel, ui, host = document.body) {
       h('button', { class: NOTICE_BTN, 'data-test': 'tel-off', onclick: () => answer(false) }, t('telemetry.off')),
       h('button', { class: 'link', 'data-test': 'tel-details', onclick: () => showDetails(ui) }, t('telemetry.detailsLink'))));
   host.appendChild(band);
+  band.__release = reserveSpace(band);
   return band;
 }
