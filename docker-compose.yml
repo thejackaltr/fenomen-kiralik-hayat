@@ -2,7 +2,13 @@
 # The Cloudflare Tunnel routes fenomen.teserix.com to http://fenomen-web:80.
 services:
   web:
-    build: .
+    build:
+      context: .
+      # Umami: set these in the Dokploy project environment (not in the repo). Empty = analytics off.
+      args:
+        VITE_UMAMI_SRC: ${VITE_UMAMI_SRC:-}
+        VITE_UMAMI_WEBSITE_ID: ${VITE_UMAMI_WEBSITE_ID:-}
+        VITE_UMAMI_DOMAINS: ${VITE_UMAMI_DOMAINS:-}
     restart: unless-stopped
     mem_limit: 64m
     networks:

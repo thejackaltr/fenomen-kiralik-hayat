@@ -6,6 +6,7 @@ import { UI } from './ui/ui.js';
 import { loadAll } from './render/assets.js';
 import * as G from './logic/game.js';
 import './style.css';
+import { analytics, track } from './analytics.js';
 
 // Locales: every src/locales/<code>.json is picked up automatically (tr = source + fallback).
 const LOCALE_KEY = 'fenomen_locale';
@@ -38,6 +39,9 @@ loadAll().then(() => {
   document.getElementById('boot').remove();
   document.body.classList.add('ready');
   ctrl.start();
+  // Umami: KVKK-gated (src/analytics.js). Nothing loads before the stats notice is answered; off = nothing is sent.
+  analytics().sync();
+  track('game_start');
   if (ctrl.pendingWelcome) ui.showWelcome(ctrl.pendingWelcome);
   if (ctrl.state.ifsa.pending) ui.queueIfsa();
 });
@@ -47,6 +51,9 @@ document.addEventListener('visibilitychange', () => {
   else { ctrl.resume(Date.now()); ctrl.start(); }
 });
 window.addEventListener('pagehide', () => ctrl.save());
+// reset_or_prestige = selling the channel (Şöhret prestige) or the full reset in Settings
+ctrl.on('sold', () => track('reset_or_prestige'));
+ctrl.on('reset', () => track('reset_or_prestige'));
 
 // Test/debug handle (no secrets)
 window.__fenomen = { ctrl, ui: null, G, version: __APP_VERSION__ };

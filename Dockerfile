@@ -4,6 +4,12 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
+# Umami (analiz.teserix.com) config comes from build args only (Dokploy env -> docker-compose build.args).
+# Empty = analytics off. The script is still loaded only after the KVKK stats notice (src/analytics.js).
+ARG VITE_UMAMI_SRC=
+ARG VITE_UMAMI_WEBSITE_ID=
+ARG VITE_UMAMI_DOMAINS=
+ENV VITE_UMAMI_SRC=$VITE_UMAMI_SRC VITE_UMAMI_WEBSITE_ID=$VITE_UMAMI_WEBSITE_ID VITE_UMAMI_DOMAINS=$VITE_UMAMI_DOMAINS
 RUN npm run build
 
 FROM nginx:1.27-alpine

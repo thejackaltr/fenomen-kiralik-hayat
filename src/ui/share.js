@@ -5,6 +5,7 @@ import { fmt } from '../logic/format.js';
 import { CFG } from '../logic/config.js';
 import { drawScene, drawTitle, wrap, FONT } from '../render/scene.js';
 import { drawDoll } from '../render/doll.js';
+import { track } from '../analytics.js';
 
 export function gameUrl(loc = location) { return loc.origin + loc.pathname.replace(/index\.html$/, ''); }
 export function shareUrl(loc = location) { return gameUrl(loc) + '?' + CFG.share.utm; }
@@ -62,6 +63,7 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 export function openShare(ui, state, spec, video) {
+  track('share_click');
   const canvas = composeCover(state, spec, video);
   const url = shareUrl();
   const text = t('share.text', { f: fmt(Math.floor(state.followers)) });
