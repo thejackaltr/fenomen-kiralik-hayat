@@ -571,6 +571,107 @@ async function runV21() {
   }
 }
 
+// ---- v2.1.1: (a) the unanswered notice band never covers Yayınla or another action; (b) milestones reached before the
+// notice wait locally (fenomen_tel_pending) and are sent once on "Tamam", never on "Kapat" (counter -> local mock server)
+async function runV211() {
+  const cfg = { oldOrigin: 'http://old.invalid', baseUrl: BASE, moveMode: 'none' };
+  const VIEWS = [
+    ['desktop 1280x800', { viewport: { width: 1280, height: 800 } }],
+    ['mobile 375x667', { viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
+    ['mobile 390x844', { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
+    ['landscape 667x375', { viewport: { width: 667, height: 375 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]
+  ];
+  // centre of the element: is it the topmost element there, fully inside the viewport, and clear of the band?
+  const probe = (p, sel) => p.$eval(sel, (el) => {
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, hit = document.elementFromPoint(x, y);
+    const band = document.querySelector('[data-test=tel-banner]'), b = band && band.getBoundingClientRect();
+    const overlap = !!b && !(r.right <= b.left || r.left >= b.right || r.bottom <= b.top || r.top >= b.bottom);
+    return { top: !!hit && (hit === el || el.contains(hit)), inView: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth, overlap, hit: hit ? (hit.getAttribute('data-test') || hit.className || hit.tagName) : null, bandVisible: !!b && b.height > 0 && b.bottom <= innerHeight + 1 };
+  });
+  for (const [name, opts] of VIEWS) {
+    const tag = '[v2.1.1 bant ' + name + '] ', touch = !!opts.hasTouch;
+    const ctx = await browser.newContext({ ...opts, locale: 'tr-TR' });
+    await ctx.addInitScript((c) => { window.__FENOMEN_CFG__ = c; }, cfg);
+    const p = await ctx.newPage(); const errors = [];
+    p.on('pageerror', (e) => errors.push(e.message)); p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+    // REAL input only (no element.click()): scroll it into view like a player would, then a mouse click (Playwright refuses
+    // when another element would receive it) or a touchscreen tap at the centre
+    const bad = [];
+    const press = async (sel) => {
+      const el = await p.waitForSelector(sel, { state: 'visible', timeout: 8000 }); await el.scrollIntoViewIfNeeded(); await p.waitForTimeout(120);
+      const pr = await probe(p, sel); if (!pr.top || !pr.inView || pr.overlap) bad.push(sel + ' ' + JSON.stringify(pr));
+      if (touch) { const b = await el.boundingBox(); await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); } else await el.click({ timeout: 4000 });
+      return pr;
+    };
+    try {
+      await p.goto(BASE, { waitUntil: 'load' }); await p.waitForSelector('[data-test=tel-banner]');
+      // the details text quotes “Tamam”: the real accept button must say exactly that; KVKK: Tamam/Kapat same size
+      const nb = await p.evaluate(() => { const a = document.querySelector('[data-test=tel-ok]'), b = document.querySelector('[data-test=tel-off]'), ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return { ok: a.textContent, off: b.textContent, same: a.className === b.className && Math.abs(ra.width - rb.width) < 2 && Math.abs(ra.height - rb.height) < 2, oneLine: ra.height < 60 }; });
+      ok(tag + 'banner accept button label is exactly "Tamam" (Kapat same class and size)', nb.ok === 'Tamam' && nb.ok === TR.telemetry.ok && nb.off === 'Kapat' && nb.same, JSON.stringify(nb));
+      await p.fill('[data-test=channel-input]', 'Bant Testi');
+      await press('[data-test=creator-next]'); await press('[data-test=path-vlog]'); await press('[data-test=creator-start]');
+      await p.waitForSelector('[data-test=shoot]'); await p.evaluate(() => { const f = window.__fenomen; f.ctrl.state.tut = 99; f.ui.updateTutorial(); });
+      await press('[data-test=tab-studio]'); await press('[data-test=shoot]'); await press('[data-test=shoot-go]');
+      await p.waitForSelector('[data-test=edit-track]'); await p.evaluate(() => { for (let i = 0; i < 3; i++) window.__edit.cut(); });
+      await p.waitForSelector('[data-test=publish-go]', { state: 'visible' }); await p.waitForTimeout(300);
+      const pub = await press('[data-test=publish-go]'); await p.waitForTimeout(500);
+      const st = await p.evaluate(() => ({ videos: window.__fenomen.ctrl.state.stats.videos, band: !!document.querySelector('[data-test=tel-banner]'), notice: localStorage.getItem('fenomen_tel_notice') }));
+      ok(tag + 'notice unanswered: "Yayınla" fully visible, topmost at its centre (elementFromPoint), clear of the band', pub.top && pub.inView && !pub.overlap && pub.bandVisible, JSON.stringify(pub));
+      ok(tag + 'real ' + (touch ? 'tap' : 'click') + ' on "Yayınla" publishes; band still shown, notice still unanswered', st.videos === 1 && st.band && st.notice === null, JSON.stringify(st));
+      ok(tag + 'no other action on the way was covered (creator, tabs, Çek, Başla)', bad.length === 0, bad.join(' | '));
+    } catch (e) { ok(tag + 'flow crashed: ' + e.message.split('\n')[0], false, bad.join(' | ')); }
+    ok(tag + 'no page/console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+
+  // (b) counter pointed at a local mock server that counts requests (CORS like the real endpoint)
+  const http = await import('node:http');
+  const MOCK_PORT = +(process.env.TEL_MOCK_PORT || 4196), hits = [];
+  const srv = http.createServer((req, res) => {
+    const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'apikey, content-type, prefer' };
+    if (req.method === 'OPTIONS') { res.writeHead(204, cors); return res.end(); }
+    let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => { try { hits.push(JSON.parse(body).event); } catch (e) { hits.push('?'); } res.writeHead(201, cors); res.end(); });
+  });
+  await new Promise((r) => srv.listen(MOCK_PORT, '127.0.0.1', r));
+  const telCfg = { ...cfg, telemetryUrl: 'http://127.0.0.1:' + MOCK_PORT, telemetryKey: 'smoke-anon-key' };
+  const STAGES = ['game_open_new', 'character_created', 'path_chosen_vlog', 'first_video', 'first_edit_game'];
+  const count = (id) => hits.filter((x) => x === id).length;
+  try {
+    for (const answer of ['tel-ok', 'tel-off']) {
+      hits.length = 0;
+      const tag = '[v2.1.1 bekleyen aşamalar ' + (answer === 'tel-ok' ? 'Tamam' : 'Kapat') + '] ';
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'tr-TR' });
+      await ctx.addInitScript((c) => { window.__FENOMEN_CFG__ = c; }, telCfg);
+      const p = await ctx.newPage(); const errors = []; p.on('pageerror', (e) => errors.push(e.message));
+      const local = () => p.evaluate(() => ({ pending: JSON.parse(localStorage.getItem('fenomen_tel_pending') || 'null'), flags: Object.keys(localStorage).filter((k) => /^fenomen_(sent|retry)_/.test(k)), kind: window.__fenomen.tel.transport.kind }));
+      await p.goto(BASE, { waitUntil: 'load' }); await p.waitForSelector('[data-test=tel-banner]');
+      await p.fill('[data-test=channel-input]', 'Sayaç Testi'); await p.click('[data-test=creator-next]'); await p.click('[data-test=path-vlog]'); await p.click('[data-test=creator-start]');
+      await p.waitForSelector('[data-test=shoot]'); await p.evaluate(() => { const f = window.__fenomen; f.ctrl.state.tut = 99; f.ui.updateTutorial(); });
+      await p.click('[data-test=tab-studio]'); await p.click('[data-test=shoot]'); await p.click('[data-test=shoot-go]');
+      await p.waitForSelector('[data-test=edit-track]'); await p.evaluate(() => { for (let i = 0; i < 3; i++) window.__edit.cut(); });
+      await p.click('[data-test=publish-go]'); await p.waitForTimeout(800);
+      const l1 = await local();
+      ok(tag + 'before the notice: 5 stages reached, 0 requests, pending = stage ids only, nothing marked sent', l1.kind === 'http' && hits.length === 0 && JSON.stringify((l1.pending || []).slice().sort()) === JSON.stringify(STAGES.slice().sort()) && l1.flags.length === 0, JSON.stringify({ hits, l1 }));
+      await p.evaluate(() => window.__fenomen.ctrl.save()); await p.reload({ waitUntil: 'load' }); await p.waitForSelector('[data-test=shoot]'); await p.waitForTimeout(800);
+      const l2 = await local();
+      ok(tag + 'after a reload: still 0 requests, pending kept, still nothing marked sent', hits.length === 0 && JSON.stringify(l2.pending) === JSON.stringify(l1.pending) && l2.flags.length === 0, JSON.stringify({ hits, l2 }));
+      await p.click('[data-test=' + answer + ']'); await p.waitForTimeout(1500);
+      const l3 = await local();
+      if (answer === 'tel-ok') {
+        ok(tag + '"Tamam": exactly ONE request per stage (+1 session_start), pending cleared', STAGES.every((id) => count(id) === 1) && count('session_start') === 1 && hits.length === STAGES.length + 1 && l3.pending === null, hits.join(','));
+        await p.reload({ waitUntil: 'load' }); await p.waitForSelector('[data-test=shoot]'); await p.waitForTimeout(1500);
+        ok(tag + 'reload after "Tamam": no duplicate requests', hits.length === STAGES.length + 1, hits.join(','));
+      } else {
+        ok(tag + '"Kapat": ZERO requests, pending list cleared, counter off', hits.length === 0 && l3.pending === null && (await p.evaluate(() => localStorage.getItem('fenomen_tel'))) === 'off', JSON.stringify({ hits, l3 }));
+        await p.reload({ waitUntil: 'load' }); await p.waitForSelector('[data-test=shoot]'); await p.waitForTimeout(1500);
+        ok(tag + 'reload after "Kapat": still ZERO requests', hits.length === 0, hits.join(','));
+      }
+      ok(tag + 'no page errors', errors.length === 0, errors.join(' | '));
+      await ctx.close();
+    }
+  } finally { srv.close(); }
+}
+
 async function installability() {
   const dir = fs.mkdtempSync('/tmp/fen-prof-');
   const ctx = await chromium.launchPersistentContext(dir, { executablePath: exe, args: ['--no-sandbox'], viewport: { width: 1280, height: 800 } });
@@ -584,8 +685,9 @@ async function installability() {
   await ctx.close();
 }
 try {
-  if (process.env.ONLY === 'v21') await runV21();       // quick loop while working on the v2.1 flows
-  else { await run('mobile'); await run('desktop'); await runV2('mobile'); await runV2('desktop'); await runV21(); await installability(); }
+  if (process.env.ONLY === 'v21') { await runV21(); await runV211(); }      // quick loop while working on the v2.1 flows
+  else if (process.env.ONLY === 'v211') await runV211();                    // notice band + pending milestones only
+  else { await run('mobile'); await run('desktop'); await runV2('mobile'); await runV2('desktop'); await runV21(); await runV211(); await installability(); }
 }
 catch (e) { ok('smoke crashed: ' + e.message, false); }
 await browser.close();

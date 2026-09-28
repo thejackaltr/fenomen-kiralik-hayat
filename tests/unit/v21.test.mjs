@@ -376,3 +376,101 @@ test('telemetry.details: approved final copy (9 items, Umami visit count as #5, 
   assert.ok(d[8].includes('info@teserix.com') && d[8].includes('veri sorumlusu'));
   assert.deepEqual(emptyLegalItems(tr), []);
 });
+
+// ---- v2.1.1: milestones before the notice is answered are pending (local, stage ids only), never "done" ----
+const sentEvents = (tr) => tr.sent.map((p) => p.event);
+const flagKeys = (st) => [...st.m.keys()].filter((k) => k.startsWith(KEYS.sent) || k.startsWith(KEYS.retry)).sort();
+const reachBeforeNotice = (tel) => { tel.track('game_open_new'); tel.sessionStart(); tel.track('character_created'); tel.track('path_chosen_vlog'); tel.track('path_chosen_luks'); tel.track('first_video'); tel.track('first_edit_game'); };
+const PENDING = ['game_open_new', 'character_created', 'path_chosen_vlog', 'first_video', 'first_edit_game'];
+test('pending: before the notice milestones are recorded locally as stage ids only; nothing sent, nothing marked done', async () => {
+  const st = new Mem(); const { tel, tr } = mk(st);
+  assert.equal(KEYS.pending, 'fenomen_tel_pending');
+  reachBeforeNotice(tel); await flush();
+  assert.equal(tr.sent.length, 0, 'nothing leaves the device');
+  assert.deepEqual(JSON.parse(st.getItem('fenomen_tel_pending')), PENDING, 'ids only, first career choice only');
+  assert.deepEqual(flagKeys(st), [], 'no sent_/retry_ flag before the answer');
+  assert.deepEqual([...st.m.keys()].sort(), ['fenomen_tel_pending'], 'no other key (no session stamp, no time, no id)');
+  // tampered/foreign content is ignored on read (allow list, no duplicates, no session_start)
+  st.setItem(KEYS.pending, JSON.stringify(['user_email', 'first_video', 42, 'first_video', 'session_start', { x: 1 }]));
+  assert.deepEqual(tel.pending(), ['first_video']);
+  st.setItem(KEYS.pending, '{broken'); assert.deepEqual(tel.pending(), []);
+});
+test('pending: "Tamam" sends every waiting milestone exactly once and removes the key; answering again sends nothing', async () => {
+  const st = new Mem(); const { tel, tr } = mk(st);
+  reachBeforeNotice(tel);
+  tel.answerNotice(true); await flush();
+  assert.deepEqual(sentEvents(tr).slice().sort(), [...PENDING, 'session_start'].sort());
+  assert.equal(st.getItem(KEYS.pending), null);
+  for (const k of ['game_open_new', 'character_created', 'path_chosen', 'first_video', 'first_edit_game']) assert.equal(st.getItem(KEYS.sent + k), 'true', k);
+  tel.answerNotice(true); tel.setEnabled(false); tel.setEnabled(true); reachBeforeNotice(tel); await flush();
+  assert.equal(tr.sent.length, PENDING.length + 1, 'no duplicates on repeated answers / toggles / triggers');
+  const again = mk(st); again.tel.seed(played()); await again.tel.retryPending(); again.tel.answerNotice(true); await flush();
+  assert.equal(again.tr.sent.length, 0, 'next launch: nothing re-sent');
+});
+test('pending: survives a reload (seed does not mark it done); accept after the reload sends each once', async () => {
+  const st = new Mem(); let { tel, tr } = mk(st);
+  reachBeforeNotice(tel); await flush();
+  // reload: new instance, the save already has a character + a video -> seed() used to mark these as done
+  ({ tel, tr } = mk(st)); tel.seed(played()); await tel.retryPending(); tel.sessionStart(); await flush();
+  const pk = ['game_open_new', 'character_created', 'path_chosen', 'first_video', 'first_edit_game'];
+  assert.deepEqual(flagKeys(st).filter((k) => pk.some((x) => k.endsWith('_' + x))), [], 'seed leaves waiting milestones alone');
+  assert.deepEqual(tel.pending(), PENDING); assert.equal(tr.sent.length, 0);
+  // milestones the save has but that were never reached in a pending state (e.g. first_shop_buy from an older save) are still seeded
+  assert.equal(st.getItem(KEYS.sent + 'first_shop_buy'), 'true');
+  tel.track('first_sell');                                              // reached after the reload, still before the notice
+  tel.answerNotice(true); await flush();
+  const got = sentEvents(tr);
+  assert.deepEqual(got.slice().sort(), [...PENDING, 'first_sell', 'session_start'].sort(), got.join(','));
+  assert.equal(new Set(got).size, got.length, 'exactly one request per stage');
+  assert.equal(st.getItem(KEYS.pending), null);
+  ({ tel, tr } = mk(st)); tel.seed(played()); await tel.retryPending(); tel.answerNotice(true); await flush();
+  assert.equal(tr.sent.length, 0, 'second reload: no duplicates');
+});
+test('pending: "Kapat" (or switching off before the answer) discards the list; nothing is ever sent for it', async () => {
+  // "Kapat" and the Settings switch turned off before the band is answered both end in answerNotice(false) (ui/ui.js)
+  for (const decline of [(tel) => tel.answerNotice(false)]) {
+    const st = new Mem(); let { tel, tr } = mk(st);
+    reachBeforeNotice(tel);
+    ({ tel, tr } = mk(st)); tel.seed(played());                         // reload in between
+    decline(tel); await flush();
+    assert.equal(st.getItem(KEYS.pending), null); assert.equal(tr.sent.length, 0);
+    ({ tel, tr } = mk(st)); await tel.retryPending(); tel.setEnabled(true); tel.track('first_sell'); await flush();
+    assert.deepEqual(sentEvents(tr), ['first_sell'], 'turning it on later sends only new milestones, never the discarded ones');
+  }
+  // counter already off (e.g. imported "off"): a stale list is dropped on launch, never sent
+  const st = new Mem({ [KEYS.notice]: '1', [KEYS.pref]: 'off', [KEYS.pending]: JSON.stringify(['first_video']) }); const { tel, tr } = mk(st);
+  await tel.retryPending(); await flush(); assert.equal(st.getItem(KEYS.pending), null); assert.equal(tr.sent.length, 0);
+});
+test('pending: a failed send after "Tamam" keeps the once-retry-next-launch rule (no duplicate, no loop)', async () => {
+  const st = new Mem(); let { tel, tr } = mk(st);
+  tel.track('first_video'); tr.fail = true;
+  tel.answerNotice(true); await flush();
+  assert.equal(st.getItem(KEYS.sent + 'first_video'), null); assert.equal(st.getItem(KEYS.retry + 'first_video'), 'pending'); assert.equal(st.getItem(KEYS.pending), null);
+  ({ tel, tr } = mk(st)); tel.seed(played());
+  assert.deepEqual(await tel.retryPending(), [['first_video', true]]); await flush();
+  assert.deepEqual(sentEvents(tr), ['first_video']); assert.equal(st.getItem(KEYS.sent + 'first_video'), 'true');
+});
+test('pending: notice answered by an imported save -> the next launch sends what waited, once', async () => {
+  const st = new Mem(); let { tel, tr } = mk(st);
+  tel.track('character_created'); tel.track('first_video');
+  tel.absorb({ sent: [], tel: 'on', notice: true }); await flush();
+  assert.equal(tr.sent.length, 0);
+  ({ tel, tr } = mk(st)); tel.seed(played()); await tel.retryPending(); await flush();
+  assert.deepEqual(sentEvents(tr).sort(), ['character_created', 'first_video']);
+  ({ tel, tr } = mk(st)); await tel.retryPending(); await flush(); assert.equal(tr.sent.length, 0);
+  // imported "off" clears it instead
+  const s2 = new Mem(); const b = mk(s2); b.tel.track('first_video'); b.tel.absorb({ tel: 'off', notice: true }); assert.equal(s2.getItem(KEYS.pending), null);
+});
+test('pending: switching off in Settings after "Tamam", then on again — unchanged: milestones reached while off are not recorded', async () => {
+  const st = ready(); const { tel, tr } = mk(st);
+  tel.setEnabled(false); assert.equal(tel.track('first_rent'), 'off'); assert.equal(st.getItem(KEYS.pending), null);
+  tel.setEnabled(true); await tel.retryPending(); await flush(); assert.equal(tr.sent.length, 0);
+  assert.equal(tel.track('first_rent'), 'sent', 'reached again while on -> counted');
+});
+test('notice band keeps every action above it: --nb-space reserved while shown, removed with the band; CSS lifts the sheet', () => {
+  const src = fs.readFileSync('src/ui/privacy.js', 'utf8'), css = fs.readFileSync('src/style.css', 'utf8');
+  assert.match(src, /band\.__release = reserveSpace\(band\)/); assert.match(src, /root\.style\.removeProperty\(NB_SPACE\)/);
+  assert.match(css, /\.sheet-box \{ margin-bottom: var\(--nb-space, 0px\); max-height: calc\(100% - var\(--nb-space, 0px\)\); \}/);
+  assert.match(css, /\.creator, \.panel \{ scroll-padding-bottom: var\(--nb-space, 0px\); \}/);
+  for (const f of ['src/ui/ui.js', 'src/ui/savefile.js']) assert.doesNotMatch(fs.readFileSync(f, 'utf8'), /tel-banner\]'\); if \(b\) b\.remove\(\)/, f + ' uses dismissNoticeBand()');
+});
