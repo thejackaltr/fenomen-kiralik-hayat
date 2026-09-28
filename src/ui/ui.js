@@ -10,6 +10,8 @@ import { drawScene, thumbCanvas } from '../render/scene.js';
 import { drawDoll, wearThumb } from '../render/doll.js';
 import { openShare } from './share.js';
 import { Sound } from './sound.js';
+import { showDetails } from './privacy.js';
+import { exportSave, openImport } from './savefile.js';
 
 // Element.append(null) would print "null": always go through ap()
 function ap(el, ...k) { el.append(...k.filter((x) => x != null && x !== false)); return el; }
@@ -31,6 +33,7 @@ export class UI {
     ctrl.on('sold', (e) => { this.flow = null; this.tab = 'studio'; this.build(); this.toast(t('sell.done', { n: fmt(e.gain) }), 'ok'); });
     ctrl.on('repossessed', (e) => this.toast(t('toast.repossessed', { x: itemName(e.id) }), 'bad'));
     ctrl.on('reset', () => { this.flow = null; this.build(); });
+    ctrl.on('loaded', (s) => { if (s.ifsa.pending) this.queueIfsa(); });
     this.build();
   }
   get s() { return this.ctrl.state; }
@@ -270,7 +273,7 @@ export class UI {
     const fb = h('div', { class: 'edit-fb', 'aria-live': 'polite', 'data-test': 'edit-feedback' });
     const cuts = h('div', { class: 'cuts' });
     let pos = 0, t0 = performance.now(), ended = false;
-    const finish = () => { if (ended) return; ended = true; cancelAnimationFrame(this.editRaf); f.quality = editQuality(f.results); f.step = 'publish'; setTimeout(() => { if (this.flow === f) this.renderFlow(); }, 450); };
+    const finish = () => { if (ended) return; ended = true; cancelAnimationFrame(this.editRaf); f.quality = editQuality(f.results); f.step = 'publish'; this.ctrl.emit('editGame'); setTimeout(() => { if (this.flow === f) this.renderFlow(); }, 450); };
     const doCut = () => {
       if (ended || f.results.length >= E.maxCuts) return;
       const r = editCut(zones, pos); f.results.push(r);
@@ -564,6 +567,18 @@ export class UI {
       }
       if (o.install && o.install.available()) ap(box, h('button', { class: 'btn', onclick: () => o.install.prompt() }, t('settings.install')));
       else if (o.install && o.install.ios()) ap(box, h('p', { class: 'muted', text: t('settings.iosInstall') }));
+      if (o.tools) ap(box, h('h3', { text: t('settings.saveTitle') }), h('div', { class: 'row' },
+        h('button', { class: 'btn', 'data-test': 'save-export', onclick: () => { close(); exportSave(this, o.tools); } }, t('saveFile.export')),
+        h('button', { class: 'btn', 'data-test': 'save-import', onclick: () => { close(); openImport(this, o.tools); } }, t('saveFile.import'))));
+      if (o.tel) {
+        const tel = o.tel;
+        const box2 = h('input', { type: 'checkbox', 'data-test': 'tel-toggle', checked: tel.enabled(), onchange: (e) => {
+          const on = e.target.checked;
+          if (tel.noticeNeeded()) { tel.answerNotice(on); const b = document.querySelector('[data-test=tel-banner]'); if (b) b.remove(); } else tel.setEnabled(on);
+        } });
+        ap(box, h('h3', { text: t('settings.privacy') }), h('label', { class: 'toggle-row' }, box2, h('span', { text: t('settings.telemetry') })),
+          h('p', { class: 'muted small' }, t('settings.telemetryHint'), ' ', h('button', { class: 'link', 'data-test': 'settings-tel-details', onclick: () => { close(); showDetails(this); } }, t('telemetry.detailsLink'))));
+      }
       ap(box, h('p', { class: 'muted', text: t('settings.credits') }), h('p', { class: 'muted small', text: t('settings.version', { v: o.version || '' }) }),
         h('button', { class: 'btn danger', 'data-test': 'reset', onclick: () => { close(); this.confirmReset(); } }, t('settings.reset')),
         h('button', { class: 'btn primary', onclick: close }, t('settings.close')));

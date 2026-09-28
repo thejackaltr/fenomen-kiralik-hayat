@@ -32,7 +32,7 @@ export function newGame(now = Date.now(), seed = (Math.random() * 2 ** 32) >>> 0
     tut: 0, events: []
   };
 }
-export function newMeta() { return { fame: 0, fameEarned: 0, unlocks: [], achievements: [], sales: 0, bestFollowers: 0 }; }
+export function newMeta() { return { fame: 0, fameEarned: 0, unlocks: [], achievements: [], sales: 0, bestFollowers: 0, playSec: 0 }; }   // playSec: active play time (v2.1, only its rough bucket is ever sent)
 
 // ---------- character / path ----------
 export function createCharacter(s, { body, skin, hair, channel }) {
@@ -259,13 +259,13 @@ export function unwear(s, slot) { if (slot === 'top' || slot === 'bottom' || slo
 export function setColor(s, id, idx) { const d = WEAR[id]; if (!d) return false; s.wear.colors[id] = clamp(idx | 0, 0, d.palette.length - 1); return true; }
 export function upgradeEquip(s, id) {
   if (!EQ[id]) return false; const l = s.equip[id] || 0; if (l >= CFG.equipMax) return false;
-  if (!pay(s, equipCost(id, l))) return false; s.equip[id] = l + 1; return true;
+  if (!pay(s, equipCost(id, l))) return false; s.equip[id] = l + 1; emit(s, 'upgraded', { id }); return true;
 }
 export function staffCost(s, id) { const d = STF[id]; const l = s.staff[id] || 0; return l < d.levels.length ? d.levels[l].cost : Infinity; }
 export function canHire(s, id) { const d = STF[id]; return !!d && (!d.requires || s.staff[d.requires] > 0) && (s.staff[id] || 0) < d.levels.length; }
 export function hire(s, id) {
   if (!canHire(s, id)) return false;
-  if (!pay(s, staffCost(s, id))) return false; s.staff[id] = (s.staff[id] || 0) + 1; return true;
+  if (!pay(s, staffCost(s, id))) return false; s.staff[id] = (s.staff[id] || 0) + 1; emit(s, 'hired', { id }); return true;
 }
 export function buyInvest(s, id) { if (!INV[id]) return false; if (!pay(s, investCost(s, id))) return false; s.invest[id] = (s.invest[id] || 0) + 1; emit(s, 'invested', { id }); return true; }
 // ---------- Şöhret tree / Kanalı Sat / achievements ----------

@@ -32,3 +32,9 @@ export function fmtDuration(sec) {
   if (m) return s && m < 10 ? t('fmt.pair', { a: M(m), b: S(s) }) : M(m);
   return S(s);
 }
+// date + time of a timestamp (e.g. "last played"); tr -> Intl.DateTimeFormat('tr-TR'). null -> fallback text.
+export function fmtDate(ts) {
+  if (typeof ts !== 'number' || !isFinite(ts) || ts <= 0) return t('import.dateUnknown');
+  const loc = locale() === 'tr' ? 'tr-TR' : locale();
+  return new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(ts));
+}

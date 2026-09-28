@@ -6,13 +6,18 @@ import { LUX } from './logic/config.js';
 export class Controller {
   constructor(storage, now = Date.now()) {
     this.storage = storage; this.listeners = {};
-    const s = load(storage, now);
+    this.loadState(now);
+    this.last = performance.now(); this.lastSave = 0; this.timer = null;
+  }
+  loadState(now = Date.now()) {
+    const s = load(this.storage, now);
     this.state = s || G.newGame(now);
     this.pendingWelcome = null;
     if (s && s.created) { const sum = G.catchUp(this.state, now); if (sum && (sum.views > 0 || sum.money !== 0 || sum.repossessed.length)) this.pendingWelcome = sum; }
     this.state.events.length = 0;
-    this.last = performance.now(); this.lastSave = 0; this.timer = null;
   }
+  // a different save was put in storage (import / move): load it and rebuild the UI
+  reload(now = Date.now()) { this.loadState(now); this.last = performance.now(); this.emit('reset'); if (this.pendingWelcome) this.emit('welcome', this.pendingWelcome); this.emit('loaded', this.state); }
   on(ev, fn) { (this.listeners[ev] = this.listeners[ev] || []).push(fn); }
   emit(ev, d) { for (const fn of this.listeners[ev] || []) fn(d); }
   start() { if (!this.timer) { this.last = performance.now(); this.timer = setInterval(() => this.frame(), 250); } }
@@ -22,7 +27,7 @@ export class Controller {
     let dt = (nowP - this.last) / 1000; this.last = nowP;
     if (!s.created) { s.lastSeen = Date.now(); return; }
     if (dt > 5) { this.resume(Date.now()); return; }   // throttled tab: use wall clock
-    G.tick(s, dt); s.lastSeen = Date.now();
+    G.tick(s, dt); s.lastSeen = Date.now(); s.meta.playSec = (s.meta.playSec || 0) + dt;
     this.drain(); this.emit('tick', s);
     if (nowP - this.lastSave > 5000) { this.lastSave = nowP; this.save(); }
   }
@@ -42,7 +47,7 @@ export class Controller {
   sell() { const ns = G.sellChannel(this.state, Date.now()); if (!ns) return null; this.state = ns; this.state.events.length = 0; this.save(); this.emit('sold', ns.lastSale); return ns.lastSale; }
   // actions -> { ok }
   act(fn, ...args) { const ok = fn(this.state, ...args); this.drain(); if (ok) { this.emit('change'); this.save(); } return ok; }
-  create(opts, path) { G.createCharacter(this.state, opts); const ok = G.choosePath(this.state, path); if (ok) { this.state.lastSeen = Date.now(); this.save(); this.emit('change'); } return ok; }
+  create(opts, path) { G.createCharacter(this.state, opts); const ok = G.choosePath(this.state, path); if (ok) { this.state.lastSeen = Date.now(); this.save(); this.emit('created', { path }); this.emit('change'); } return ok; }
   publish(opts) { const v = G.publish(this.state, opts); this.drain(); this.emit('change'); this.save(); return v; }
-  resolveIfsa(choice) { const r = G.resolveIfsa(this.state, choice); this.emit('change'); this.save(); return r; }
+  resolveIfsa(choice) { const r = G.resolveIfsa(this.state, choice); if (r) this.emit('ifsaResolved', r); this.emit('change'); this.save(); return r; }
 }
