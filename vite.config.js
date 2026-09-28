@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { HTML_CFG } from './src/config.js';
+import { legalGuardPlugin } from './tools/legal-guard.mjs';
 
 const tr = JSON.parse(fs.readFileSync(new URL('./src/locales/tr.json', import.meta.url)));
 const pkg = JSON.parse(fs.readFileSync(new URL('./package.json', import.meta.url)));
@@ -50,6 +51,7 @@ const manifestPlugin = {
 export default defineConfig({
   base: './',
   define: { __APP_VERSION__: JSON.stringify(VERSION), __APP_SEMVER__: JSON.stringify(pkg.version) },
-  plugins: [i18nHtml, manifestPlugin, swPlugin],
+  // legal-guard: `npm run build` fails while tr.json telemetry.details has an empty item (ALLOW_EMPTY_LEGAL=1 to skip)
+  plugins: [legalGuardPlugin(tr), i18nHtml, manifestPlugin, swPlugin],
   build: { target: 'es2019', assetsInlineLimit: 0, chunkSizeWarningLimit: 1600, sourcemap: false }
 });

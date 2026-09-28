@@ -7,7 +7,8 @@ export const NOTICE_BTN = 'btn nb-btn';
 export function showDetails(ui) {
   ui.showModal((box, close) => {
     box.setAttribute('data-test', 'tel-details-modal');
-    box.append(h('h2', { text: t('telemetry.detailsTitle') }), ...list('telemetry.details').map((p) => h('p', { class: 'muted', text: p })),
+    // empty items (e.g. the legal paragraph before it is written) render nothing
+    box.append(h('h2', { text: t('telemetry.detailsTitle') }), ...list('telemetry.details').filter((p) => String(p).trim()).map((p) => h('p', { class: 'muted', text: p })),
       h('button', { class: 'btn primary', 'data-test': 'tel-details-close', onclick: close }, t('common.close')));
   });
 }

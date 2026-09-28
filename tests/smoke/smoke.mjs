@@ -5,6 +5,7 @@
 //   origins through window.__FENOMEN_CFG__ (see src/config.js), injected with an init script.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
+const TR = JSON.parse(fs.readFileSync(new URL('../../src/locales/tr.json', import.meta.url), 'utf8'));
 const BASE = process.env.BASE || 'http://localhost:4180/';
 const SHOTS = process.env.SHOTS === '1';
 const exe = process.env.CHROME || '/usr/bin/google-chrome';
@@ -393,6 +394,9 @@ async function runV21() {
     ok(tag + 'nothing sent before the notice is answered', (await sent(T)).length === 0 && (await T.S(() => window.__fenomen.tel.held().length)) >= 3);
     await T.tap('[data-test=tel-details]'); await T.p.waitForSelector('[data-test=tel-details-modal]');
     ok(tag + '"Ayrıntılar" opens the details', (await T.S(() => document.querySelector('[data-test=tel-details-modal]').textContent)).includes('180 gün'));
+    const dp = await T.S(() => { const ps = [...document.querySelectorAll('[data-test=tel-details-modal] p')]; return { n: ps.length, empty: ps.filter((p) => !p.textContent.trim()).length }; });
+    const want = TR.telemetry.details.filter((x) => x.trim()).length;
+    ok(tag + 'details: empty items render no paragraph (' + want + ' of ' + TR.telemetry.details.length + ' shown)', dp.empty === 0 && dp.n === want, JSON.stringify(dp));
     await T.tap('[data-test=tel-details-close]');
     await T.tap('[data-test=tel-ok]');
     const s1 = await sent(T);

@@ -30,6 +30,7 @@ Hedef: kiralık hayattan gerçek eşyalara ve yatırımlara geçmek.
 - **Adres tek yerde**: `src/config.js` (`OLD_ORIGIN`, `NEW_ORIGIN`, `BASE_URL`, `MOVE`, `TELEMETRY`). Paylaşım bağlantısı (UTM etiketleri aynen), `og:image`/`og:url`/canonical `BASE_URL`'e gider. Eski adres metni yalnızca bu dosyada geçer (birim testi denetler).
 - **İsimsiz sayaç** (`src/telemetry.js`): 22 sabit olay, satır başına yalnızca `event`, `version` (semver), `device_class`, `play_bucket`. Kimlik, çerez, UTM yok. İlk açılışta bilgilendirme bandı (Tamam / Kapat / Ayrıntılar), Ayarlar > Gizlilik'te anahtar. Bant yanıtlanmadan istek gitmez. `first_*` bayrağı yalnızca 2xx sonrası yazılır, başarısızsa bir sonraki açılışta bir kez yeniden denenir. `VITE_TELEMETRY_URL` + `VITE_TELEMETRY_KEY` (derleme zamanı) verilmedikçe **mock** (console.debug + bellek) çalışır. Sözleşme dosyanın başında.
 - **Kaydı dışa/içe aktar** (Ayarlar > Kayıt): JSON dosya + kopyalanabilir kod, sürüm + checksum; içe aktarmadan önce iki kaydın özeti ve onay; değiştirilen kayıt `fenomen_save_backup`'ta kalır.
+- **Sayaç bilgilendirmesi**: "Tamam" ve "Kapat" aynı sınıfla, eşit görsel ağırlıkta (KVKK). `telemetry.details` içindeki boş madde ekranda paragraf oluşturmaz.
 - **Tek tıkla taşıma**: eski adreste `MOVE.startDate` ayarlanınca 60 gün (`MOVE.graceDays`) oyun + "taşındı" bandı, sonra yönlendirme sayfası. Kayıt `#import=` içinde (deflate-raw + base64url, en çok `MOVE.maxHashChars` = 16 KB; üstünde yalnızca "Kaydı indir"). Eski kayıt silinmez, `fenomen_migrated_at` ile işaretlenir; yönlendirme sayfası kendi service worker'ını ve `fenomen-*` önbelleklerini siler. Yeni adres içe aktarır, `#`'yı `history.replaceState` ile temizler; bu cihazda dolu kayıt varsa seçim penceresi çıkar, seçilmeyen yedekte kalır.
 
 ## Geliştirme
@@ -37,14 +38,22 @@ Hedef: kiralık hayattan gerçek eşyalara ve yatırımlara geçmek.
 npm ci
 npm run dev        # geliştirme sunucusu
 npm test           # birim testleri (node:test)
-npm run build      # dist/ + sürümlü service worker
+npm run build      # dist/ + sürümlü service worker (yasal metin eksikse DURUR, aşağıya bak)
+ALLOW_EMPTY_LEGAL=1 npm run build   # geliştirme/test derlemesi: yasal metin boşken de derler (YAYINLANMAZ)
 npm run preview    # http://localhost:4180
 SHOTS=1 npm run smoke                                   # başsız duman testi (390×844 + 1280×800)
-BASE=http://127.0.0.1:4191/ OLD_BASE=http://127.0.0.1:4192/ npm run smoke   # v2.1 taşıma testleri ikinci bir origin ister
+BASE=http://127.0.0.1:4191/ OLD_BASE=http://127.0.0.1:4192/ npm run smoke   # v2.1 taşıma testleri ikinci bir origin ister (dist'i ALLOW_EMPTY_LEGAL=1 ile derleyin)
 ONLY=v21 npm run smoke                                  # yalnızca v2.1 akışları
 npm run balance    # denge simülasyonu: tek hesap + Kanalı Sat kampanyası
 npm run art        # görselleri koddan yeniden üret (CHROME=/yol/chrome)
 ```
+
+### Yasal metin koruması (`ALLOW_EMPTY_LEGAL`)
+`src/locales/tr.json` → `telemetry.details` son maddesi (veri sorumlusu, alıcılar, haklar) hukuk onayından sonra yazılacak. Bu madde (ya da herhangi bir madde) boşken **`npm run build` hata verir** (`tools/legal-guard.mjs`, Vite eklentisi, yalnız derlemede çalışır):
+```
+[legal-guard] src/locales/tr.json telemetry.details boş: son madde #8 (veri sorumlusu, alıcılar, haklar). Yasal metin yazılmadan yayın derlemesi yapılamaz. …
+```
+Geliştirme ve test için kaçış: `ALLOW_EMPTY_LEGAL=1 npm run build` (uyarı basar, derler). `npm run dev` ve `npm test` bu kontrolden etkilenmez. GitHub Pages iş akışı (`npm run build`) da metin yazılana kadar bilerek başarısız olur; yayın derlemesinde bu değişkeni kullanmayın.
 
 ## Yapı
 - `src/logic/config.js` — **tüm sayılar ve kataloglar** (CFG). `game.js` saf oyun mantığı, `save.js` ID bazlı kayıt + doğrulama, `edit.js` kurgu kuralları.

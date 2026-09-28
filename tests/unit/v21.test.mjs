@@ -7,6 +7,7 @@ import * as G from '../../src/logic/game.js';
 import { serialize, deserialize, SAVE_KEY } from '../../src/logic/save.js';
 import { buildEnvelope, checkEnvelope, encodeEnvelope, decodeEnvelope, readCode, readFileText, validateSave, moveFragment, fragmentData, clearFragment,
   applyImport, isEmptySave, summary, readBackup, BACKUP_KEY, checksumOf, IMPORT_PREFIX } from '../../src/logic/transfer.js';
+import { checkLegal, emptyLegalItems, legalGuardPlugin } from '../../tools/legal-guard.mjs';
 import { moveMode, prepareMove, markMigrated, daysLeft } from '../../src/logic/move.js';
 import { createTelemetry, mockTransport, httpTransport, httpRequest, wireTelemetry, playBucket, captureUtm, EVENT_IDS, PAYLOAD_FIELDS, KEYS, SEMVER, DEVICE_CLASSES, PLAY_BUCKETS } from '../../src/telemetry.js';
 import { OLD_ORIGIN, BASE_URL, NEW_ORIGIN, MOVE, TELEMETRY } from '../../src/config.js';
@@ -269,6 +270,25 @@ test('no hardcoded UI text in the v2.1 files', () => {
     for (const m of src.matchAll(/(['"`])((?:(?!\1).)*[çğıöşüÇĞİÖŞÜ](?:(?!\1).)*)\1/g)) bad.push(f + ': ' + m[2]);
   }
   assert.deepEqual(bad, []);
+});
+
+// ---- fix round: legal text release guard ----
+test('legal guard: empty telemetry.details item fails the build, filled passes, ALLOW_EMPTY_LEGAL=1 passes', () => {
+  const full = { telemetry: { details: ['a', 'b', 'Veri sorumlusu: …'] } };
+  const empty = { telemetry: { details: ['a', 'b', ''] } };
+  assert.deepEqual(checkLegal(full, {}), { ok: true, skipped: false, empty: [] });
+  assert.throws(() => checkLegal(empty, {}), /\[legal-guard\].*telemetry\.details boş: son madde #3 \(veri sorumlusu, alıcılar, haklar\).*ALLOW_EMPTY_LEGAL=1 npm run build/);
+  assert.throws(() => checkLegal({ telemetry: { details: ['a', '   ', 'c'] } }, {}), /madde #2/);
+  assert.throws(() => checkLegal({}, {}), /legal-guard/);
+  assert.throws(() => checkLegal(empty, { ALLOW_EMPTY_LEGAL: '0' }), /legal-guard/);
+  assert.deepEqual(checkLegal(empty, { ALLOW_EMPTY_LEGAL: '1' }), { ok: false, skipped: true, empty: [2] });
+  assert.deepEqual(emptyLegalItems(tr), tr.telemetry.details.every((p) => p.trim()) ? [] : [tr.telemetry.details.length - 1]);
+  // Vite plugin: build-only, throws in buildStart
+  const p = legalGuardPlugin(empty, {}); assert.equal(p.apply, 'build');
+  assert.throws(() => p.buildStart.call({ warn() {} }), /legal-guard/);
+  const warned = []; legalGuardPlugin(empty, { ALLOW_EMPTY_LEGAL: '1' }).buildStart.call({ warn: (m) => warned.push(m) });
+  assert.equal(warned.length, 1); legalGuardPlugin(full, {}).buildStart.call({ warn: (m) => warned.push(m) }); assert.equal(warned.length, 1);
+  assert.match(fs.readFileSync('vite.config.js', 'utf8'), /legalGuardPlugin\(tr\)/);
 });
 
 // ---- fix round: KVKK equal visual weight for the notice buttons ----
