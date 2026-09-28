@@ -168,3 +168,20 @@ test('v2.1 wiring in source: sync() after the notice answer (both buttons), on t
   assert.match(sf, /tel\.absorb\(env\); analytics\(\)\.sync\(\);/);
   assert.match(mn, /analytics\(\)\.sync\(\);\n\s*track\('game_start'\);/);
 });
+// ---- v2.1.2: the privacy copy names exactly the Umami events this build sends (and nothing it does not send) ----
+test('v2.1.2 copy matches the code: details[4] lists game_start / reset_or_prestige / share_click, Settings hint covers Umami', () => {
+  const tr = JSON.parse(read('src/locales/tr.json'));
+  const d4 = tr.telemetry.details[4];
+  const src = ['src/main.js', 'src/ui/share.js', 'src/ui/ui.js', 'src/controller.js'].map(read).join('\n');
+  const names = [...new Set([...src.matchAll(/(?<![.\w])track\('([a-z_]+)'\)/g)].map((m) => m[1]))].sort();
+  const PLAIN = { game_start: 'oyuna başlama', reset_or_prestige: 'kanalı satma ya da sıfırlama', share_click: 'paylaşım penceresini açma' };
+  assert.deepEqual(names, Object.keys(PLAIN).sort(), 'a new Umami event needs a new entry in details[4]');
+  assert.ok(d4.includes('Sayılan olaylar şunlar: ' + PLAIN.game_start + ', ' + PLAIN.reset_or_prestige + ' ve ' + PLAIN.share_click + '.'));
+  assert.ok(!/giriş|bulut/i.test(d4), 'login / cloud save are not sent by this build, so they are not listed');
+  assert.ok(d4.includes('(? ve # işaretinden sonrası hariç)'), 'matches data-exclude-search / data-exclude-hash');
+  const a = read('src/analytics.js');
+  assert.ok(a.includes("s.setAttribute('data-exclude-search', 'true');") && a.includes("s.setAttribute('data-exclude-hash', 'true');"));
+  assert.ok(!/identify\(/.test(a) && /u\.track\(name\)/.test(a), 'event name only: no identify(), no data payload');
+  assert.ok(tr.settings.telemetryHint.includes('ziyaretler ve bazı oyun olayları'), 'the switch also controls Umami, so the hint names it');
+  assert.equal(tr.telemetry.details[6], 'Aşama sayacı kayıtları 180 gün sonra silinir. Ziyaret ve olay kayıtları da 13 ay sonra silinir.');
+});

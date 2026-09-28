@@ -393,7 +393,7 @@ async function runV21() {
     await create(T, 'Sayaç Deneme', 'luks');
     ok(tag + 'nothing sent before the notice is answered', (await sent(T)).length === 0 && (await T.S(() => window.__fenomen.tel.held().length)) >= 3);
     await T.tap('[data-test=tel-details]'); await T.p.waitForSelector('[data-test=tel-details-modal]');
-    ok(tag + '"Ayrıntılar" opens the details', (await T.S(() => document.querySelector('[data-test=tel-details-modal]').textContent)).includes('180 gün') && (await T.S(() => document.querySelector('[data-test=tel-details-modal]').textContent)).includes('Ziyaret sayımı kayıtları da 13 ay sonra silinir.'));
+    ok(tag + '"Ayrıntılar" opens the details', (await T.S(() => document.querySelector('[data-test=tel-details-modal]').textContent)).includes('180 gün') && (await T.S(() => document.querySelector('[data-test=tel-details-modal]').textContent)).includes('Ziyaret ve olay kayıtları da 13 ay sonra silinir.'));
     const dp = await T.S(() => { const ps = [...document.querySelectorAll('[data-test=tel-details-modal] p')]; return { n: ps.length, empty: ps.filter((p) => !p.textContent.trim()).length }; });
     const want = TR.telemetry.details.filter((x) => x.trim()).length;
     ok(tag + 'details: empty items render no paragraph (' + want + ' of ' + TR.telemetry.details.length + ' shown)', dp.empty === 0 && dp.n === want, JSON.stringify(dp));

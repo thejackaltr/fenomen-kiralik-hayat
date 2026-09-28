@@ -370,14 +370,16 @@ test('telemetry.details: approved final copy (9 items; [2] Cloudflare counting, 
   assert.ok(d[1].startsWith('Aşama sayacına gönderilen her bilgide yalnızca dört şey var:'));
   assert.equal(d[2], "Adın, e-postan, kanal adın, oyun kaydın ya da seni tanıtan başka bir bilgi toplanmaz. Ziyaret sayımında konum yalnızca ülke düzeyinde tutulur. Reklam ya da profil çıkarma yok. Site Cloudflare üzerinden sunulduğu için Cloudflare de sayfa açılışlarını kendi aracıyla ayrıca sayar. Cloudflare'in açıklamasına göre bu araç çerez kullanmaz ve ziyaretçileri tanımaya çalışmaz. Bu sayım, bu bildirimden ve Gizlilik ayarından bağımsız çalışır.");
   assert.ok(d[3].startsWith('Her aşama bir cihazdan yalnızca bir kez sayılır'));
-  assert.equal(d[4], "Oyun sayfasına gelen ziyaretleri de Teserix'in kendi analiz sunucusunda sayıyoruz. Bunun için çerez kullanılmaz ve kimliğin saklanmaz. Sayacı kapatınca bu sayım da durur.");
+  assert.equal(d[4], "Oyun sayfasına gelen ziyaretleri ve bazı oyun olaylarını da Teserix'in kendi analiz sunucusunda sayıyoruz. Sayılan olaylar şunlar: oyuna başlama, kanalı satma ya da sıfırlama ve paylaşım penceresini açma. Bizim gönderdiğimiz yalnızca olayın adı. Analiz aracı her kayda standart olarak şunları da ekler: sayfa adresi (? ve # işaretinden sonrası hariç), sayfa başlığı, geldiğin site, alan adı, ekran boyutu, tarayıcı dili, tarayıcın, işletim sistemin ve cihaz türün. Bunun için çerez kullanılmaz ve kimliğin saklanmaz. Sayaç kapatınca bu sayım da durur.");
   assert.ok(d[5].startsWith('Sunucu, bağlantı sırasında IP adresini'));
-  assert.equal(d[6], 'Aşama sayacı kayıtları 180 gün sonra silinir. Ziyaret sayımı kayıtları da 13 ay sonra silinir.');
+  assert.equal(d[6], 'Aşama sayacı kayıtları 180 gün sonra silinir. Ziyaret ve olay kayıtları da 13 ay sonra silinir.');
   assert.equal(d[7], "İstediğin zaman Ayarlar'daki Gizlilik bölümünden kapatabilirsin. Kendi ziyaret sayımımız yalnızca bu bildirime “Tamam” dedikten sonra başlar. Kapattığın anda aşama sayacı da ziyaret sayımı da hiçbir şey göndermez. Cloudflare'in sayımı bunun dışındadır ve sayfa açıldığında çalışır.");
   assert.ok(d[7].includes('“' + tr.telemetry.ok + '”'), 'the quoted button label matches the real accept button');
   assert.equal(d[8], "Bu bilgilerin veri sorumlusu Teserix Bilişim ve Dijital Çözümler. Bilgiler Teserix'in kendi sunucusunda tutulur, bağlantı trafiğini Cloudflare taşır. KVKK'nın 11. maddesindeki haklarını kullanmak için info@teserix.com adresine yazabilirsin.");
   assert.equal(tr.telemetry.ok, 'Tamam'); assert.equal(tr.telemetry.off, 'Kapat');
   assert.equal(tr.telemetry.offToast, 'Sayaç kapatıldı. Bizim sayaçlarımız artık hiçbir şey göndermeyecek.');
+  // v2.1.2: the Settings hint names every counter behind the switch (stages + Umami visits/events) and the Cloudflare exception
+  assert.equal(tr.settings.telemetryHint, "Hangi aşamaya geldiğin, ziyaretler ve bazı oyun olayları isimsiz olarak sayılır. Adın ya da e-postan gönderilmez, IP adresin istatistik kayıtlarına yazılmaz. Cloudflare'in sayımı bu ayardan bağımsızdır.");
   assert.deepEqual(emptyLegalItems(tr), []);
 });
 
