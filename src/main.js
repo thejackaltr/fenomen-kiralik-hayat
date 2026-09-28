@@ -47,9 +47,10 @@ async function boot() {
   const tel = createTelemetry({ storage, transport: defaultTransport(), version: __APP_SEMVER__, device: deviceClass(window), playMinutes: () => (ctrl ? (ctrl.state.meta.playSec || 0) / 60 : 0) });
   let conflict = null, importDone = false;
   if (imported && imported.ok) {
-    tel.absorb(imported.env);
     const raw = readRawSave(storage), cur = parseRaw(raw);
-    if (isEmptySave(cur) || raw === JSON.stringify(imported.env.save)) { applyImport(storage, imported.env, 'import', 'move'); importDone = true; }
+    // empty/identical local save: import directly (nothing goes to the backup slot). Otherwise the player picks;
+    // counter flags travel only when an import is actually applied (Cancel leaves everything unchanged).
+    if (isEmptySave(cur) || raw === JSON.stringify(imported.env.save)) { tel.absorb(imported.env); applyImport(storage, imported.env, 'import', 'move'); importDone = true; }
     else conflict = { env: imported.env, cur };
   }
   const bootNew = isEmptySave(parseRaw(readRawSave(storage)));

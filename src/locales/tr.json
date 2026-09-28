@@ -554,5 +554,16 @@
     "sumCurrent": "Şimdiki kayıt · {f} takipçi · Son oynama: {d}",
     "sumFile": "Yüklenecek kayıt · {f} takipçi · Son oynama: {d}",
     "backupNote": "Şimdiki kayıt silinmez, bu cihazda yedek olarak saklanır."
+  },
+  "backup": {
+    "title": "Bu cihazda zaten bir yedek var",
+    "body": "Yeni kayıt yüklenirse bu yedeğin yerine şimdiki kayıt geçecek. Yedeği kaybetmemek için önce dosya olarak indirebilirsin.",
+    "summary": "Mevcut yedek · {f} takipçi · Son oynama: {d}",
+    "download": "Mevcut yedeği indir",
+    "discard": "Yedeği sil ve devam et",
+    "cancel": "Vazgeç",
+    "downloaded": "Yedek dosyası indirildi.",
+    "cancelled": "İçe aktarma iptal edildi. Hiçbir şey değişmedi.",
+    "fileName": "fenomen-yedek-{d}.json"
   }
 }

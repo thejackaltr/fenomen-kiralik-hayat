@@ -453,10 +453,27 @@ async function runV21() {
     await T.p.waitForTimeout(300);
     ok(tag + 'import restores the exported save', await T.S(() => { const s = window.__fenomen.ctrl.state; return Math.floor(s.followers) >= 12345 && s.char.channel === 'Dosya Kanalı'; }));
     ok(tag + 'replaced save kept as backup', await T.S(() => { const b = JSON.parse(localStorage.getItem('fenomen_save_backup')); return JSON.parse(b.save).followers === 5 && b.at > 0; }));
+    // second import while the single backup slot is taken: ask first, default = download the existing backup
+    const bakState = () => T.S(() => { const b = JSON.parse(localStorage.getItem('fenomen_save_backup') || 'null'); const s = JSON.parse(localStorage.getItem('fenomen_save_v1')); return { bak: b && JSON.parse(b.save).char.channel, bakF: b && JSON.parse(b.save).followers, cur: s.char.channel, curF: Math.floor(s.followers) }; });
+    const importFile = async () => { await T.tap('[data-test=settings-open]'); await T.tap('[data-test=save-import]'); await T.p.setInputFiles('[data-test=import-file]', file); await T.p.waitForSelector('[data-test=import-confirm]', { timeout: 8000 }); await T.tap('[data-test=import-yes]'); };
+    await setFollowers(T, 6, 'İkinci');
+    await importFile();
+    const step = await T.p.waitForSelector('[data-test=backup-step]', { timeout: 4000 }).catch(() => null); await T.p.waitForTimeout(120);
+    const st1 = await T.S(() => ({ t: document.querySelector('[data-test=backup-step]').textContent, focus: document.activeElement && document.activeElement.getAttribute('data-test'), btns: [...document.querySelectorAll('[data-test=backup-step] button')].map((b) => b.getAttribute('data-test')) }));
+    ok(tag + '2nd import: backup step appears before anything is overwritten', !!step && st1.t.includes('Mevcut yedeği indir') && st1.t.includes('Yedeği sil ve devam et') && st1.t.includes('Mevcut yedek · 5 takipçi') && JSON.stringify(await bakState()) === JSON.stringify({ bak: 'Değişti', bakF: 5, cur: 'İkinci', curF: 6 }), st1.t.slice(0, 160));
+    ok(tag + 'backup step: download is the default (focused) option, cancel offered', st1.focus === 'backup-download' && st1.btns[0] === 'backup-download' && st1.btns.includes('backup-cancel'), JSON.stringify(st1));
+    const [bdl] = await Promise.all([T.p.waitForEvent('download'), T.p.keyboard.press('Enter')]);   // Enter = the focused default
+    const benv = JSON.parse(fs.readFileSync(await bdl.path(), 'utf8'));
+    ok(tag + '"Mevcut yedeği indir" downloads the FIRST backup (not lost)', benv.format === 'fenomen-save' && benv.save.char.channel === 'Değişti' && benv.save.followers === 5 && /^fenomen-yedek-\d{4}-\d\d-\d\d\.json$/.test(bdl.suggestedFilename()), bdl.suggestedFilename() + ' ' + (benv.save && benv.save.char.channel));
+    await T.p.waitForTimeout(300);
+    ok(tag + '...then the import proceeds, replaced save becomes the backup', JSON.stringify(await bakState()) === JSON.stringify({ bak: 'İkinci', bakF: 6, cur: 'Dosya Kanalı', curF: 12345 }) && await T.S(() => window.__fenomen.ctrl.state.char.channel === 'Dosya Kanalı'), JSON.stringify(await bakState()));
+    await setFollowers(T, 7, 'Üçüncü');
+    await importFile(); await T.tap('[data-test=backup-cancel]'); await T.p.waitForTimeout(300);
+    ok(tag + 'backup step "Vazgeç": import aborted, save and backup unchanged', JSON.stringify(await bakState()) === JSON.stringify({ bak: 'İkinci', bakF: 6, cur: 'Üçüncü', curF: 7 }) && await T.S(() => window.__fenomen.ctrl.state.char.channel === 'Üçüncü') && !(await T.p.$('[data-test=backup-step]')), JSON.stringify(await bakState()));
     const bad = '/tmp/fenomen-bad-save.json'; fs.writeFileSync(bad, '{"hello":"world"}');
     await T.tap('[data-test=settings-open]'); await T.tap('[data-test=save-import]');
     await T.p.setInputFiles('[data-test=import-file]', bad); await T.p.waitForTimeout(300);
-    ok(tag + 'bad file -> saveFile.importBad, nothing changed', (await T.S(() => document.querySelector('.toasts').textContent)).includes('Fenomen kaydı değil') && await T.S(() => window.__fenomen.ctrl.state.char.channel === 'Dosya Kanalı'));
+    ok(tag + 'bad file -> saveFile.importBad, nothing changed', (await T.S(() => document.querySelector('.toasts').textContent)).includes('Fenomen kaydı değil') && await T.S(() => window.__fenomen.ctrl.state.char.channel === 'Üçüncü'));
     await T.p.fill('[data-test=import-code]', code); await T.tap('[data-test=import-code-go]');
     ok(tag + 'import by code reaches the same confirmation', !!(await T.p.waitForSelector('[data-test=import-confirm]').catch(() => null)));
     await T.tap('[data-test=import-no]');
@@ -529,7 +546,14 @@ async function runV21() {
     code = await mkCode(99, 'Başka Kanal');
     await T.S(() => { window.__fenomen.ctrl.save(); window.onpagehide = null; });
     await T.p.goto(NEW + '?t=3#import=' + code, { waitUntil: 'load' });
-    await T.tap('[data-test=conflict-new]'); await T.p.waitForTimeout(200);
+    await T.tap('[data-test=conflict-new]');
+    // the backup slot holds 'Bu Cihaz': picking now would overwrite it -> the step; "Vazgeç" aborts the import
+    ok(tag + 'conflict pick with a taken backup slot -> backup step', !!(await T.p.waitForSelector('[data-test=backup-step]', { timeout: 4000 }).catch(() => null)));
+    await T.tap('[data-test=backup-cancel]'); await T.p.waitForTimeout(200);
+    ok(tag + 'backup step "Vazgeç" in the conflict flow: nothing changed', await T.S(() => { const s = window.__fenomen.ctrl.state; const b = JSON.parse(localStorage.getItem('fenomen_save_backup')); return s.char.channel === 'Eski Kanal' && JSON.parse(localStorage.getItem('fenomen_save_v1')).char.channel === 'Eski Kanal' && JSON.parse(b.save).char.channel === 'Bu Cihaz' && location.hash === ''; }));
+    await T.S(() => { window.__fenomen.ctrl.save(); window.onpagehide = null; });
+    await T.p.goto(NEW + '?t=4#import=' + code, { waitUntil: 'load' });
+    await T.tap('[data-test=conflict-new]'); await T.tap('[data-test=backup-discard]'); await T.p.waitForTimeout(200);
     ok(tag + 'pick device save -> kept, incoming save kept as backup', await T.S(() => { const s = window.__fenomen.ctrl.state; const b = JSON.parse(localStorage.getItem('fenomen_save_backup')); return s.char.channel === 'Eski Kanal' && JSON.parse(b.save).char.channel === 'Başka Kanal'; }));
     await done(T, 'içe aktarma');
   }

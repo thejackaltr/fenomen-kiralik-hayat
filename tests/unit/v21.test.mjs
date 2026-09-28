@@ -6,7 +6,7 @@ import path from 'node:path';
 import * as G from '../../src/logic/game.js';
 import { serialize, deserialize, SAVE_KEY } from '../../src/logic/save.js';
 import { buildEnvelope, checkEnvelope, encodeEnvelope, decodeEnvelope, readCode, readFileText, validateSave, moveFragment, fragmentData, clearFragment,
-  applyImport, isEmptySave, summary, readBackup, BACKUP_KEY, checksumOf, IMPORT_PREFIX } from '../../src/logic/transfer.js';
+  applyImport, isEmptySave, summary, readBackup, BACKUP_KEY, checksumOf, IMPORT_PREFIX, hasBackup, backupConflict, backupCandidate, BackupOccupiedError } from '../../src/logic/transfer.js';
 import { checkLegal, emptyLegalItems, legalGuardPlugin } from '../../tools/legal-guard.mjs';
 import { moveMode, prepareMove, markMigrated, daysLeft } from '../../src/logic/move.js';
 import { createTelemetry, mockTransport, httpTransport, httpRequest, wireTelemetry, playBucket, captureUtm, EVENT_IDS, PAYLOAD_FIELDS, KEYS, SEMVER, DEVICE_CLASSES, PLAY_BUCKETS } from '../../src/telemetry.js';
@@ -270,6 +270,32 @@ test('no hardcoded UI text in the v2.1 files', () => {
     for (const m of src.matchAll(/(['"`])((?:(?!\1).)*[çğıöşüÇĞİÖŞÜ](?:(?!\1).)*)\1/g)) bad.push(f + ': ' + m[2]);
   }
   assert.deepEqual(bad, []);
+});
+
+// ---- fix round: single backup slot is never overwritten silently ----
+test('backup slot: a second import refuses to overwrite the backup unless overwriteBackup is set', () => {
+  const a = played(500), b = played(600), c = played(700);
+  const st = new Mem({ [SAVE_KEY]: JSON.stringify(a) });
+  assert.equal(hasBackup(st), false); assert.equal(backupConflict(st, buildEnvelope(b)), false);
+  applyImport(st, buildEnvelope(b), 'import', 'file', 1);                       // backup = a
+  assert.equal(JSON.parse(readBackup(st).save).followers, 500);
+  const envC = buildEnvelope(c);
+  assert.equal(backupConflict(st, envC), true); assert.equal(JSON.parse(backupCandidate(st, envC)).followers, 600);
+  const before = [st.getItem(SAVE_KEY), st.getItem(BACKUP_KEY)];
+  assert.throws(() => applyImport(st, envC, 'import', 'file', 2), BackupOccupiedError);
+  assert.throws(() => applyImport(st, envC, 'current', 'move', 2), BackupOccupiedError);
+  assert.deepEqual([st.getItem(SAVE_KEY), st.getItem(BACKUP_KEY)], before);  // refused = nothing changed
+  assert.equal(applyImport(st, envC, 'import', 'file', 3, { overwriteBackup: true }), true);
+  assert.equal(JSON.parse(st.getItem(SAVE_KEY)).followers, 700); assert.equal(JSON.parse(readBackup(st).save).followers, 600);
+});
+test('backup slot: empty or identical local save needs no backup (and is not a conflict)', () => {
+  const inc = played(900), env = buildEnvelope(inc);
+  const bak = JSON.stringify({ at: 1, source: 'x', save: JSON.stringify(played(1)) });
+  const st = new Mem({ [SAVE_KEY]: serialize(G.newGame(1)), [BACKUP_KEY]: bak });
+  assert.equal(backupConflict(st, env), false);
+  assert.equal(applyImport(st, env), true); assert.equal(st.getItem(BACKUP_KEY), bak);      // fresh local save is not "backed up" over the real backup
+  assert.equal(backupConflict(st, env), false); applyImport(st, env); assert.equal(st.getItem(BACKUP_KEY), bak);   // same save again
+  assert.equal(backupConflict(st, env, 'current'), true);                                    // keeping current would park the import in the slot
 });
 
 // ---- fix round: legal text release guard ----

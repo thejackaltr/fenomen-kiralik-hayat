@@ -117,16 +117,33 @@ export function isEmptySave(o) {
 export function summary(o) {
   return { followers: isObj(o) && isNum(o.followers) ? Math.floor(o.followers) : 0, lastPlayed: isObj(o) && isNum(o.lastSeen) && o.lastSeen > 0 ? o.lastSeen : null };
 }
-export function writeBackup(storage, raw, source, now = Date.now()) {
+// Backup = ONE slot (fenomen_save_backup). It is never overwritten silently: writeBackup() refuses an occupied slot
+// unless the caller passes overwrite=true, which the UI only does after the player chose "Mevcut yedeği indir" or
+// "Yedeği sil ve devam et" (src/ui/savefile.js guardBackup).
+export class BackupOccupiedError extends Error { constructor() { super('backup slot occupied'); this.name = 'BackupOccupiedError'; } }
+export function hasBackup(storage) { try { return !!storage.getItem(BACKUP_KEY); } catch (e) { return false; } }
+export function clearBackup(storage) { try { storage.removeItem(BACKUP_KEY); } catch (e) { /* ignore */ } }
+export function writeBackup(storage, raw, source, now = Date.now(), overwrite = false) {
   if (!raw) return false;
+  if (!overwrite && hasBackup(storage)) throw new BackupOccupiedError();
   try { storage.setItem(BACKUP_KEY, JSON.stringify({ at: now, source, save: raw })); return true; } catch (e) { return false; }
 }
 export function readBackup(storage) { try { return JSON.parse(storage.getItem(BACKUP_KEY)); } catch (e) { return null; } }
-// Put an imported (already checked) envelope in place. keep: 'import' (default) | 'current'.
-// The save that is not kept goes to BACKUP_KEY — nothing is deleted.
-export function applyImport(storage, env, keep = 'import', source = 'import', now = Date.now()) {
+// what applyImport would put in the backup slot (raw string) — null when nothing (empty/identical local save)
+export function backupCandidate(storage, env, keep = 'import') {
   const cur = readRawSave(storage), incoming = JSON.stringify(env.save);
-  if (keep === 'current') { writeBackup(storage, incoming, source + ':unpicked-import', now); return false; }
-  if (cur && cur !== incoming) writeBackup(storage, cur, source + ':replaced-local', now);
+  if (keep === 'current') return incoming;
+  return cur && cur !== incoming && !isEmptySave(parseRaw(cur)) ? cur : null;
+}
+// true = this import would overwrite an existing backup -> the UI must ask first
+export function backupConflict(storage, env, keep = 'import') { return hasBackup(storage) && backupCandidate(storage, env, keep) !== null; }
+// Put an imported (already checked) envelope in place. keep: 'import' (default) | 'current'.
+// The save that is not kept goes to BACKUP_KEY (an empty local save is not worth a backup). Throws
+// BackupOccupiedError — before changing anything — if that would overwrite a backup and opts.overwriteBackup is not set.
+export function applyImport(storage, env, keep = 'import', source = 'import', now = Date.now(), opts = {}) {
+  const incoming = JSON.stringify(env.save), bak = backupCandidate(storage, env, keep);
+  if (bak !== null && !opts.overwriteBackup && hasBackup(storage)) throw new BackupOccupiedError();
+  if (bak !== null) writeBackup(storage, bak, source + (keep === 'current' ? ':unpicked-import' : ':replaced-local'), now, true);
+  if (keep === 'current') return false;
   try { storage.setItem(SAVE_KEY, incoming); return true; } catch (e) { return false; }
 }

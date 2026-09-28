@@ -3,7 +3,7 @@ import { h } from './dom.js';
 import { t } from '../logic/i18n.js';
 import { fmt, fmtDate } from '../logic/format.js';
 import { copyText } from './share.js';
-import { buildEnvelope, encodeEnvelope, readCode, readFileText, readRawSave, parseRaw, applyImport, summary, isEmptySave } from '../logic/transfer.js';
+import { buildEnvelope, encodeEnvelope, readCode, readFileText, readRawSave, parseRaw, applyImport, summary, isEmptySave, backupConflict, readBackup, clearBackup } from '../logic/transfer.js';
 
 export function downloadText(name, text, type = 'application/json') {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -21,12 +21,16 @@ export function saveTools({ ctrl, tel, storage, now = () => Date.now() }) {
     envelope() { ctrl.save(); const o = parseRaw(readRawSave(storage)); return o ? buildEnvelope(o, tel ? tel.exportState() : {}, now()) : null; },
     current() { return parseRaw(readRawSave(storage)); },
     // keep: 'import' | 'current'. The save not kept is stored as backup (fenomen_save_backup).
-    apply(env, keep = 'import', source = 'file') {
-      if (tel) tel.absorb(env);
-      const replaced = applyImport(storage, env, keep, source, now());
+    // Callers go through guardBackup() first; overwriteBackup is only set after the player's choice there.
+    apply(env, keep = 'import', source = 'file', opts = {}) {
+      const replaced = applyImport(storage, env, keep, source, now(), opts);   // throws before any change if the backup slot is taken
+      if (tel) { tel.absorb(env); if (!tel.noticeNeeded()) { const b = document.querySelector('[data-test=tel-banner]'); if (b) b.remove(); } }
       if (replaced) { if (tel) tel.seed(env.save); ctrl.reload(); }
       return replaced;
-    }
+    },
+    backupConflict: (env, keep) => backupConflict(storage, env, keep),
+    backup: () => readBackup(storage),
+    clearBackup: () => clearBackup(storage)
   };
 }
 
@@ -63,6 +67,32 @@ export function openImport(ui, tools) {
   });
 }
 
+// The single backup slot is taken and this import would overwrite it: ask first (never overwrite silently).
+// "Mevcut yedeği indir" (default, focused) downloads it then continues; "Yedeği sil ve devam et"; "Vazgeç" = nothing changes.
+export function backupFile(bak) {
+  const o = parseRaw(bak && bak.save);
+  const at = bak && typeof bak.at === 'number' ? bak.at : Date.now();
+  const name = t('backup.fileName', { d: day(at) });
+  if (o) return { name, text: JSON.stringify(buildEnvelope(o, {}, at), null, 2) };
+  return { name, text: String(bak && bak.save || '') };            // unreadable backup: hand it over as it is
+}
+export function guardBackup(ui, tools, env, keep, proceed) {
+  if (!tools.backupConflict(env, keep)) { proceed({}); return; }
+  const bak = tools.backup(), bs = parseRaw(bak && bak.save);
+  ui.showModal((box, close) => {
+    const dl = h('button', { class: 'btn primary', 'data-test': 'backup-download', autofocus: true, onclick: () => {
+      const f = backupFile(bak); downloadText(f.name, f.text); close(); ui.toast(t('backup.downloaded'), 'ok'); proceed({ overwriteBackup: true });
+    } }, t('backup.download'));
+    box.setAttribute('data-test', 'backup-step');
+    box.append(h('h2', { text: t('backup.title') }), h('p', { text: t('backup.body') }),
+      bs ? h('p', { class: 'muted', 'data-test': 'backup-summary', text: sumText('backup.summary', bs) }) : null,
+      h('div', { class: 'col' }, dl,
+        h('button', { class: 'btn danger', 'data-test': 'backup-discard', onclick: () => { tools.clearBackup(); close(); proceed({ overwriteBackup: true }); } }, t('backup.discard')),
+        h('button', { class: 'btn', 'data-test': 'backup-cancel', onclick: () => { close(); ui.toast(t('backup.cancelled')); } }, t('backup.cancel'))));
+    setTimeout(() => dl.focus(), 0);
+  }, { dismissable: false });
+}
+
 // "Bu dosyadaki kayıt şimdiki ilerlemenin yerine geçecek" + both summaries
 export function confirmImport(ui, tools, env) {
   const cur = tools.current();
@@ -74,14 +104,14 @@ export function confirmImport(ui, tools, env) {
         h('li', { class: 'big', 'data-test': 'import-sum-file', text: sumText('saveFile.sumFile', env.save) })),
       h('p', { class: 'muted small', text: t('saveFile.backupNote') }),
       h('div', { class: 'row end' }, h('button', { class: 'btn', 'data-test': 'import-no', onclick: close }, t('settings.no')),
-        h('button', { class: 'btn primary', 'data-test': 'import-yes', onclick: () => { close(); tools.apply(env, 'import', 'file'); ui.toast(t('import.done'), 'ok'); } }, t('saveFile.importYes'))));
+        h('button', { class: 'btn primary', 'data-test': 'import-yes', onclick: () => { close(); guardBackup(ui, tools, env, 'import', (o) => { tools.apply(env, 'import', 'file', o); ui.toast(t('import.done'), 'ok'); }); } }, t('saveFile.importYes'))));
   }, { dismissable: false });
 }
 
 // save arrived from the old address but this device already has a non-empty save: let the player pick
 export function showConflict(ui, tools, env, cur) {
   ui.showModal((box, close) => {
-    const pick = (keep) => { close(); tools.apply(env, keep, 'move'); if (keep === 'import') ui.toast(t('import.done'), 'ok'); };
+    const pick = (keep) => { close(); guardBackup(ui, tools, env, keep, (o) => { tools.apply(env, keep, 'move', o); if (keep === 'import') ui.toast(t('import.done'), 'ok'); }); };
     box.setAttribute('data-test', 'import-conflict');
     box.append(h('h2', { text: t('import.conflictTitle') }), h('p', { text: t('import.conflictBody') }),
       h('div', { class: 'col' },
