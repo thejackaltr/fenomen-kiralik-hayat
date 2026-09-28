@@ -384,6 +384,11 @@ async function runV21() {
     const T = await newCtx('mobile', cfgFor({})), tag = tagOf('sayaç');
     await T.p.goto(NEW, { waitUntil: 'load' }); await T.p.waitForSelector('[data-test=creator]');
     ok(tag + 'first launch shows the notice band (Tamam / Kapat equal + Ayrıntılar)', await T.S(() => { const ok = document.querySelector('[data-test=tel-ok]').getBoundingClientRect(), off = document.querySelector('[data-test=tel-off]').getBoundingClientRect(); return !!document.querySelector('[data-test=tel-banner]') && Math.abs(ok.width - off.width) < 2 && Math.abs(ok.height - off.height) < 2 && !!document.querySelector('[data-test=tel-details]'); }));
+    // KVKK: equal visual weight = identical class + identical computed look (no primary/secondary)
+    const eq = await T.S(() => { const a = document.querySelector('[data-test=tel-ok]'), b = document.querySelector('[data-test=tel-off]'); const ca = getComputedStyle(a), cb = getComputedStyle(b);
+      const props = ['background-color', 'background-image', 'color', 'border-top-width', 'border-top-style', 'border-top-color', 'border-radius', 'font-size', 'font-weight', 'padding-top', 'padding-left', 'box-shadow', 'opacity'];
+      return { same: a.className === b.className, cls: a.className, diff: props.filter((p) => ca.getPropertyValue(p) !== cb.getPropertyValue(p)) }; });
+    ok(tag + '"Tamam" and "Kapat": identical className and computed style', eq.same && eq.diff.length === 0 && !/primary/.test(eq.cls), eq.cls + ' diff=' + eq.diff.join(','));
     await create(T, 'Sayaç Deneme', 'luks');
     ok(tag + 'nothing sent before the notice is answered', (await sent(T)).length === 0 && (await T.S(() => window.__fenomen.tel.held().length)) >= 3);
     await T.tap('[data-test=tel-details]'); await T.p.waitForSelector('[data-test=tel-details-modal]');

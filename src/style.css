@@ -219,7 +219,7 @@ body:has(.move-band) .creator { padding-top: calc(190px + var(--safe-t)); }
 .move-band { top: calc(56px + var(--safe-t)); border-color: var(--gold); }
 .nb-text { margin: 0; font-size: 14px; overflow-wrap: anywhere; } .move-band .small { margin: 0; }
 .nb-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.nb-btn { flex: 1 1 0; min-width: 0; } .btn.primary.nb-btn { border: 1px solid transparent; }   /* Tamam / Kapat exactly the same size */
+.nb-btn { flex: 1 1 0; min-width: 0; }
 .move-page { max-width: 480px; margin: 0 auto; padding: calc(24px + var(--safe-t)) 16px 24px; display: flex; flex-direction: column; gap: 10px; text-align: center; overflow-y: auto; }
 textarea.code { width: 100%; font: 12px/1.3 ui-monospace, monospace; resize: vertical; word-break: break-all; }
 .toggle-row { display: flex; gap: 10px; align-items: center; font-weight: 700; cursor: pointer; }

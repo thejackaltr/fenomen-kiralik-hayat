@@ -270,3 +270,13 @@ test('no hardcoded UI text in the v2.1 files', () => {
   }
   assert.deepEqual(bad, []);
 });
+
+// ---- fix round: KVKK equal visual weight for the notice buttons ----
+test('notice: "Tamam" and "Kapat" use the same class (no primary/secondary)', async () => {
+  const src = fs.readFileSync('src/ui/privacy.js', 'utf8');
+  const cls = (id) => (src.match(new RegExp("class: ([^,]+), 'data-test': '" + id + "'")) || [])[1];
+  assert.ok(cls('tel-ok')); assert.equal(cls('tel-ok'), cls('tel-off'));
+  const { NOTICE_BTN } = await import('../../src/ui/privacy.js');
+  assert.doesNotMatch(NOTICE_BTN, /primary/);
+  assert.doesNotMatch(fs.readFileSync('src/style.css', 'utf8'), /\.primary\.nb-btn/);
+});

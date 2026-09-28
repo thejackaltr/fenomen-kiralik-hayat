@@ -3,6 +3,7 @@
 import { h } from './dom.js';
 import { t, list } from '../logic/i18n.js';
 
+export const NOTICE_BTN = 'btn nb-btn';
 export function showDetails(ui) {
   ui.showModal((box, close) => {
     box.setAttribute('data-test', 'tel-details-modal');
@@ -17,8 +18,9 @@ export function showNoticeBand(tel, ui, host = document.body) {
   const band = h('div', { class: 'notice-band', role: 'region', 'aria-label': t('telemetry.title'), 'data-test': 'tel-banner' },
     h('p', { class: 'nb-text' }, h('b', { text: t('telemetry.title') }), ' ', t('telemetry.body')),
     h('div', { class: 'nb-row' },
-      h('button', { class: 'btn primary nb-btn', 'data-test': 'tel-ok', onclick: () => answer(true) }, t('telemetry.ok')),
-      h('button', { class: 'btn nb-btn', 'data-test': 'tel-off', onclick: () => answer(false) }, t('telemetry.off')),
+      // KVKK: "Tamam" and "Kapat" carry exactly the same class = the same visual weight (no primary/secondary)
+      h('button', { class: NOTICE_BTN, 'data-test': 'tel-ok', onclick: () => answer(true) }, t('telemetry.ok')),
+      h('button', { class: NOTICE_BTN, 'data-test': 'tel-off', onclick: () => answer(false) }, t('telemetry.off')),
       h('button', { class: 'link', 'data-test': 'tel-details', onclick: () => showDetails(ui) }, t('telemetry.detailsLink'))));
   host.appendChild(band);
   return band;
