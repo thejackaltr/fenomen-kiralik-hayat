@@ -2,25 +2,25 @@
 
 Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir). Düzenleme doğrudan tr.json üzerinden yapılır.
 
-## v2.1 — Sayaç, kayıt dosyası ve yeni adrese taşıma (GEÇİCİ metinler işaretli)
+## v2.1 — Sayaç, kayıt dosyası ve yeni adrese taşıma (Yazı'nın kesin metinleri uygulandı; GEÇİCİ olanlar işaretli)
 
-Yazı'nın gönderdiği anahtarlar aynen kullanıldı: move.title/body/go/homeIcon/download, import.done/conflictTitle/fail, saveFile.export/exported/import/importAsk/importYes/importBad. GEÇİCİ (Yazı'nın son metnini bekliyor): import.conflictBody (seçilmeyen kayıt artık silinmiyor, yedekte kalıyor), import.optOld/optNew ({d} = son oynama tarihi eklendi), import.dateUnknown, move.tooBig, move.bandBody ({n} = kalan gün), move.later, saveFile.fileName/codeLabel/copyCode/codeCopied/pickFile/pasteLabel/codePlaceholder/useCode/sumCurrent/sumFile/backupNote, telemetry.* (bilgilendirme bandı ve Ayrıntılar metni; "rıza" kelimesi geçmemeli, KVKK raporu §7(c)), settings.saveTitle, settings.telemetryHint, settings.credits ("sunucu yok" artık doğru değil). settings.privacy ("Gizlilik"), settings.telemetry ("İsimsiz istatistik gönder"), telemetry.ok/off ("Tamam"/"Kapat") kapsam belgesinden. telemetry.details'in son maddesi (veri sorumlusu, alıcılar, haklar) avukat/Aryen onayından sonra yazılacak. {f}, {d}, {n}, {url} yer tutucuları kodla doldurulur.
+Yazı'nın kesin metinleri uygulandı (move, import, saveFile, telemetry, settings.*). GEÇİCİ (Yazı'nın metnini bekliyor): backup.* (yedek yuvası doluyken yeni içe aktarmadan önce çıkan adım: backup.title/body/summary/download/discard/cancel/downloaded/cancelled/fileName). telemetry.details'in son maddesi (veri sorumlusu, alıcılar, haklar) BOŞ: avukat/Aryen onayından sonra yazılacak; boşken ekranda hiçbir paragraf çıkmaz ve `npm run build` hata verir (geliştirme/test için ALLOW_EMPTY_LEGAL=1). telemetry.ok/off ("Tamam"/"Kapat") aynı görsel ağırlıkta gösterilir. "rıza" kelimesi geçmemeli (KVKK raporu §7(c)). {f}, {d}, {n}, {url} yer tutucuları kodla doldurulur.
 
 - `move.title`: Fenomen yeni adresine taşındı!
 - `move.body`: Kaydını da yanında getiriyoruz. Birkaç saniye içinde yeni adrese geçeceksin.
 - `move.go`: Şimdi geç
 - `move.homeIcon`: Oyunu ana ekrana eklediysen eski simgeyi sil ve yeni adresten tekrar ekle.
 - `move.download`: Kaydı indir
-- `move.tooBig`: Kaydın otomatik taşınamayacak kadar büyük. "Kaydı indir" ile dosyanı al, sonra {url} adresinde Ayarlar'dan içe aktar.
-- `move.bandBody`: Kaydını tek dokunuşla yeni adrese taşıyabilirsin. Bu adres {n} gün daha açık kalacak.
-- `move.later`: Sonra
+- `move.tooBig`: Kaydın otomatik taşınamayacak kadar büyük. Önce “Kaydı indir” ile dosyanı al. Sonra {url} adresinde Ayarlar'ı aç ve “Kaydı içe aktar”ı seç.
+- `move.bandBody`: Kaydını tek dokunuşla yeni adrese taşıyabilirsin. Bu adreste {n} gün daha oynayabilirsin, sonra oyun yalnızca yeni adreste açılacak.
+- `move.later`: Daha sonra
 - `import.done`: Kaydın taşındı. Kaldığın yerden devam et!
 - `import.conflictTitle`: İki kayıt bulundu
-- `import.conflictBody`: Hangisiyle devam etmek istersin? Seçmediğin kayıt yedekte kalır.
-- `import.optOld`: Eski adresteki kayıt · {f} takipçi · {d}
-- `import.optNew`: Bu cihazdaki kayıt · {f} takipçi · {d}
-- `import.fail`: Kayıt otomatik taşınamadı. Eski adresteki "Kaydı indir" düğmesiyle kaydını al, burada Ayarlar'dan içe aktar.
-- `import.dateUnknown`: tarih bilinmiyor
+- `import.conflictBody`: Bu cihazda da bir Fenomen kaydı var. Hangisiyle devam edeceğini seç. Seçmediğin kayıt silinmez, bu cihazda yedekte kalır.
+- `import.optOld`: Eski adresteki kayıt · {f} takipçi · Son oynama: {d}
+- `import.optNew`: Bu cihazdaki kayıt · {f} takipçi · Son oynama: {d}
+- `import.fail`: Kayıt otomatik taşınamadı. Eski adresteki “Kaydı indir” düğmesiyle kaydını al, burada Ayarlar'dan içe aktar.
+- `import.dateUnknown`: bilinmiyor
 - `saveFile.export`: Kaydı dışa aktar
 - `saveFile.exported`: Kayıt dosyası indirildi. Güvenli bir yerde sakla.
 - `saveFile.import`: Kaydı içe aktar
@@ -28,29 +28,38 @@ Yazı'nın gönderdiği anahtarlar aynen kullanıldı: move.title/body/go/homeIc
 - `saveFile.importYes`: Evet, yükle
 - `saveFile.importBad`: Bu dosya bir Fenomen kaydı değil ya da bozulmuş.
 - `saveFile.fileName`: fenomen-kayit-{d}.json
-- `saveFile.codeLabel`: Dosyayı açamazsan bu kayıt kodunu kopyalayıp sakla:
+- `saveFile.codeLabel`: Dosyaya ulaşamazsan bu kayıt kodunu kopyalayıp bir yere not et. Kaydını bu kodla da geri yükleyebilirsin.
 - `saveFile.copyCode`: Kodu kopyala
 - `saveFile.codeCopied`: Kod kopyalandı
-- `saveFile.pickFile`: Dosya seç
-- `saveFile.pasteLabel`: Ya da kayıt kodunu buraya yapıştır:
-- `saveFile.codePlaceholder`: Kayıt kodu
+- `saveFile.pickFile`: Kayıt dosyasını seç
+- `saveFile.pasteLabel`: Dosyan yoksa kayıt kodunu buraya yapıştır:
+- `saveFile.codePlaceholder`: Kayıt kodunu yapıştır
 - `saveFile.useCode`: Kodla yükle
-- `saveFile.sumCurrent`: Şimdiki kayıt · {f} takipçi · {d}
-- `saveFile.sumFile`: Yüklenecek kayıt · {f} takipçi · {d}
-- `saveFile.backupNote`: Şimdiki kayıt silinmez, yedek olarak saklanır.
+- `saveFile.sumCurrent`: Şimdiki kayıt · {f} takipçi · Son oynama: {d}
+- `saveFile.sumFile`: Yüklenecek kayıt · {f} takipçi · Son oynama: {d}
+- `saveFile.backupNote`: Şimdiki kayıt silinmez, bu cihazda yedek olarak saklanır.
 - `telemetry.title`: İsimsiz sayaç
-- `telemetry.body`: Oyunu geliştirmek için hangi aşamaya kaç kişinin geldiğini isimsiz olarak sayıyoruz. Seni tanıtan hiçbir bilgi toplanmaz.
+- `telemetry.body`: Oyunu geliştirmek için oyuncuların hangi aşamalara geldiğini isimsiz olarak sayıyoruz. Seni tanıtan hiçbir bilgi gönderilmez. İstemezsen kapatabilirsin.
 - `telemetry.ok`: Tamam
 - `telemetry.off`: Kapat
 - `telemetry.detailsLink`: Ayrıntılar
 - `telemetry.detailsTitle`: İsimsiz sayaç hakkında
 - `telemetry.offToast`: Sayaç kapatıldı. Hiçbir şey gönderilmeyecek.
-- `telemetry.details`: Oyunu daha iyi yapmak için kaç oyuncunun hangi aşamaya geldiğini sayıyoruz (ör. ilk video, ilk kiralama, ilk personel). / Her kayıtta yalnızca şunlar var: aşamanın adı, oyun sürümü, cihaz türü (mobil ya da masaüstü) ve kaba oynama süresi aralığı (ör. 10-30 dakika). / Adın, e-postan, kanal adın, kaydın, konumun ya da seni tanıtan herhangi bir kimlik toplanmaz. Reklam, profil çıkarma ya da başka şirketlerin analiz araçları yok. / Aynı aşama bir cihazdan yalnızca bir kez sayılır. Bunu cihazın kendisi hatırlar, sunucuya kimlik gitmez. / Sunucu bağlantı sırasında IP adresini teknik kayıtlarda görebilir; IP adresi istatistik tablosuna yazılmaz. / Kayıtlar 180 gün sonra silinir. / İstediğin zaman Ayarlar > Gizlilik bölümünden kapatabilirsin. Kapatınca hemen hiçbir şey gönderilmez. / Veri sorumlusu, alıcılar ve hakların ayrıntıları yayından önce buraya eklenecek.
+- `telemetry.details`: Oyunu daha iyi yapmak için kaç oyuncunun hangi aşamaya geldiğini sayıyoruz (ör. ilk video, ilk kiralama, ilk personel). / Gönderilen her bilgide yalnızca dört şey var: aşamanın adı, oyun sürümü, cihaz türü (mobil ya da masaüstü) ve yaklaşık oynama süresi aralığı (ör. 10-30 dakika). / Adın, e-postan, kanal adın, oyun kaydın, konumun ya da seni tanıtan başka bir bilgi toplanmaz. Reklam, profil çıkarma ya da başka şirketlerin analiz araçları yok. / Her aşama bir cihazdan yalnızca bir kez sayılır. Bunu cihazın kendisi hatırlar, sunucuya kimlik gitmez. Oyunu açman ise en fazla yarım saatte bir sayılır. / Sunucu, bağlantı sırasında IP adresini teknik kayıtlarda görebilir. IP adresi istatistik tablosuna yazılmaz. / İstatistik kayıtları 180 gün sonra silinir. / İstediğin zaman Ayarlar'daki Gizlilik bölümünden kapatabilirsin. Kapattığın anda hiçbir şey gönderilmez. / 
 - `settings.saveTitle`: Kayıt
 - `settings.privacy`: Gizlilik
 - `settings.telemetry`: İsimsiz istatistik gönder
-- `settings.telemetryHint`: Yalnızca oyunda hangi aşamaya gelindiği sayılır, seni tanıtan hiçbir bilgi gitmez.
-- `settings.credits`: Tüm görseller kodla üretildi. Kaydın bu cihazda tutulur.
+- `settings.telemetryHint`: Yalnızca oyunda hangi aşamaya geldiğin isimsiz olarak sayılır. Seni tanıtan hiçbir bilgi gönderilmez.
+- `settings.credits`: Tüm görseller kodla üretildi. Oyun kaydın yalnızca bu cihazda tutulur.
+- `backup.title`: Bu cihazda zaten bir yedek var
+- `backup.body`: Yeni kayıt yüklenirse bu yedeğin yerine şimdiki kayıt geçecek. Yedeği kaybetmemek için önce dosya olarak indirebilirsin.
+- `backup.summary`: Mevcut yedek · {f} takipçi · Son oynama: {d}
+- `backup.download`: Mevcut yedeği indir
+- `backup.discard`: Yedeği sil ve devam et
+- `backup.cancel`: Vazgeç
+- `backup.downloaded`: Yedek dosyası indirildi.
+- `backup.cancelled`: İçe aktarma iptal edildi. Hiçbir şey değişmedi.
+- `backup.fileName`: fenomen-yedek-{d}.json
 
 ## v2.0.2 — Yazı düzeltmeleri (uygulandı)
 

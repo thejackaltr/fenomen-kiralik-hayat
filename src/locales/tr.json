@@ -533,7 +533,7 @@
     "conflictBody": "Bu cihazda da bir Fenomen kaydı var. Hangisiyle devam edeceğini seç. Seçmediğin kayıt silinmez, bu cihazda yedekte kalır.",
     "optOld": "Eski adresteki kayıt · {f} takipçi · Son oynama: {d}",
     "optNew": "Bu cihazdaki kayıt · {f} takipçi · Son oynama: {d}",
-    "fail": "Kayıt otomatik taşınamadı. Eski adresteki \"Kaydı indir\" düğmesiyle kaydını al, burada Ayarlar'dan içe aktar.",
+    "fail": "Kayıt otomatik taşınamadı. Eski adresteki “Kaydı indir” düğmesiyle kaydını al, burada Ayarlar'dan içe aktar.",
     "dateUnknown": "bilinmiyor"
   },
   "saveFile": {
