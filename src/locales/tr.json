@@ -1,0 +1,316 @@
+{
+  "_notes": {
+    "_": "Çevirmenler için notlar. Parodi isimler birebir ÇEVRİLMEZ; her dilde aynı esprinin yerel karşılığı bulunur. Gerçek marka, model, dizi, oyuncu veya kişi adı kullanılmaz.",
+    "app.name": "Oyunun çalışma adı. 'Fenomen' = sosyal medya ünlüsü; 'Kiralık Hayat' = gösteriş için kiralanmış yaşam.",
+    "fanbox.name": "Parodi abonelik platformu (kelime oyunu: hayran + kutu). Müstehcen hiçbir çağrışım olmamalı; hedef dilde zararsız, komik bir 'hayran kutusu' ismi bulun.",
+    "items.names": "Lüks eşyalar bilerek jenerik: gerçek marka/model çağrıştırmayın.",
+    "wear.top_suit_01": "Karizmatik, koyu renk takım elbise. Belirli bir dizi karakterine isimle atıf yapmayın.",
+    "video.titles": "Abartılı 'tık tuzağı' başlıklar; parantez içi itiraf esprinin kendisi. Hedef dilde aynı ironiyi koruyun.",
+    "fmt.money": "Oyun içi para birimi kurgusal ve nötr (¤). Gerçek para birimi kullanmayın."
+  },
+  "meta": {
+    "title": "Fenomen: Kiralık Hayat",
+    "shortName": "Fenomen",
+    "description": "Sıfırdan fenomen ol: video çek, kurgula, yayınla. Lüksü kirala ya da satın al — ama İfşa olmamaya bak!",
+    "loading": "Yükleniyor…",
+    "noscript": "Bu oyun için JavaScript gerekli."
+  },
+  "app": { "name": "Fenomen: Kiralık Hayat", "tagline": "Gösteriş kiralık, takipçi gerçek." },
+  "fmt": {
+    "money": "{v} ¤",
+    "bigPattern": "{v} {s}",
+    "bigSuffixes": ["Ktr", "Knt", "Skst", "Sptl", "Oktl"],
+    "hours": "{n} sa",
+    "minutes": "{n} dk",
+    "seconds": "{n} sn",
+    "pair": "{a} {b}",
+    "perSec": "{v}/sn",
+    "perDay": "{v}/gün"
+  },
+  "plural": {
+    "videos": { "one": "{n} video", "other": "{n} video" },
+    "followers": { "one": "{n} takipçi", "other": "{n} takipçi" },
+    "views": { "one": "{n} izlenme", "other": "{n} izlenme" },
+    "items": { "one": "{n} eşya", "other": "{n} eşya" }
+  },
+  "hud": { "money": "Para", "followers": "Takipçi", "trust": "Güven", "trustHint": "Güven düştükçe İfşa olma ihtimalin artar.", "income": "Pasif gelir", "rent": "Kira" },
+  "nav": { "studio": "Stüdyo", "shop": "Mağaza", "closet": "Dolap", "channel": "Kanal", "settings": "Ayarlar" },
+  "creator": {
+    "title": "Karakterini yarat",
+    "body": "Karakter",
+    "body_m": "Erkek",
+    "body_f": "Kadın",
+    "skin": "Ten rengi",
+    "hair": "Saç rengi",
+    "channel": "Kanal adı",
+    "channelPlaceholder": "Kanalına bir isim ver",
+    "channelDefault": "Yeni Fenomen",
+    "next": "Devam",
+    "pathTitle": "Ne tür içerik üreteceksin?",
+    "soon": "Yakında",
+    "start": "Kariyere başla",
+    "swatch": "Renk {n}"
+  },
+  "paths": {
+    "vlog": { "name": "Vlog", "desc": "Günlük hayatın, rutinlerin, 'ne iş yapıyorum' soruları. Lüks eşyalar burada daha çok parlar." },
+    "oyun": { "name": "Oyun yayını", "desc": "Uzun yayınlar, yeni bilgisayar kurulumları. Ekipman ve bilgisayar daha çok işe yarar." },
+    "egitim": { "name": "Eğitim", "desc": "Bir şeyler öğret, takipçiler not alsın." },
+    "luks": { "name": "Lüks yaşam", "desc": "Sadece gösteriş. Çok yakında." }
+  },
+  "studio": {
+    "shoot": "Video çek",
+    "live": "Yayındaki videolar",
+    "none": "Henüz yayında video yok. İlk videonu çek!",
+    "views": "{v} izlenme",
+    "earned": "+{v}",
+    "auto": "Menajer",
+    "passive": "Pasif: {v}",
+    "rentCost": "Kira: {v}",
+    "fatigue": "Seyirci biraz yoruldu, videolar daha az izleniyor. Biraz ara ver ya da menajer tut.",
+    "manager": "Menajerin her {t} bir video yüklüyor."
+  },
+  "shoot": {
+    "title": "Ne çekiyoruz?",
+    "pickTitle": "Başlık seç",
+    "show": "Videoda göster",
+    "showNone": "Gösterecek eşyan yok. Mağazadan al ya da kirala.",
+    "showInvest": "Yatırımlarım",
+    "estimate": "Tahmini izlenme: ~{v}",
+    "go": "Çekime başla",
+    "shooting": "Çekiliyor…",
+    "cancel": "Vazgeç",
+    "rentedWarn": "Kiralık eşya gösteriyorsun. Güven biraz düşer."
+  },
+  "edit": {
+    "title": "Kurgu",
+    "help": "Oynatıcı yeşil anlardan geçerken KES'e dokun.",
+    "cut": "KES!",
+    "perfect": "Kusursuz kesim!",
+    "hit": "Güzel kesim!",
+    "miss": "Sıkıcı kısım kaldı…",
+    "editor": "Kurgucuya ver",
+    "done": "Kurgu bitti",
+    "quality": "Kurgu kalitesi: ×{q}"
+  },
+  "publish": {
+    "title": "Yayına hazır",
+    "go": "Yayınla",
+    "published": "Yayında! İzlenmeler geliyor…"
+  },
+  "shop": {
+    "title": "Mağaza",
+    "tabs": { "luxury": "Lüks", "wear": "Giyim", "equip": "Ekipman", "team": "Ekip", "invest": "Yatırım" },
+    "buy": "Satın al",
+    "rent": "Kirala",
+    "rentInfo": "Kira: {v}",
+    "owned": "Senin",
+    "rented": "Kiralık",
+    "return": "İade et",
+    "buyOut": "Satın al, kiradan kurtul",
+    "flex": "Gösteriş +{v}",
+    "noMoney": "Yeterli paran yok.",
+    "level": "Seviye {n}",
+    "max": "Tam seviye",
+    "upgrade": "Yükselt",
+    "hire": "İşe al",
+    "requires": "Önce {x} gerekli",
+    "yield": "Getiri: {v}",
+    "count": "Sahip olunan: {n}",
+    "style": "Stil +{v}",
+    "wear": "Giy",
+    "wearing": "Üstünde",
+    "rentExplain": "Kiralık eşya videoda aynı gösterişi ve takipçi artışını sağlar ama her gün kira öder, Güven'i düşürür ve İfşa riski taşır.",
+    "investExplain": "Yatırımlar pasif gelir getirir. Videoda 'Yatırımlarım'ı gösterirsen ekstra izlenme alırsın."
+  },
+  "tags": { "rented": "Kiralık", "owned": "Senin", "new": "Yeni" },
+  "items": {
+    "names": {
+      "watch_01": "Altın kol saati",
+      "sneaker_rare_01": "Koleksiyonluk spor ayakkabı",
+      "painting_01": "Modern sanat tablosu",
+      "car_01": "Kırmızı spor coupe",
+      "watch_02": "Pırlantalı saat",
+      "car_02": "Siyah arazi aracı",
+      "boat_01": "Beyaz yat",
+      "villa_01": "Havuzlu villa"
+    },
+    "desc": {
+      "watch_01": "Saati sormazlar, saati görürler.",
+      "sneaker_rare_01": "Giymek için değil, göstermek için.",
+      "painting_01": "Ne anlattığını kimse bilmiyor. Tam da bu yüzden pahalı.",
+      "car_01": "Alçak, hızlı, park yeri bulması imkânsız.",
+      "watch_02": "Bileğin ışıl ışıl, hesabın… o kısmı sonra.",
+      "car_02": "Şehirde de dağdaymış gibi.",
+      "boat_01": "Denize sıfır içerik.",
+      "villa_01": "Arka plan olarak mükemmel."
+    }
+  },
+  "wear": {
+    "slots": { "top": "Üst", "bottom": "Alt", "shoes": "Ayakkabı", "accessory": "Aksesuar", "glasses": "Gözlük" },
+    "top_tshirt_01": "Basic tişört",
+    "top_hoodie_01": "Kapüşonlu sweatshirt",
+    "top_suit_01": "Karizmatik koyu takım ceketi",
+    "bottom_jeans_01": "Kot pantolon",
+    "bottom_shorts_01": "Şort",
+    "bottom_skirt_01": "Pileli etek",
+    "bottom_suit_01": "Takım pantolonu",
+    "shoes_sneakers_01": "Spor ayakkabı",
+    "shoes_boots_01": "Bot",
+    "shoes_loafers_01": "Parlak klasik ayakkabı",
+    "acc_cap_01": "Şapka",
+    "acc_chain_01": "Kalın zincir kolye",
+    "glasses_round_01": "Yuvarlak gözlük",
+    "glasses_sun_01": "Gösterişli güneş gözlüğü",
+    "none": "Yok",
+    "remove": "Çıkar",
+    "color": "Renk"
+  },
+  "equip": {
+    "camera": { "name": "Kamera", "desc": "Daha net görüntü, daha çok izlenme." },
+    "mic": { "name": "Mikrofon", "desc": "Sesin kısık olunca kimse izlemiyor." },
+    "light": { "name": "Işık", "desc": "Halka ışık: fenomenin en iyi arkadaşı." },
+    "pc": { "name": "Bilgisayar", "desc": "Oyun yayınında hayati. Işıkları da var." }
+  },
+  "staff": {
+    "editor": { "name": "Kurgucu", "desc": "Kurguyu senin yerine yapar (sabit kalite). Menajer için gerekli." },
+    "manager": { "name": "Menajer", "desc": "Sen yokken bile video yükler. Kiralık eşyaları asla göstermez." },
+    "quality": "Kalite ×{q}",
+    "interval": "Her {t} bir video"
+  },
+  "invest": {
+    "inv_fund": { "name": "Endeks fonu", "desc": "Sıkıcı ama istikrarlı." },
+    "inv_land": { "name": "Arsa", "desc": "Üstünde tabela bile yok. Henüz." },
+    "inv_cafe": { "name": "Kafe ortaklığı", "desc": "Kahve pahalı, ortaklık daha pahalı." }
+  },
+  "fanbox": {
+    "name": "FanKutusu",
+    "desc": "Hayranlarına özel abonelik sayfası. Özel içerik: kedinin uyku videoları ve kahvaltı tabakları.",
+    "locked": "{n} takipçide açılır.",
+    "unlock": "Sayfa aç",
+    "active": "Aktif",
+    "income": "Abonelik: {v}"
+  },
+  "video": {
+    "titles": {
+      "t_morning": "SABAH 5 RUTİNİM (öğlen kalktım)",
+      "t_whatjob": "Herkes soruyor: Ne iş yapıyorum?",
+      "t_secrets": "Zenginlerin bilmeni istemediği 3 sır",
+      "t_car": "Bu arabayı neden aldım? (almadım)",
+      "t_spent": "Bütün birikimimi buna harcadım!!",
+      "t_villa": "Villamda bir gün",
+      "t_24h": "24 saat aralıksız oynadım, sonra uyudum",
+      "t_newpc": "Yeni bilgisayarımı kurduk (ışıkları dahil)",
+      "t_gameend": "Bu oyunu kimse bitiremedi (ben de)",
+      "t_invest": "Paramı nereye yatırdım? (gerçekten)",
+      "t_apology": "Gerçekler ortaya çıktı… (özür videosu)"
+    },
+    "needs": {
+      "car": "Araba göster",
+      "villa": "Villa göster",
+      "luxury": "Lüks bir eşya göster",
+      "pc": "Bilgisayar gerekli",
+      "invest": "Yatırımlarını göster"
+    }
+  },
+  "ifsa": {
+    "title": "İFŞA!",
+    "lost": "{v} takipçi kaybettin.",
+    "question": "Ne yapacaksın?",
+    "apology": "Özür videosu çek",
+    "apologyHint": "Biraz daha takipçi gider, Güven toparlanır.",
+    "ignore": "Görmezden gel",
+    "ignoreHint": "Kısa süre takipçi gelir, Güven sert düşer.",
+    "afterApology": "Özür videon sıradaki video olacak.",
+    "afterIgnore": "Gündem seni konuşuyor… şimdilik.",
+    "exposed": "İfşa oldu",
+    "cards": {
+      "ifsa_plate": { "title": "Plaka ifşası", "body": "Takipçiler videodaki {item} plakasını bir araç kiralama sitesinde buldu." },
+      "ifsa_sign": { "title": "Tabela ifşası", "body": "Villa turunun arka planında 'Günlük kiralık' tabelası göründü." },
+      "ifsa_comment": { "title": "Yorum ifşası", "body": "Kiralama şirketi videonun altına yazdı: 'Aracı yarın saat 10'da teslim edin lütfen.'" },
+      "ifsa_watch": { "title": "Saat ifşası", "body": "Aynı {item} dün başka bir fenomenin videosunda görüldü." },
+      "ifsa_live": { "title": "Canlı yayın ifşası", "body": "Canlı yayında ekrana bildirim düştü: 'Kira ödemeniz yarın.'" }
+    }
+  },
+  "closet": {
+    "title": "Dolap",
+    "wearables": "Kıyafetlerim",
+    "items": "Eşyalarım",
+    "empty": "Henüz lüks eşyan yok.",
+    "rentedTotal": "Günlük toplam kira: {v}",
+    "investments": "Yatırımlarım"
+  },
+  "channel": {
+    "title": "Kanal",
+    "stats": "İstatistikler",
+    "videos": "Video",
+    "views": "Toplam izlenme",
+    "earned": "Toplam kazanç",
+    "ifsa": "İfşa",
+    "repossessed": "Geri alınan eşya",
+    "recent": "Son videolar",
+    "share": "Video kapağını paylaş",
+    "noVideo": "Paylaşmak için önce bir video yayınla."
+  },
+  "welcome": {
+    "title": "Tekrar hoş geldin!",
+    "away": "{t} boyunca yoktun.",
+    "views": "Videoların {v} izlenme aldı.",
+    "auto": "Menajerin {n} yükledi.",
+    "money": "Net kazanç: {v}",
+    "followers": "Yeni takipçi: {v}",
+    "rent": "Ödenen kira: {v}",
+    "repossessed": "Kira ödenemedi, geri alındı: {x}",
+    "ok": "Harika"
+  },
+  "toast": {
+    "bought": "{x} artık senin!",
+    "rented": "{x} kiralandı. Kimse anlamaz… değil mi?",
+    "returned": "{x} iade edildi.",
+    "repossessed": "Kira ödenemedi! {x} geri alındı. Güven düştü.",
+    "noMoney": "Yeterli paran yok.",
+    "saved": "Kaydedildi",
+    "invested": "Yatırım yapıldı: {x}",
+    "published": "Yayınlandı: {v} izlenme bekleniyor",
+    "autoPublished": "Menajer yeni bir video yükledi."
+  },
+  "tut": {
+    "shoot": "İlk videonu çek. Telefon kamerası da kameradır.",
+    "title": "Bir başlık seç. Abartmak serbest.",
+    "edit": "Yeşil anlarda KES'e dokun. İyi kurgu, çok izlenme.",
+    "publish": "Yayınla ve izlenmeleri izle.",
+    "equip": "Para geldi! Mağaza > Ekipman'dan bir kamera al.",
+    "rent": "Lüks bir saat kirala. Kimse anlamaz… değil mi?",
+    "show": "Kiraladığın saati bir videoda göster.",
+    "done": "Artık bir fenomensin. Hedef: kiralık hayattan gerçek servete.",
+    "skip": "Geç"
+  },
+  "share": {
+    "title": "Video kapağı",
+    "caption": "{f} takipçi · {v} izlenme",
+    "cta": "Sen de fenomen ol",
+    "text": "Kanalım {f} takipçiye ulaştı! Fenomen: Kiralık Hayat'ta sen de dene:",
+    "native": "Paylaş",
+    "download": "Resmi indir",
+    "copy": "Bağlantıyı kopyala",
+    "copied": "Bağlantı kopyalandı",
+    "downloaded": "Resim indirildi",
+    "fail": "Paylaşılamadı",
+    "close": "Kapat"
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "language": "Dil",
+    "reset": "Kaydı sil ve baştan başla",
+    "resetConfirm": "Emin misin? Tüm ilerleme bu cihazdan silinecek.",
+    "yes": "Evet, sil",
+    "no": "Vazgeç",
+    "install": "Uygulamayı yükle",
+    "iosInstall": "Yüklemek için Paylaş > Ana Ekrana Ekle'ye dokun.",
+    "version": "Sürüm {v}",
+    "credits": "Tüm görseller kodla üretildi. Yerel kayıt, sunucu yok.",
+    "close": "Kapat"
+  },
+  "update": { "ready": "Yeni sürüm hazır.", "reload": "Yenile" },
+  "lang": { "tr": "Türkçe", "en": "English" },
+  "common": { "close": "Kapat", "ok": "Tamam", "back": "Geri" }
+}

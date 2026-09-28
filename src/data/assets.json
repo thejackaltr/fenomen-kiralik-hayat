@@ -1,0 +1,444 @@
+{
+ "doll": {
+  "w": 256,
+  "h": 512,
+  "pivot": [
+   128,
+   500
+  ]
+ },
+ "files": {
+  "doll/body_m": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/body_m_fx": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/body_m_hair": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/body_f": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/body_f_fx": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/body_f_hairback": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/body_f_hair": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/top_tshirt_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/top_hoodie_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/top_suit_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/top_suit_01_fx": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/bottom_jeans_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/bottom_suit_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/bottom_shorts_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/bottom_skirt_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/shoes_sneakers_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/shoes_loafers_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/shoes_boots_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/acc_chain_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/acc_cap_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/acc_watch_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/acc_watch_02": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/acc_watch_02_fx": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/acc_watch_01_fx": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/glasses_sun_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/glasses_sun_01_fx": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "doll/glasses_round_01": {
+   "w": 256,
+   "h": 512,
+   "pivot": [
+    128,
+    500
+   ]
+  },
+  "items/car_01": {
+   "w": 480,
+   "h": 190,
+   "pivot": [
+    240,
+    190
+   ]
+  },
+  "items/car_02": {
+   "w": 480,
+   "h": 210,
+   "pivot": [
+    240,
+    210
+   ]
+  },
+  "items/watch_01": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/watch_02": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/villa_01": {
+   "w": 320,
+   "h": 220,
+   "pivot": [
+    160,
+    220
+   ]
+  },
+  "items/boat_01": {
+   "w": 420,
+   "h": 190,
+   "pivot": [
+    210,
+    190
+   ]
+  },
+  "items/painting_01": {
+   "w": 160,
+   "h": 200,
+   "pivot": [
+    80,
+    200
+   ]
+  },
+  "items/sneaker_rare_01": {
+   "w": 200,
+   "h": 120,
+   "pivot": [
+    100,
+    120
+   ]
+  },
+  "items/inv_fund": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/inv_land": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/inv_cafe": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/eq_camera": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/eq_mic": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/eq_light": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/eq_pc": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/staff_editor": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/staff_manager": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/fanbox": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/path_vlog": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/path_oyun": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/path_egitim": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "items/path_luks": {
+   "w": 160,
+   "h": 160,
+   "pivot": [
+    80,
+    160
+   ]
+  },
+  "bg/bg_room_01": {
+   "w": 960,
+   "h": 540,
+   "pivot": [
+    0,
+    0
+   ]
+  },
+  "bg/bg_gaming_01": {
+   "w": 960,
+   "h": 540,
+   "pivot": [
+    0,
+    0
+   ]
+  },
+  "bg/bg_villa_01": {
+   "w": 960,
+   "h": 540,
+   "pivot": [
+    0,
+    0
+   ]
+  },
+  "bg/bg_street_01": {
+   "w": 960,
+   "h": 540,
+   "pivot": [
+    0,
+    0
+   ]
+  },
+  "bg/bg_sea_01": {
+   "w": 960,
+   "h": 540,
+   "pivot": [
+    0,
+    0
+   ]
+  }
+ }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "Fenomen: Kiralık Hayat",
+  "short_name": "Fenomen",
+  "description": "Sıfırdan fenomen ol: video çek, kurgula, yayınla. Lüksü kirala ya da satın al.",
+  "lang": "tr",
+  "start_url": "./",
+  "scope": "./",
+  "id": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1a1024",
+  "theme_color": "#1a1024",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

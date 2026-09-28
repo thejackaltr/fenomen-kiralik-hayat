@@ -1,0 +1,21 @@
+{
+  "name": "fenomen-kiralik-hayat",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Fenomen: Kiralık Hayat — Türkçe fenomen kariyer oyunu (DOM + Canvas, PWA)",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4180 --strictPort",
+    "test": "node --test tests/unit/*.test.mjs",
+    "art": "node tools/art/build.mjs",
+    "smoke": "node tests/smoke/smoke.mjs",
+    "balance": "node tools/balance.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0",
+    "vite": "^8.3.1"
+  }
+}
