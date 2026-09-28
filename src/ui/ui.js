@@ -453,7 +453,7 @@ export class UI {
       ap(box, h('h2', { text: t('welcome.title') }), h('p', { text: t('welcome.away', { t: fmtDuration(sum.seconds || 0) }) }),
         h('ul', { class: 'welcome-list' },
           h('li', { text: t('welcome.views', { v: fmt(sum.views) }) }),
-          sum.auto ? h('li', { text: t('welcome.auto', { n: plural('plural.videos', sum.auto, { n: fmt(sum.auto) }) }) }) : null,
+          sum.auto ? h('li', { text: plural('welcome.auto', sum.auto, { n: fmt(sum.auto) }) }) : null,
           h('li', { text: t('welcome.followers', { v: fmt(Math.max(0, sum.followers)) }) }),
           sum.rent > 0 ? h('li', { class: 'bad', text: t('welcome.rent', { v: money(sum.rent) }) }) : null,
           ...(sum.repossessed || []).map((id) => h('li', { class: 'bad', text: t('welcome.repossessed', { x: itemName(id) }) })),

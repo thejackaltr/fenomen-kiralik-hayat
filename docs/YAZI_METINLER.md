@@ -1,7 +1,16 @@
-# Fenomen: Kiralık Hayat — Yazı için yeni metinler (v1)
+# Fenomen: Kiralık Hayat — Yazı için metinler
 
-Tüm metinler `src/locales/tr.json` içinde. Aşağıdakiler bu sürümde yazılan **yeni / taslak** metinler; düzenleme doğrudan tr.json üzerinden yapılabilir.
-Plandan birebir alınanlar (video başlıkları, İfşa seçenekleri) dokunulmadan kullanıldı.
+Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir). Düzenleme doğrudan tr.json üzerinden yapılır.
+
+## v1.0.1 — Yazı düzeltmeleri (uygulandı)
+
+- `welcome.auto.one`: Menajerin {n} video yükledi.
+- `welcome.auto.other`: Menajerin {n} video yükledi.
+- `ifsa.cards.ifsa_plate.body`: Takipçiler videodaki arabanın plakasını bir kiralama sitesinde buldu.
+- `toast.rented`: {x} kiralandı. Kirası her gün kasadan düşer.
+- `meta.description`: Sıfırdan fenomen ol: video çek, kurgula, yayınla. Lüksü kirala ya da gerçekten satın al, yalnız ifşa olmamaya dikkat et!
+- `staff.editor.desc`: Kurguyu senin yerine yapar, kalitesi hep aynıdır. Menajer tutmak için önce Kurgucu gerekir.
+- `paths.vlog.desc`: Günlük hayatın ve rutinlerin. Takipçiler seni samimi bulur.
 
 ## Rehber (ilk dakikalar)
 
@@ -15,44 +24,71 @@ Plandan birebir alınanlar (video başlıkları, İfşa seçenekleri) dokunulmad
 - `tut.done`: Artık bir fenomensin. Hedef: kiralık hayattan gerçek servete.
 - `tut.skip`: Geç
 
-## Yeni video başlıkları (plan dışı, onay bekliyor)
+## Onaylanan ek video başlıkları
 
 - `video.titles.t_gameend`: Bu oyunu kimse bitiremedi (ben de)
 - `video.titles.t_invest`: Paramı nereye yatırdım? (gerçekten)
 
-## İfşa kartları (Yazı fikirleri → kart metni)
+## İfşa kartları ve seçimler
 
-- `ifsa.cards.ifsa_plate`: Plaka ifşası — Takipçiler videodaki {item} plakasını bir araç kiralama sitesinde buldu.
-- `ifsa.cards.ifsa_sign`: Tabela ifşası — Villa turunun arka planında 'Günlük kiralık' tabelası göründü.
-- `ifsa.cards.ifsa_comment`: Yorum ifşası — Kiralama şirketi videonun altına yazdı: 'Aracı yarın saat 10'da teslim edin lütfen.'
-- `ifsa.cards.ifsa_watch`: Saat ifşası — Aynı {item} dün başka bir fenomenin videosunda görüldü.
-- `ifsa.cards.ifsa_live`: Canlı yayın ifşası — Canlı yayında ekrana bildirim düştü: 'Kira ödemeniz yarın.'
 - `ifsa.title`: İFŞA!
 - `ifsa.lost`: {v} takipçi kaybettin.
 - `ifsa.question`: Ne yapacaksın?
+- `ifsa.apology`: Özür videosu çek
 - `ifsa.apologyHint`: Biraz daha takipçi gider, Güven toparlanır.
+- `ifsa.ignore`: Görmezden gel
 - `ifsa.ignoreHint`: Kısa süre takipçi gelir, Güven sert düşer.
 - `ifsa.afterApology`: Özür videon sıradaki video olacak.
 - `ifsa.afterIgnore`: Gündem seni konuşuyor… şimdilik.
+- `ifsa.exposed`: İfşa oldu
+- `ifsa.cards.ifsa_plate.title`: Plaka ifşası
+- `ifsa.cards.ifsa_plate.body`: Takipçiler videodaki arabanın plakasını bir kiralama sitesinde buldu.
+- `ifsa.cards.ifsa_sign.title`: Tabela ifşası
+- `ifsa.cards.ifsa_sign.body`: Villa turunun arka planında 'Günlük kiralık' tabelası göründü.
+- `ifsa.cards.ifsa_comment.title`: Yorum ifşası
+- `ifsa.cards.ifsa_comment.body`: Kiralama şirketi videonun altına yazdı: 'Aracı yarın saat 10'da teslim edin lütfen.'
+- `ifsa.cards.ifsa_watch.title`: Saat ifşası
+- `ifsa.cards.ifsa_watch.body`: Aynı {item} dün başka bir fenomenin videosunda görüldü.
+- `ifsa.cards.ifsa_live.title`: Canlı yayın ifşası
+- `ifsa.cards.ifsa_live.body`: Canlı yayında ekrana bildirim düştü: 'Kira ödemeniz yarın.'
 
 ## Oyun adı / slogan
 
+- `app.name`: Fenomen: Kiralık Hayat
 - `app.tagline`: Gösteriş kiralık, takipçi gerçek.
-- `meta.description`: Sıfırdan fenomen ol: video çek, kurgula, yayınla. Lüksü kirala ya da satın al — ama İfşa olmamaya bak!
+- `meta.title`: Fenomen: Kiralık Hayat
+- `meta.shortName`: Fenomen
+- `meta.description`: Sıfırdan fenomen ol: video çek, kurgula, yayınla. Lüksü kirala ya da gerçekten satın al, yalnız ifşa olmamaya dikkat et!
+- `meta.loading`: Yükleniyor…
+- `meta.noscript`: Bu oyun için JavaScript gerekli.
+- `meta.manifestName`: Fenomen: Kiralık Hayat
 
-## Lüks eşyalar (isim — espri)
+## Lüks eşyalar
 
-- `items.watch_01`: Altın kol saati — Saati sormazlar, saati görürler.
-- `items.sneaker_rare_01`: Koleksiyonluk spor ayakkabı — Giymek için değil, göstermek için.
-- `items.painting_01`: Modern sanat tablosu — Ne anlattığını kimse bilmiyor. Tam da bu yüzden pahalı.
-- `items.car_01`: Kırmızı spor coupe — Alçak, hızlı, park yeri bulması imkânsız.
-- `items.watch_02`: Pırlantalı saat — Bileğin ışıl ışıl, hesabın… o kısmı sonra.
-- `items.car_02`: Siyah arazi aracı — Şehirde de dağdaymış gibi.
-- `items.boat_01`: Beyaz yat — Denize sıfır içerik.
-- `items.villa_01`: Havuzlu villa — Arka plan olarak mükemmel.
+- `items.names.watch_01`: Altın kol saati
+- `items.names.sneaker_rare_01`: Koleksiyonluk spor ayakkabı
+- `items.names.painting_01`: Modern sanat tablosu
+- `items.names.car_01`: Kırmızı spor coupe
+- `items.names.watch_02`: Pırlantalı saat
+- `items.names.car_02`: Siyah arazi aracı
+- `items.names.boat_01`: Beyaz yat
+- `items.names.villa_01`: Havuzlu villa
+- `items.desc.watch_01`: Saati sormazlar, saati görürler.
+- `items.desc.sneaker_rare_01`: Giymek için değil, göstermek için.
+- `items.desc.painting_01`: Ne anlattığını kimse bilmiyor. Tam da bu yüzden pahalı.
+- `items.desc.car_01`: Alçak, hızlı, park yeri bulması imkânsız.
+- `items.desc.watch_02`: Bileğin ışıl ışıl, hesabın… o kısmı sonra.
+- `items.desc.car_02`: Şehirde de dağdaymış gibi.
+- `items.desc.boat_01`: Denize sıfır içerik.
+- `items.desc.villa_01`: Arka plan olarak mükemmel.
 
 ## Kıyafetler
 
+- `wear.slots.top`: Üst
+- `wear.slots.bottom`: Alt
+- `wear.slots.shoes`: Ayakkabı
+- `wear.slots.accessory`: Aksesuar
+- `wear.slots.glasses`: Gözlük
 - `wear.top_tshirt_01`: Basic tişört
 - `wear.top_hoodie_01`: Kapüşonlu sweatshirt
 - `wear.top_suit_01`: Karizmatik koyu takım ceketi
@@ -67,38 +103,86 @@ Plandan birebir alınanlar (video başlıkları, İfşa seçenekleri) dokunulmad
 - `wear.acc_chain_01`: Kalın zincir kolye
 - `wear.glasses_round_01`: Yuvarlak gözlük
 - `wear.glasses_sun_01`: Gösterişli güneş gözlüğü
+- `wear.none`: Yok
+- `wear.remove`: Çıkar
+- `wear.color`: Renk
 
 ## Ekipman / ekip / yatırım
 
-- `equip.camera`: Kamera — Daha net görüntü, daha çok izlenme.
-- `equip.mic`: Mikrofon — Sesin kısık olunca kimse izlemiyor.
-- `equip.light`: Işık — Halka ışık: fenomenin en iyi arkadaşı.
-- `equip.pc`: Bilgisayar — Oyun yayınında hayati. Işıkları da var.
-- `invest.inv_fund`: Endeks fonu — Sıkıcı ama istikrarlı.
-- `invest.inv_land`: Arsa — Üstünde tabela bile yok. Henüz.
-- `invest.inv_cafe`: Kafe ortaklığı — Kahve pahalı, ortaklık daha pahalı.
-- `staff.editor`: Kurgucu — Kurguyu senin yerine yapar (sabit kalite). Menajer için gerekli.
-- `staff.manager`: Menajer — Sen yokken bile video yükler. Kiralık eşyaları asla göstermez.
+- `equip.camera.name`: Kamera
+- `equip.camera.desc`: Daha net görüntü, daha çok izlenme.
+- `equip.mic.name`: Mikrofon
+- `equip.mic.desc`: Sesin kısık olunca kimse izlemiyor.
+- `equip.light.name`: Işık
+- `equip.light.desc`: Halka ışık: fenomenin en iyi arkadaşı.
+- `equip.pc.name`: Bilgisayar
+- `equip.pc.desc`: Oyun yayınında hayati. Işıkları da var.
+- `staff.editor.name`: Kurgucu
+- `staff.editor.desc`: Kurguyu senin yerine yapar, kalitesi hep aynıdır. Menajer tutmak için önce Kurgucu gerekir.
+- `staff.manager.name`: Menajer
+- `staff.manager.desc`: Sen yokken bile video yükler. Kiralık eşyaları asla göstermez.
+- `staff.quality`: Kalite ×{q}
+- `staff.interval`: Her {t} bir video
+- `invest.inv_fund.name`: Endeks fonu
+- `invest.inv_fund.desc`: Sıkıcı ama istikrarlı.
+- `invest.inv_land.name`: Arsa
+- `invest.inv_land.desc`: Üstünde tabela bile yok. Henüz.
+- `invest.inv_cafe.name`: Kafe ortaklığı
+- `invest.inv_cafe.desc`: Kahve pahalı, ortaklık daha pahalı.
 
 ## FanKutusu (parodi, müstehcen değil)
 
+- `fanbox.name`: FanKutusu
 - `fanbox.desc`: Hayranlarına özel abonelik sayfası. Özel içerik: kedinin uyku videoları ve kahvaltı tabakları.
+- `fanbox.locked`: {n} takipçide açılır.
+- `fanbox.unlock`: Sayfa aç
+- `fanbox.active`: Aktif
+- `fanbox.income`: Abonelik: {v}
 
 ## Kariyer yolları
 
-- `paths.vlog`: Vlog — Günlük hayatın, rutinlerin, 'ne iş yapıyorum' soruları. Lüks eşyalar burada daha çok parlar.
-- `paths.oyun`: Oyun yayını — Uzun yayınlar, yeni bilgisayar kurulumları. Ekipman ve bilgisayar daha çok işe yarar.
-- `paths.egitim`: Eğitim — Bir şeyler öğret, takipçiler not alsın.
-- `paths.luks`: Lüks yaşam — Sadece gösteriş. Çok yakında.
+- `paths.vlog.name`: Vlog
+- `paths.vlog.desc`: Günlük hayatın ve rutinlerin. Takipçiler seni samimi bulur.
+- `paths.oyun.name`: Oyun yayını
+- `paths.oyun.desc`: Uzun yayınlar, yeni bilgisayar kurulumları. Ekipman ve bilgisayar daha çok işe yarar.
+- `paths.egitim.name`: Eğitim
+- `paths.egitim.desc`: Bir şeyler öğret, takipçiler not alsın.
+- `paths.luks.name`: Lüks yaşam
+- `paths.luks.desc`: Sadece gösteriş. Çok yakında.
 
-## Kiralama / uyarılar / toast
+## Mağaza / uyarılar / bildirimler
 
+- `shop.title`: Mağaza
+- `shop.tabs.luxury`: Lüks
+- `shop.tabs.wear`: Giyim
+- `shop.tabs.equip`: Ekipman
+- `shop.tabs.team`: Ekip
+- `shop.tabs.invest`: Yatırım
+- `shop.buy`: Satın al
+- `shop.rent`: Kirala
+- `shop.rentInfo`: Kira: {v}
+- `shop.owned`: Senin
+- `shop.rented`: Kiralık
+- `shop.return`: İade et
+- `shop.buyOut`: Satın al, kiradan kurtul
+- `shop.flex`: Gösteriş +{v}
+- `shop.noMoney`: Yeterli paran yok.
+- `shop.level`: Seviye {n}
+- `shop.max`: Tam seviye
+- `shop.upgrade`: Yükselt
+- `shop.hire`: İşe al
+- `shop.requires`: Önce {x} gerekli
+- `shop.yield`: Getiri: {v}
+- `shop.count`: Sahip olunan: {n}
+- `shop.style`: Stil +{v}
+- `shop.wear`: Giy
+- `shop.wearing`: Üstünde
 - `shop.rentExplain`: Kiralık eşya videoda aynı gösterişi ve takipçi artışını sağlar ama her gün kira öder, Güven'i düşürür ve İfşa riski taşır.
 - `shop.investExplain`: Yatırımlar pasif gelir getirir. Videoda 'Yatırımlarım'ı gösterirsen ekstra izlenme alırsın.
 - `shoot.rentedWarn`: Kiralık eşya gösteriyorsun. Güven biraz düşer.
 - `studio.fatigue`: Seyirci biraz yoruldu, videolar daha az izleniyor. Biraz ara ver ya da menajer tut.
 - `toast.bought`: {x} artık senin!
-- `toast.rented`: {x} kiralandı. Kimse anlamaz… değil mi?
+- `toast.rented`: {x} kiralandı. Kirası her gün kasadan düşer.
 - `toast.returned`: {x} iade edildi.
 - `toast.repossessed`: Kira ödenemedi! {x} geri alındı. Güven düştü.
 - `toast.noMoney`: Yeterli paran yok.
@@ -112,7 +196,8 @@ Plandan birebir alınanlar (video başlıkları, İfşa seçenekleri) dokunulmad
 - `welcome.title`: Tekrar hoş geldin!
 - `welcome.away`: {t} boyunca yoktun.
 - `welcome.views`: Videoların {v} izlenme aldı.
-- `welcome.auto`: Menajerin {n} yükledi.
+- `welcome.auto.one`: Menajerin {n} video yükledi.
+- `welcome.auto.other`: Menajerin {n} video yükledi.
 - `welcome.money`: Net kazanç: {v}
 - `welcome.followers`: Yeni takipçi: {v}
 - `welcome.rent`: Ödenen kira: {v}
@@ -121,9 +206,17 @@ Plandan birebir alınanlar (video başlıkları, İfşa seçenekleri) dokunulmad
 
 ## Paylaşım kartı
 
+- `share.title`: Video kapağı
 - `share.caption`: {f} takipçi · {v} izlenme
 - `share.cta`: Sen de fenomen ol
 - `share.text`: Kanalım {f} takipçiye ulaştı! Fenomen: Kiralık Hayat'ta sen de dene:
+- `share.native`: Paylaş
+- `share.download`: Resmi indir
+- `share.copy`: Bağlantıyı kopyala
+- `share.copied`: Bağlantı kopyalandı
+- `share.downloaded`: Resim indirildi
+- `share.fail`: Paylaşılamadı
+- `share.close`: Kapat
 
 ## Kurgu mini oyunu
 

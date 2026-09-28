@@ -27,9 +27,25 @@ const swPlugin = {
   }
 };
 
+// manifest.webmanifest is generated from tr.json (name/description stay in the locale file)
+const manifest = () => JSON.stringify({
+  name: lookup('meta.manifestName'), short_name: lookup('meta.shortName'), description: lookup('meta.description'), lang: 'tr',
+  start_url: './', scope: './', id: './', display: 'standalone', orientation: 'any', background_color: '#1a1024', theme_color: '#1a1024', categories: ['games'],
+  icons: [
+    { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+  ]
+}, null, 2);
+const manifestPlugin = {
+  name: 'manifest-from-locale',
+  configureServer(server) { server.middlewares.use('/manifest.webmanifest', (req, res) => { res.setHeader('Content-Type', 'application/manifest+json'); res.end(manifest()); }); },
+  generateBundle() { this.emitFile({ type: 'asset', fileName: 'manifest.webmanifest', source: manifest() }); }
+};
+
 export default defineConfig({
   base: './',
   define: { __APP_VERSION__: JSON.stringify(VERSION) },
-  plugins: [i18nHtml, swPlugin],
+  plugins: [i18nHtml, manifestPlugin, swPlugin],
   build: { target: 'es2019', assetsInlineLimit: 0, chunkSizeWarningLimit: 1600, sourcemap: false }
 });

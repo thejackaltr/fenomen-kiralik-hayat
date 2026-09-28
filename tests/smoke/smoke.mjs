@@ -135,13 +135,19 @@ async function run(kind) {
   await S(() => window.__fenomen.ui.closeModal());
   if (SHOTS) { await tap('[data-test=tab-studio]'); await p.waitForTimeout(300); await shot(p, mobile ? '06-studio.png' : 'desktop-06-studio.png'); }
 
+  // --- hire a menajer so the welcome-back popup reports auto videos
+  await S(() => { const f = window.__fenomen; f.ctrl.state.money += 5000; f.ctrl.emit('change'); });
+  await tap('[data-test=tab-shop]'); await tap('[data-test=shop-tab-team]'); await tap('[data-test=hire-manager]');
+  ok(tag + 'manager hired', (await S(() => window.__fenomen.ctrl.state.staff.manager)) === 1);
   // --- welcome back (offline earnings): pretend we left 2 hours ago
   await S(() => { const f = window.__fenomen; f.ctrl.save(); f.ctrl.stop(); const k = 'fenomen_save_v1'; const o = JSON.parse(localStorage.getItem(k)); o.lastSeen -= 2 * 3600 * 1000; localStorage.setItem(k, JSON.stringify(o)); window.onpagehide = null; });
   await p.evaluate(() => { window.__noSave = true; });
   await ctx.addInitScript(() => { const k = 'fenomen_save_v1'; if (sessionStorage.getItem('shifted')) return; sessionStorage.setItem('shifted', '1'); const o = JSON.parse(localStorage.getItem(k) || 'null'); if (o) { o.lastSeen = Date.now() - 2 * 3600 * 1000; localStorage.setItem(k, JSON.stringify(o)); } });
   await p.reload({ waitUntil: 'load' });
   await p.waitForSelector('[data-test=welcome]', { timeout: 8000 });
-  ok(tag + 'welcome-back popup after 2 h', (await S(() => document.querySelector('[data-test=welcome]').textContent)).includes('Tekrar hoş geldin'));
+  const wtxt = await S(() => document.querySelector('[data-test=welcome]').textContent);
+  ok(tag + 'welcome-back popup after 2 h', wtxt.includes('Tekrar hoş geldin'));
+  ok(tag + 'welcome.auto text (Yazı v1.0.1)', /Menajerin [\d.]+ video yükledi\./.test(wtxt), (wtxt.match(/Menajerin[^.]*\./) || [''])[0]);
   if (SHOTS && mobile) await shot(p, '07-welcome-back.png');
   await tap('[data-test=welcome-ok]');
   ok(tag + 'save survived reload (IDs)', await S(() => { const s = window.__fenomen.ctrl.state; return s.char.channel.length > 0 && s.wear.worn.glasses === 'glasses_sun_01' && s.wear.worn.top === 'top_suit_01' && s.equip.camera === 1 && s.staff.editor === 1 && (!!s.items.car_01 || s.stats.repossessed > 0); }));
@@ -167,6 +173,8 @@ async function run(kind) {
   p2.on('pageerror', (e) => errors.push('pageerror(pseudo): ' + e.message));
   await p2.goto(BASE + '?pseudo=30', { waitUntil: 'load' });
   await p2.waitForSelector('[data-test=shoot]');
+  await p2.waitForTimeout(300);
+  while (await p2.$('[data-test=welcome-ok]')) { await p2.click('[data-test=welcome-ok]'); await p2.waitForTimeout(200); }
   const over = [];
   for (const tab of ['studio', 'shop', 'closet', 'channel']) {
     await p2.click('[data-test=tab-' + tab + ']');

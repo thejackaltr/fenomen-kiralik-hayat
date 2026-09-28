@@ -1,0 +1,16 @@
+[
+  ["v1.0.1 — Yazı düzeltmeleri (uygulandı)", ["welcome.auto", "ifsa.cards.ifsa_plate.body", "toast.rented", "meta.description", "staff.editor.desc", "paths.vlog.desc"]],
+  ["Rehber (ilk dakikalar)", ["tut"]],
+  ["Onaylanan ek video başlıkları", ["video.titles.t_gameend", "video.titles.t_invest"]],
+  ["İfşa kartları ve seçimler", ["ifsa"]],
+  ["Oyun adı / slogan", ["app", "meta"]],
+  ["Lüks eşyalar", ["items"]],
+  ["Kıyafetler", ["wear"]],
+  ["Ekipman / ekip / yatırım", ["equip", "staff", "invest"]],
+  ["FanKutusu (parodi, müstehcen değil)", ["fanbox"]],
+  ["Kariyer yolları", ["paths"]],
+  ["Mağaza / uyarılar / bildirimler", ["shop", "shoot.rentedWarn", "studio.fatigue", "toast"]],
+  ["Tekrar hoş geldin", ["welcome"]],
+  ["Paylaşım kartı", ["share"]],
+  ["Kurgu mini oyunu", ["edit"]]
+]

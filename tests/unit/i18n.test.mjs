@@ -38,6 +38,17 @@ test('plan texts are used verbatim (video titles + İfşa comment)', () => {
   assert.ok(tr.ifsa.cards.ifsa_sign.body.includes('Günlük kiralık')); assert.ok(tr.ifsa.cards.ifsa_live.body.includes('Kira ödemeniz yarın'));
   assert.equal(tr.ifsa.apology, 'Özür videosu çek'); assert.equal(tr.ifsa.ignore, 'Görmezden gel');
 });
+test('v1.0.1 Yazı fixes are exact', () => {
+  setLocale('tr');
+  assert.equal(plural('welcome.auto', 3, { n: '3' }), 'Menajerin 3 video yükledi.');
+  assert.equal(plural('welcome.auto', 1, { n: '1' }), 'Menajerin 1 video yükledi.');
+  assert.equal(tr.ifsa.cards.ifsa_plate.body, 'Takipçiler videodaki arabanın plakasını bir kiralama sitesinde buldu.');
+  assert.equal(t('toast.rented', { x: 'Altın kol saati' }), 'Altın kol saati kiralandı. Kirası her gün kasadan düşer.');
+  assert.equal(tr.meta.description, 'Sıfırdan fenomen ol: video çek, kurgula, yayınla. Lüksü kirala ya da gerçekten satın al, yalnız ifşa olmamaya dikkat et!');
+  assert.equal(tr.staff.editor.desc, 'Kurguyu senin yerine yapar, kalitesi hep aynıdır. Menajer tutmak için önce Kurgucu gerekir.');
+  assert.equal(tr.paths.vlog.desc, 'Günlük hayatın ve rutinlerin. Takipçiler seni samimi bulur.');
+  assert.equal(tr.video.titles.t_gameend, 'Bu oyunu kimse bitiremedi (ben de)'); assert.equal(tr.video.titles.t_invest, 'Paramı nereye yatırdım? (gerçekten)');
+});
 test('Turkish case mapping via toLocaleUpperCase', () => {
   setLocale('tr');
   assert.equal(upper(t('tags.rented')), 'KİRALIK'); assert.equal(upper('ifşa'), 'İFŞA'); assert.equal(lower('KIRALIK'), 'kıralık');
