@@ -38,3 +38,11 @@ export function fmtDate(ts) {
   const loc = locale() === 'tr' ? 'tr-TR' : locale();
   return new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(ts));
 }
+// plain calendar date with a short month, no time and no relative wording: tr -> "28 Eyl 2026" (import conflict choice).
+// Some ICU versions abbreviate as "Eyl." -> the trailing period of the month is dropped. null/0/NaN -> fallback text.
+export function fmtDay(ts) {
+  if (typeof ts !== 'number' || !isFinite(ts) || ts <= 0) return t('import.dateUnknown');
+  const loc = locale() === 'tr' ? 'tr-TR' : locale();
+  const parts = new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'short', year: 'numeric' }).formatToParts(new Date(ts));
+  return parts.map((p) => (p.type === 'month' ? p.value.replace(/\.$/, '') : p.value)).join('');
+}

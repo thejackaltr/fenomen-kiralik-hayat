@@ -14,6 +14,9 @@ import { OLD_ORIGIN, BASE_URL, NEW_ORIGIN, MOVE, TELEMETRY } from '../../src/con
 import { shareUrl } from '../../src/ui/share.js';
 import { Controller } from '../../src/controller.js';
 import tr from '../../src/locales/tr.json' with { type: 'json' };
+import { registerLocales, setLocale } from '../../src/logic/i18n.js';
+import { fmtDay } from '../../src/logic/format.js';
+import { conflictMeta } from '../../src/ui/savefile.js';
 
 class Mem { constructor(o = {}) { this.m = new Map(Object.entries(o)); } get length() { return this.m.size; } key(i) { return [...this.m.keys()][i] ?? null; }
   getItem(k) { return this.m.has(k) ? this.m.get(k) : null; } setItem(k, v) { this.m.set(k, String(v)); } removeItem(k) { this.m.delete(k); } }
@@ -258,7 +261,8 @@ test('v2.1 texts: copy writer keys present, temporary changes applied, no "rıza
   assert.equal(tr.move.title, 'Fenomen yeni adresine taşındı!'); assert.equal(tr.move.download, 'Kaydı indir');
   assert.equal(tr.saveFile.importYes, 'Evet, yükle'); assert.equal(tr.import.done, 'Kaydın taşındı. Kaldığın yerden devam et!');
   assert.equal(tr.import.conflictBody, 'Bu cihazda da bir kayıt var. Hangisiyle devam edeceğini seç. Seçmediğin kayıt silinmez, bir süre bu cihazda yedek olarak kalır.');
-  for (const k of ['optOld', 'optNew']) assert.ok(tr.import[k].includes('{f}') && tr.import[k].includes('{d}'), k);
+  assert.equal(tr.import.optOld, 'Eski adresteki kayıt'); assert.equal(tr.import.optNew, 'Bu cihazdaki kayıt');
+  assert.equal(tr.import.conflictMeta, '{f} takipçi · Son oynama: {d}');
   assert.equal(tr.settings.telemetry, 'İsimsiz istatistik gönder'); assert.equal(tr.telemetry.ok, 'Tamam'); assert.equal(tr.telemetry.off, 'Kapat');
   const all = JSON.stringify(tr).toLocaleLowerCase('tr');
   assert.ok(!all.includes('rıza')); assert.ok(!all.includes('onlyfans'));
@@ -325,4 +329,38 @@ test('notice: "Tamam" and "Kapat" use the same class (no primary/secondary)', as
   const { NOTICE_BTN } = await import('../../src/ui/privacy.js');
   assert.doesNotMatch(NOTICE_BTN, /primary/);
   assert.doesNotMatch(fs.readFileSync('src/style.css', 'utf8'), /\.primary\.nb-btn/);
+});
+
+// ---- import conflict choice: follower count + plain last-played date ----
+test('conflict choice: import.conflictMeta = fmt(followers) + "28 Eyl 2026" (short month, no time, no relative text); missing date -> bilinmiyor', () => {
+  registerLocales({ tr }); setLocale('tr');
+  const nb = (x) => x.replace(/[\u00a0\u202f]/g, ' ');
+  assert.equal(fmtDay(new Date(2026, 8, 28, 12, 0).getTime()), '28 Eyl 2026');
+  const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  months.forEach((m, i) => assert.equal(fmtDay(new Date(2026, i, 3, 12).getTime()), '3 ' + m + ' 2026'));
+  for (const bad of [null, undefined, 0, NaN, -5, 'x']) assert.equal(fmtDay(bad), 'bilinmiyor');
+  // a runtime whose ICU abbreviates as "Eyl." -> trailing period of the month is dropped
+  const Real = Intl.DateTimeFormat;
+  Intl.DateTimeFormat = function (loc, o) { const f = new Real(loc, o); return { formatToParts: (d) => f.formatToParts(d).map((p) => (p.type === 'month' ? { type: 'month', value: p.value + '.' } : p)) }; };
+  try { assert.equal(fmtDay(new Date(2026, 8, 28, 12).getTime()), '28 Eyl 2026'); } finally { Intl.DateTimeFormat = Real; }
+  // both choice options use the same line: followers through the game's fmt()
+  const s = played(12345); s.lastSeen = new Date(2026, 8, 28, 12, 0).getTime();
+  assert.equal(nb(conflictMeta(s)), '12,35 B takipçi · Son oynama: 28 Eyl 2026');
+  assert.equal(nb(conflictMeta(played(777))), '777 takipçi · Son oynama: 20 Eyl 2026');
+  const old = played(5); delete old.lastSeen;
+  assert.equal(conflictMeta(old), '5 takipçi · Son oynama: bilinmiyor');
+});
+test('conflict choice: the save not chosen stays on this device as the backup, byte for byte (both picks, both sources)', () => {
+  const local = played(500), incoming = played(7777), env = buildEnvelope(incoming);
+  for (const source of ['move', 'file']) {
+    const a = new Mem({ [SAVE_KEY]: JSON.stringify(local) });
+    applyImport(a, env, 'import', source, 1);
+    assert.equal(readBackup(a).save, JSON.stringify(local)); assert.equal(a.getItem(SAVE_KEY), JSON.stringify(incoming));
+    const b = new Mem({ [SAVE_KEY]: JSON.stringify(local) });
+    applyImport(b, env, 'current', source, 2);
+    assert.equal(readBackup(b).save, JSON.stringify(incoming)); assert.equal(b.getItem(SAVE_KEY), JSON.stringify(local));
+    // an occupied slot is never overwritten without the explicit choice (throws before any change)
+    assert.throws(() => applyImport(b, buildEnvelope(played(1))), BackupOccupiedError);
+    assert.equal(readBackup(b).save, JSON.stringify(incoming)); assert.equal(b.getItem(SAVE_KEY), JSON.stringify(local));
+  }
 });

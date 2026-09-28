@@ -532,8 +532,9 @@
     "done": "Kaydın taşındı. Kaldığın yerden devam et!",
     "conflictTitle": "İki kayıt bulundu",
     "conflictBody": "Bu cihazda da bir kayıt var. Hangisiyle devam edeceğini seç. Seçmediğin kayıt silinmez, bir süre bu cihazda yedek olarak kalır.",
-    "optOld": "Eski adresteki kayıt · {f} takipçi · Son oynama: {d}",
-    "optNew": "Bu cihazdaki kayıt · {f} takipçi · Son oynama: {d}",
+    "optOld": "Eski adresteki kayıt",
+    "optNew": "Bu cihazdaki kayıt",
+    "conflictMeta": "{f} takipçi · Son oynama: {d}",
     "fail": "Kayıt otomatik taşınamadı. Eski adresteki “Kaydı indir” düğmesiyle kaydını al, burada Ayarlar'dan içe aktar.",
     "dateUnknown": "bilinmiyor"
   },

@@ -1,7 +1,7 @@
 // Save export / import (Settings), the import-from-move conflict choice and the import error dialog.
 import { h } from './dom.js';
 import { t } from '../logic/i18n.js';
-import { fmt, fmtDate } from '../logic/format.js';
+import { fmt, fmtDate, fmtDay } from '../logic/format.js';
 import { copyText } from './share.js';
 import { buildEnvelope, encodeEnvelope, readCode, readFileText, readRawSave, parseRaw, applyImport, summary, isEmptySave, backupConflict, readBackup, clearBackup } from '../logic/transfer.js';
 
@@ -14,6 +14,8 @@ const day = (ts) => new Date(ts).toISOString().slice(0, 10);
 export function envelopeFileName(env) { return t('saveFile.fileName', { d: day(env.exportedAt) }); }
 export function downloadEnvelope(env) { downloadText(envelopeFileName(env), JSON.stringify(env, null, 2)); }
 const sumText = (key, save) => { const s = summary(save); return t(key, { f: fmt(s.followers), d: fmtDate(s.lastPlayed) }); };
+// conflict choice line: "{f} takipçi · Son oynama: {d}" — followers via fmt(), date "28 Eyl 2026" (missing -> import.dateUnknown)
+export const conflictMeta = (save) => { const s = summary(save); return t('import.conflictMeta', { f: fmt(s.followers), d: fmtDay(s.lastPlayed) }); };
 
 // glue between the UI and storage/telemetry (built in main.js)
 export function saveTools({ ctrl, tel, storage, now = () => Date.now() }) {
@@ -115,8 +117,10 @@ export function showConflict(ui, tools, env, cur) {
     box.setAttribute('data-test', 'import-conflict');
     box.append(h('h2', { text: t('import.conflictTitle') }), h('p', { text: t('import.conflictBody') }),
       h('div', { class: 'col' },
-        h('button', { class: 'btn big choice', 'data-test': 'conflict-old', onclick: () => pick('import') }, sumText('import.optOld', env.save)),
-        h('button', { class: 'btn big choice', 'data-test': 'conflict-new', onclick: () => pick('current') }, sumText('import.optNew', cur))));
+        h('button', { class: 'btn big choice', 'data-test': 'conflict-old', onclick: () => pick('import') },
+          h('span', { text: t('import.optOld') }), h('small', { 'data-test': 'conflict-old-meta', text: conflictMeta(env.save) })),
+        h('button', { class: 'btn big choice', 'data-test': 'conflict-new', onclick: () => pick('current') },
+          h('span', { text: t('import.optNew') }), h('small', { 'data-test': 'conflict-new-meta', text: conflictMeta(cur) }))));
   }, { dismissable: false });
 }
 
