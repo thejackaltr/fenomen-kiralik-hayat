@@ -101,3 +101,19 @@ test('content rules: no forbidden platform/brand names, FanKutusu is non-explici
   for (const w of ['onlyfans', 'only fans', 'lucifer', 'ferrari', 'lamborghini', 'porsche', 'rolex', 'patek', 'bugatti', 'mercedes', 'bmw', 'tesla', 'gucci', 'nike', 'adidas', 'youtube', 'tiktok', 'instagram', 'twitch', ' tl"', '₺', '+18', 'çıplak', 'müstehcen içerik']) assert.ok(!all.includes(w), w);
   assert.equal(tr.fanbox.name, 'FanKutusu');
 });
+
+test('v2.0.2 Yazı texts are verbatim; "ifşa" is lowercase inside sentences', () => {
+  assert.equal(tr.paths.luks.desc, 'Sadece gösteriş. Kiralık eşyalar takipçiyi en çok burada artırır, ifşa riski de en yüksek burada.');
+  assert.equal(tr.shop.rentWearInfo, 'Kiralık kıyafet de videoda aynı stili verir. İfşa olursan üstündeki etiket görünür.');
+  assert.equal(tr.fame.treeHelp, 'Buradan aldığın her şey hem şimdi hem de her yeni hesapta en baştan seninle olur. Harcamadığın her puan izlenmeye küçük bir bonus verir.');
+  assert.equal(tr.sell.newAccount, 'Yeni hesabın açıldı. Bir kariyer yolu seç.');
+  assert.equal(tr.fame.locked, 'Önce bir öncekini aç.');
+  assert.equal(tr.fame.nodes.f_camera, '3. seviye kamera');
+  const walk = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' ? walk(v, p + k + '.') : [[p + k, v]]));
+  for (const [k, v] of walk(tr)) {
+    if (typeof v !== 'string' || k.startsWith('_notes')) continue;
+    if (k === 'ifsa.title') { assert.equal(v, 'İFŞA!'); continue; }
+    assert.ok(!/İFŞA/.test(v), k + ': uppercase İFŞA only in the heading');
+    for (const m of v.matchAll(/İfşa/g)) assert.ok(m.index === 0 || /[.!?]\s$/.test(v.slice(0, m.index)), k + ': "İfşa" mid-sentence -> "ifşa"');
+  }
+});

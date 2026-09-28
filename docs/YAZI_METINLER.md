@@ -2,16 +2,29 @@
 
 Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir). Düzenleme doğrudan tr.json üzerinden yapılır.
 
-## v2 — YENİ METİNLER (taslak, Yazı'nın elden geçirmesi gerekiyor)
+## v2.0.2 — Yazı düzeltmeleri (uygulandı)
+
+"ifşa" cümle içinde her yerde küçük harf; büyük harf yalnız "İFŞA!" başlığında (`ifsa.title`, ekranda toLocaleUpperCase ile). Cümle/etiket başındaki "İfşa" (ör. `ifsa.exposed` "İfşa oldu", `channel.ifsa` "İfşa", `shop.rentWearInfo` ikinci cümlesi) büyük harfle kalır. hud.trustHint ve shop.rentExplain bu kurala göre küçültüldü.
+
+- `paths.luks.desc`: Sadece gösteriş. Kiralık eşyalar takipçiyi en çok burada artırır, ifşa riski de en yüksek burada.
+- `shop.rentWearInfo`: Kiralık kıyafet de videoda aynı stili verir. İfşa olursan üstündeki etiket görünür.
+- `hud.trustHint`: Güven düştükçe ifşa olma ihtimalin artar.
+- `shop.rentExplain`: Kiralık eşya videoda aynı gösterişi ve takipçi artışını sağlar ama her gün kira öder, Güven'i düşürür ve ifşa riski taşır.
+- `fame.treeHelp`: Buradan aldığın her şey hem şimdi hem de her yeni hesapta en baştan seninle olur. Harcamadığın her puan izlenmeye küçük bir bonus verir.
+- `sell.newAccount`: Yeni hesabın açıldı. Bir kariyer yolu seç.
+- `fame.locked`: Önce bir öncekini aç.
+- `fame.nodes.f_camera`: 3. seviye kamera
+
+## v2 — Yeni metinler (taslak; v2.0.2'de düzeltilenler yukarıda)
 
 47 yeni anahtar + 1 değişen anahtar: `paths.luks.desc` (v1'de "Sadece gösteriş. Çok yakında." idi). Hepsi geçici (placeholder) Türkçe metin. {n}, {x}, {v}, {a}, {b} yer tutucuları kodla doldurulur, aynen kalmalı. Eşya adları (Şöhret ağacı düğümleri) items.names.* anahtarlarından gelir; yalnız eşya olmayan 4 düğümün adı fame.nodes.* altında. Kıyafetler için de tekrar kullanılan v1 anahtarları: shop.rent / shop.buyOut / shop.return / shop.rentInfo / tags.rented / ifsa.exposed / toast.rented / toast.bought / toast.returned; başarım penceresinin düğmesi welcome.ok ("Harika"). Ses düğmesi yalnız simge (🔊/🔇); sound.mute/unmute ekran okuyucu etiketi, sound.on/off kısa bildirim.
 
 - `paths.luks.name`: Lüks yaşam
-- `paths.luks.desc`: Sadece gösteriş. Kiralık eşyalar takipçiyi en çok burada uçurur, ama İfşa riski de en yüksek.
+- `paths.luks.desc`: Sadece gösteriş. Kiralık eşyalar takipçiyi en çok burada artırır, ifşa riski de en yüksek burada.
 - `video.titles.t_outfit`: Bugün 5 kıyafet değiştirdim (hiçbiri benim değil)
 - `ifsa.cards.ifsa_tag.title`: Etiket ifşası
 - `ifsa.cards.ifsa_tag.body`: Takipçiler videodaki kıyafetin üstünde unutulan kiralama etiketini fark etti.
-- `shop.rentWearInfo`: Kiralık kıyafet de videoda aynı stili verir; İfşa olursa etiketi görünür.
+- `shop.rentWearInfo`: Kiralık kıyafet de videoda aynı stili verir. İfşa olursan üstündeki etiket görünür.
 - `sell.title`: Kanalı Sat
 - `sell.desc`: Kanalını sat, sıfırdan yeni bir hesap aç ve kalıcı Şöhret kazan.
 - `sell.progress`: Satış için en az {n} takipçiye ulaş.
@@ -23,7 +36,7 @@ Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir)
 - `sell.yes`: Evet, sat
 - `sell.no`: Vazgeç
 - `sell.done`: Kanal satıldı! +{n} Şöhret. Yeni hesabın hazır.
-- `sell.newAccount`: Yeni hesap: kariyerini seç
+- `sell.newAccount`: Yeni hesabın açıldı. Bir kariyer yolu seç.
 - `sell.sales`: Satılan kanal
 - `fame.title`: Şöhret
 - `fame.points`: {n} Şöhret
@@ -32,17 +45,17 @@ Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir)
 - `fame.followBonus`: Takipçi kazanımı +{v}
 - `fame.unspentBonus`: Harcanmamış puan bonusu: izlenme +{v}
 - `fame.tree`: Şöhret ağacı
-- `fame.treeHelp`: Aldığın her şeye şimdi ve her yeni hesabında baştan sahip olursun. Harcamadığın her puan izlenmeye küçük bir bonus verir.
+- `fame.treeHelp`: Buradan aldığın her şey hem şimdi hem de her yeni hesapta en baştan seninle olur. Harcamadığın her puan izlenmeye küçük bir bonus verir.
 - `fame.branches.saat`: Saat ve moda
 - `fame.branches.garaj`: Garaj
 - `fame.branches.ev`: Ev ve stil
 - `fame.branches.ekip`: Ekip
 - `fame.buy`: {n} Şöhret
 - `fame.owned`: Açık
-- `fame.locked`: Önce öncekini aç
+- `fame.locked`: Önce bir öncekini aç.
 - `fame.nodes.f_suit`: Takım elbise seti
 - `fame.nodes.f_editor`: Tanıdık kurgucu
-- `fame.nodes.f_camera`: Kamera seviye 3
+- `fame.nodes.f_camera`: 3. seviye kamera
 - `fame.nodes.f_manager`: Tanıdık menajer
 - `fame.bought`: Şöhret ağacı: {x} artık her hesapta seninle.
 - `ach.title`: Başarımlar
@@ -204,7 +217,7 @@ Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir)
 - `paths.egitim.name`: Eğitim
 - `paths.egitim.desc`: Bir şeyler öğret, takipçiler not alsın.
 - `paths.luks.name`: Lüks yaşam
-- `paths.luks.desc`: Sadece gösteriş. Kiralık eşyalar takipçiyi en çok burada uçurur, ama İfşa riski de en yüksek.
+- `paths.luks.desc`: Sadece gösteriş. Kiralık eşyalar takipçiyi en çok burada artırır, ifşa riski de en yüksek burada.
 
 ## Mağaza / uyarılar / bildirimler
 
@@ -233,9 +246,9 @@ Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir)
 - `shop.style`: Stil +{v}
 - `shop.wear`: Giy
 - `shop.wearing`: Üstünde
-- `shop.rentExplain`: Kiralık eşya videoda aynı gösterişi ve takipçi artışını sağlar ama her gün kira öder, Güven'i düşürür ve İfşa riski taşır.
+- `shop.rentExplain`: Kiralık eşya videoda aynı gösterişi ve takipçi artışını sağlar ama her gün kira öder, Güven'i düşürür ve ifşa riski taşır.
 - `shop.investExplain`: Yatırımlar pasif gelir getirir. Videoda 'Yatırımlarım'ı gösterirsen ekstra izlenme alırsın.
-- `shop.rentWearInfo`: Kiralık kıyafet de videoda aynı stili verir; İfşa olursa etiketi görünür.
+- `shop.rentWearInfo`: Kiralık kıyafet de videoda aynı stili verir. İfşa olursan üstündeki etiket görünür.
 - `shoot.rentedWarn`: Kiralık eşya gösteriyorsun. Güven biraz düşer.
 - `studio.fatigue`: Seyirci biraz yoruldu, videolar daha az izleniyor. Biraz ara ver ya da menajer tut.
 - `toast.bought`: {x} artık senin!

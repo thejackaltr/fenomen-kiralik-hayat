@@ -59,7 +59,7 @@
     "money": "Para",
     "followers": "Takipçi",
     "trust": "Güven",
-    "trustHint": "Güven düştükçe İfşa olma ihtimalin artar.",
+    "trustHint": "Güven düştükçe ifşa olma ihtimalin artar.",
     "income": "Pasif gelir",
     "rent": "Kira"
   },
@@ -101,7 +101,7 @@
     },
     "luks": {
       "name": "Lüks yaşam",
-      "desc": "Sadece gösteriş. Kiralık eşyalar takipçiyi en çok burada uçurur, ama İfşa riski de en yüksek."
+      "desc": "Sadece gösteriş. Kiralık eşyalar takipçiyi en çok burada artırır, ifşa riski de en yüksek burada."
     }
   },
   "studio": {
@@ -172,9 +172,9 @@
     "style": "Stil +{v}",
     "wear": "Giy",
     "wearing": "Üstünde",
-    "rentExplain": "Kiralık eşya videoda aynı gösterişi ve takipçi artışını sağlar ama her gün kira öder, Güven'i düşürür ve İfşa riski taşır.",
+    "rentExplain": "Kiralık eşya videoda aynı gösterişi ve takipçi artışını sağlar ama her gün kira öder, Güven'i düşürür ve ifşa riski taşır.",
     "investExplain": "Yatırımlar pasif gelir getirir. Videoda 'Yatırımlarım'ı gösterirsen ekstra izlenme alırsın.",
-    "rentWearInfo": "Kiralık kıyafet de videoda aynı stili verir; İfşa olursa etiketi görünür."
+    "rentWearInfo": "Kiralık kıyafet de videoda aynı stili verir. İfşa olursan üstündeki etiket görünür."
   },
   "tags": {
     "rented": "Kiralık",
@@ -445,7 +445,7 @@
     "followBonus": "Takipçi kazanımı +{v}",
     "unspentBonus": "Harcanmamış puan bonusu: izlenme +{v}",
     "tree": "Şöhret ağacı",
-    "treeHelp": "Aldığın her şeye şimdi ve her yeni hesabında baştan sahip olursun. Harcamadığın her puan izlenmeye küçük bir bonus verir.",
+    "treeHelp": "Buradan aldığın her şey hem şimdi hem de her yeni hesapta en baştan seninle olur. Harcamadığın her puan izlenmeye küçük bir bonus verir.",
     "branches": {
       "saat": "Saat ve moda",
       "garaj": "Garaj",
@@ -454,11 +454,11 @@
     },
     "buy": "{n} Şöhret",
     "owned": "Açık",
-    "locked": "Önce öncekini aç",
+    "locked": "Önce bir öncekini aç.",
     "nodes": {
       "f_suit": "Takım elbise seti",
       "f_editor": "Tanıdık kurgucu",
-      "f_camera": "Kamera seviye 3",
+      "f_camera": "3. seviye kamera",
       "f_manager": "Tanıdık menajer"
     },
     "bought": "Şöhret ağacı: {x} artık her hesapta seninle."
@@ -475,7 +475,7 @@
     "yes": "Evet, sat",
     "no": "Vazgeç",
     "done": "Kanal satıldı! +{n} Şöhret. Yeni hesabın hazır.",
-    "newAccount": "Yeni hesap: kariyerini seç",
+    "newAccount": "Yeni hesabın açıldı. Bir kariyer yolu seç.",
     "sales": "Satılan kanal"
   },
   "ach": {

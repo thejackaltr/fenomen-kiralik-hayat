@@ -1,6 +1,20 @@
 [
   [
-    "v2 — YENİ METİNLER (taslak, Yazı'nın elden geçirmesi gerekiyor)",
+    "v2.0.2 — Yazı düzeltmeleri (uygulandı)",
+    [
+      "paths.luks.desc",
+      "shop.rentWearInfo",
+      "hud.trustHint",
+      "shop.rentExplain",
+      "fame.treeHelp",
+      "sell.newAccount",
+      "fame.locked",
+      "fame.nodes.f_camera"
+    ],
+    "\"ifşa\" cümle içinde her yerde küçük harf; büyük harf yalnız \"İFŞA!\" başlığında (`ifsa.title`, ekranda toLocaleUpperCase ile). Cümle/etiket başındaki \"İfşa\" (ör. `ifsa.exposed` \"İfşa oldu\", `channel.ifsa` \"İfşa\", `shop.rentWearInfo` ikinci cümlesi) büyük harfle kalır. hud.trustHint ve shop.rentExplain bu kurala göre küçültüldü."
+  ],
+  [
+    "v2 — Yeni metinler (taslak; v2.0.2'de düzeltilenler yukarıda)",
     [
       "paths.luks",
       "video.titles.t_outfit",

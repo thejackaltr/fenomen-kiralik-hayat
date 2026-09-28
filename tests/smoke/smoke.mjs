@@ -288,6 +288,7 @@ async function runV2(kind) {
   await vshot('kanali-sat-onay');
   await tap('[data-test=sell-yes]');
   await p.waitForSelector('[data-test=creator]');
+  ok(tag + 'sell.newAccount text (Yazı v2.0.2)', (await S(() => document.querySelector('.tagline').textContent)) === 'Yeni hesabın açıldı. Bir kariyer yolu seç.');
   ok(tag + 'after sale: creator for the new account, 5 Şöhret kept', (await S(() => document.querySelector('[data-test=creator-fame]')?.textContent)) === '5 Şöhret' && await S(() => window.__fenomen.ctrl.state.money === 0 && window.__fenomen.ctrl.state.meta.sales === 1));
   await vshot('yeni-hesap');
   await create('Lüks Ece 2');
@@ -296,6 +297,7 @@ async function runV2(kind) {
   await tap('[data-test=tab-channel]');
   await tap('[data-test=fame-node-f_watch_01]'); await tap('[data-test=fame-node-f_editor]'); await tap('[data-test=fame-node-f_painting]');
   ok(tag + 'tree nodes bought: watch owned + editor hired now', await S(() => { const s = window.__fenomen.ctrl.state; return s.items.watch_01?.status === 'owned' && s.items.painting_01?.status === 'owned' && s.staff.editor === 1 && s.meta.fame === 1; }));
+  ok(tag + 'fame.locked + f_camera texts (Yazı v2.0.2)', await S(() => document.querySelector('[data-test=fame-node-f_boat] small').textContent === 'Önce bir öncekini aç.' && document.querySelector('[data-test=fame-node-f_camera] .nn').textContent === '3. seviye kamera'));
   ok(tag + 'locked node needs the previous one', await S(() => document.querySelector('[data-test=fame-node-f_boat]').disabled && document.querySelector('[data-test=fame-node-f_boat]').classList.contains('locked')));
   ok(tag + 'channel tab is not rebuilt while followers grow (no click races)', await S(() => { const el = document.querySelector('[data-test=fame-node-f_sneaker]'); const f = window.__fenomen; const st = f.ctrl.state.stats; st.peakFollowers = 50000; f.ui.tickUpdate(); st.peakFollowers = 90000; f.ui.tickUpdate(); return el.isConnected; }));
   await S(() => document.querySelector('[data-test=fame-tree]').scrollIntoView({ block: 'start' }));
