@@ -2,6 +2,7 @@
 // The Settings switch lives in ui.js (showSettings) and calls tel.setEnabled().
 import { h } from './dom.js';
 import { t, list } from '../logic/i18n.js';
+import { analytics } from '../analytics.js';
 
 export const NOTICE_BTN = 'btn nb-btn';
 export function showDetails(ui) {
@@ -15,7 +16,8 @@ export function showDetails(ui) {
 // band stays outside #ui (the game UI rebuilds its root); resolves when answered
 export function showNoticeBand(tel, ui, host = document.body) {
   if (!tel.noticeNeeded()) return null;
-  const answer = (ok) => { tel.answerNotice(ok); band.remove(); if (!ok) ui.toast(t('telemetry.offToast')); };
+  // Umami follows the same answer at once: "Tamam" loads it now (sync), "Kapat" keeps it off (src/analytics.js)
+  const answer = (ok) => { tel.answerNotice(ok); analytics().sync(); band.remove(); if (!ok) ui.toast(t('telemetry.offToast')); };
   const band = h('div', { class: 'notice-band', role: 'region', 'aria-label': t('telemetry.title'), 'data-test': 'tel-banner' },
     h('p', { class: 'nb-text' }, h('b', { text: t('telemetry.title') }), ' ', t('telemetry.body')),
     h('div', { class: 'nb-row' },

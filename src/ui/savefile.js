@@ -3,6 +3,7 @@ import { h } from './dom.js';
 import { t } from '../logic/i18n.js';
 import { fmt, fmtDate, fmtDay } from '../logic/format.js';
 import { copyText } from './share.js';
+import { analytics } from '../analytics.js';
 import { buildEnvelope, encodeEnvelope, readCode, readFileText, readRawSave, parseRaw, applyImport, summary, isEmptySave, backupConflict, readBackup, clearBackup } from '../logic/transfer.js';
 
 export function downloadText(name, text, type = 'application/json') {
@@ -26,7 +27,7 @@ export function saveTools({ ctrl, tel, storage, now = () => Date.now() }) {
     // Callers go through guardBackup() first; overwriteBackup is only set after the player's choice there.
     apply(env, keep = 'import', source = 'file', opts = {}) {
       const replaced = applyImport(storage, env, keep, source, now(), opts);   // throws before any change if the backup slot is taken
-      if (tel) { tel.absorb(env); if (!tel.noticeNeeded()) { const b = document.querySelector('[data-test=tel-banner]'); if (b) b.remove(); } }
+      if (tel) { tel.absorb(env); analytics().sync(); if (!tel.noticeNeeded()) { const b = document.querySelector('[data-test=tel-banner]'); if (b) b.remove(); } }
       if (replaced) { if (tel) tel.seed(env.save); ctrl.reload(); }
       return replaced;
     },

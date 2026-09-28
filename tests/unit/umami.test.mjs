@@ -122,3 +122,49 @@ test('not pasted into index.html; no hardcoded Umami id/URL in src; SW never cac
   assert.ok(read('src/analytics.js').includes('VITE_UMAMI_SRC') && read('src/analytics.js').includes('VITE_UMAMI_WEBSITE_ID'));
   assert.ok(read('sw.template.js').includes('if (url.origin !== location.origin) return;'));
 });
+
+// ---- v2.1 wiring: the real anonymous-counter preference (src/telemetry.js) drives Umami through sync() ----
+test('v2.1 end-to-end with the real counter: before notice nothing; "Tamam" + sync() loads at once; Settings off stops; on resumes; reload with off loads nothing', async () => {
+  const { createTelemetry, mockTransport, KEYS: TK } = await import('../../src/telemetry.js');
+  assert.equal(TK.pref, KEYS.pref); assert.equal(TK.notice, KEYS.notice);        // one preference for both
+  const st = memStorage(); const { doc, win, appended } = fakeEnv();
+  const tel = createTelemetry({ storage: st, transport: mockTransport(false) });
+  const A = createAnalytics({ win, doc, storage: st, cfg: CFG });
+  // before the notice: boot sync + events -> nothing loads, nothing stored by Umami
+  assert.equal(A.sync(), false); assert.equal(A.track('game_start'), 'off');
+  assert.equal(appended.length, 0); assert.ok(![...st.m.keys()].some((k) => /umami/i.test(k)));
+  // notice "Tamam" (ui/privacy.js answer(true) -> tel.answerNotice(true); analytics().sync())
+  tel.answerNotice(true); assert.equal(A.sync(), true);
+  assert.equal(appended.length, 1, 'script injected immediately on accept, no reload needed');
+  const calls = []; win.umami = { track: (...a) => calls.push(a) };
+  assert.equal(A.track('share_click'), 'sent');
+  // Settings switch off (ui/ui.js -> tel.setEnabled(false); analytics().sync())
+  tel.setEnabled(false); assert.equal(A.sync(), false);
+  assert.equal(win[BEFORE_SEND]('pageview', { url: '/' }), null, 'automatic pageview dropped at once');
+  assert.equal(A.track('reset_or_prestige'), 'off'); assert.equal(calls.length, 1);
+  assert.equal(st.getItem('umami.disabled'), '1');
+  // back on
+  tel.setEnabled(true); assert.equal(A.sync(), true);
+  assert.equal(st.getItem('umami.disabled'), null); assert.equal(appended.length, 1, 'not injected twice');
+  assert.equal(A.track('reset_or_prestige'), 'sent'); assert.deepEqual(calls.at(-1), ['reset_or_prestige']);
+  // reload with stats off: a fresh instance on the same storage never injects
+  tel.setEnabled(false);
+  const env2 = fakeEnv(); const A2 = createAnalytics({ win: env2.win, doc: env2.doc, storage: st, cfg: CFG });
+  assert.equal(A2.sync(), false); assert.equal(A2.track('game_start'), 'off'); assert.equal(env2.appended.length, 0);
+});
+test('v2.1 "Kapat" on the notice: sync() keeps Umami off (nothing injected)', async () => {
+  const { createTelemetry, mockTransport } = await import('../../src/telemetry.js');
+  const st = memStorage(); const { doc, win, appended } = fakeEnv();
+  const tel = createTelemetry({ storage: st, transport: mockTransport(false) });
+  const A = createAnalytics({ win, doc, storage: st, cfg: CFG });
+  tel.answerNotice(false); assert.equal(A.sync(), false);
+  assert.equal(A.track('game_start'), 'off'); assert.equal(appended.length, 0);
+});
+test('v2.1 wiring in source: sync() after the notice answer (both buttons), on the Settings switch and after an import', () => {
+  const pv = read('src/ui/privacy.js'), ui = read('src/ui/ui.js'), sf = read('src/ui/savefile.js'), mn = read('src/main.js');
+  assert.match(pv, /const answer = \(ok\) => \{ tel\.answerNotice\(ok\); analytics\(\)\.sync\(\);/);
+  assert.match(pv, /'data-test': 'tel-ok', onclick: \(\) => answer\(true\)/); assert.match(pv, /'data-test': 'tel-off', onclick: \(\) => answer\(false\)/);
+  assert.match(ui, /tel\.setEnabled\(on\);\n\s*analytics\(\)\.sync\(\);/);
+  assert.match(sf, /tel\.absorb\(env\); analytics\(\)\.sync\(\);/);
+  assert.match(mn, /analytics\(\)\.sync\(\);\n\s*track\('game_start'\);/);
+});

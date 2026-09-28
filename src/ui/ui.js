@@ -11,6 +11,7 @@ import { drawDoll, wearThumb } from '../render/doll.js';
 import { openShare } from './share.js';
 import { Sound } from './sound.js';
 import { showDetails } from './privacy.js';
+import { analytics } from '../analytics.js';
 import { exportSave, openImport } from './savefile.js';
 
 // Element.append(null) would print "null": always go through ap()
@@ -575,6 +576,7 @@ export class UI {
         const box2 = h('input', { type: 'checkbox', 'data-test': 'tel-toggle', checked: tel.enabled(), onchange: (e) => {
           const on = e.target.checked;
           if (tel.noticeNeeded()) { tel.answerNotice(on); const b = document.querySelector('[data-test=tel-banner]'); if (b) b.remove(); } else tel.setEnabled(on);
+          analytics().sync();            // Umami: off stops it at once, back on resumes (src/analytics.js)
         } });
         ap(box, h('h3', { text: t('settings.privacy') }), h('label', { class: 'toggle-row' }, box2, h('span', { text: t('settings.telemetry') })),
           h('p', { class: 'muted small' }, t('settings.telemetryHint'), ' ', h('button', { class: 'link', 'data-test': 'settings-tel-details', onclick: () => { close(); showDetails(this); } }, t('telemetry.detailsLink'))));
