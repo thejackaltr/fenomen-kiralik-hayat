@@ -1,7 +1,9 @@
 // Umami KVKK smoke (headless Chromium): builds with the VITE_UMAMI_* env into dist-umami/, serves it with a tiny static
 // server (vite preview refuses unknown Host headers) and opens it as http://fenomen.teserix.com/ (host-resolver-rules -> local preview; the analytics module refuses
 // localhost). analiz.teserix.com is never contacted: its script is answered with a fake tracker.
-// Usage: npm run smoke:umami   (PORT=4189 by default)
+// Usage: npm run smoke:umami   (PORT=4189 by default; use a free port, e.g. PORT=4193 npm run smoke:umami)
+// v2.1: also runs the "[privacy-net]" section: real request capture proving ZERO requests to the Umami host before the
+// notice, after "Kapat", after switching off in Settings and on reload while off (+ a positive control when on).
 import { chromium } from 'playwright-core';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -25,7 +27,9 @@ await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 const BASE = 'http://fenomen.teserix.com/';
 
 const exe = process.env.CHROME || ['/usr/bin/google-chrome', '/usr/bin/chromium'].find((p) => fs.existsSync(p));
-const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--host-resolver-rules=MAP fenomen.teserix.com 127.0.0.1:' + PORT] });
+const UMAMI_HOST = new URL(ENV.VITE_UMAMI_SRC).hostname;          // analiz.teserix.com
+// safety net: even a request that escaped interception could never reach the real Umami server (port 9 = discard, closed)
+const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--host-resolver-rules=MAP fenomen.teserix.com 127.0.0.1:' + PORT + ', MAP ' + UMAMI_HOST + ' 127.0.0.1:9'] });
 const results = []; let failed = 0;
 const ok = (name, cond, extra) => { results.push((cond ? 'PASS ' : 'FAIL ') + name + (extra ? ' — ' + extra : '')); if (!cond) failed++; };
 const FAKE = 'window.__umamiCalls = []; window.umami = { track: function (n) { var h = window[document.currentScript && document.currentScript.getAttribute("data-before-send")]; if (h && !h("event", { name: n })) return; window.__umamiCalls.push([].slice.call(arguments)); } };';
@@ -89,7 +93,95 @@ try {
     ok('tracker blocked: game works, no page errors', errors.length === 0 && await p.evaluate(() => typeof window.umami === 'undefined'), errors.join(' | '));
     await ctx.close();
   }
+  await privacyNet();
 } catch (e) { ok('umami smoke crashed: ' + e.message, false); }
+
+// ============ [privacy-net] ZERO requests to the Umami host unless stats are on (network request interception) ============
+// Every request of the browser context is captured (context 'request' event + a route on the Umami host that answers
+// locally + the page's own resource timing). The fake tracker below behaves like the real Umami script: automatic
+// pageview on load and on history.pushState/replaceState/popstate, umami.track(name) -> POST /api/send, and before every
+// send it honours localStorage 'umami.disabled' and the data-before-send hook. So an "off" that failed would show up
+// as a real network request here.
+async function privacyNet() {
+  const TAG = '[privacy-net] ';
+  const FAKE_REAL = '(function(){var s=document.currentScript;var hook=s&&s.getAttribute("data-before-send");var ep=new URL("/api/send",s.src).href;var site=s.getAttribute("data-website-id");' +
+    'function send(type,payload){try{if(localStorage.getItem("umami.disabled"))return;}catch(e){}var h=hook&&window[hook];if(typeof h==="function"){payload=h(type,payload);if(!payload)return;}' +
+    'fetch(ep,{method:"POST",keepalive:true,headers:{"Content-Type":"application/json"},body:JSON.stringify({type:type,payload:payload})}).catch(function(){});}' +
+    'function pv(){send("event",{website:site,url:location.pathname});}' +
+    'window.umami={track:function(n){send("event",{website:site,name:n,url:location.pathname});}};' +
+    '["pushState","replaceState"].forEach(function(k){var o=history[k];history[k]=function(){var r=o.apply(this,arguments);pv();return r;};});' +
+    'window.addEventListener("popstate",pv);pv();})();';
+  const isUmami = (u) => { try { const h = new URL(u).hostname; return h === UMAMI_HOST || h.endsWith('.' + UMAMI_HOST); } catch (e) { return false; } };
+  async function context() {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'tr-TR' });
+    const all = [];                                        // every request of the context (pages, workers, subresources)
+    ctx.on('request', (r) => all.push(r.url()));
+    const routed = [];
+    await ctx.route((u) => isUmami(u.href), (r) => { routed.push(r.request().url()); const u = new URL(r.request().url());
+      return u.pathname.endsWith('.js') ? r.fulfill({ status: 200, contentType: 'application/javascript', body: FAKE_REAL }) : r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
+    const p = await ctx.newPage(); const errors = []; p.on('pageerror', (e) => errors.push(e.message));
+    const count = () => ({ seen: all.filter(isUmami).length, routed: routed.length });
+    const timing = () => p.evaluate((h) => performance.getEntriesByType('resource').filter((e) => { try { return new URL(e.name).hostname === h; } catch (x) { return false; } }).length, UMAMI_HOST);
+    return { ctx, p, all, routed, errors, count, timing };
+  }
+  const settle = (p) => p.waitForTimeout(800);
+  const events = async (p) => {                            // Umami-tracked game events + SPA navigation (pageviews)
+    await p.evaluate(() => { window.__fenomen.ctrl.reset(); history.pushState({}, '', '/nav-a'); history.replaceState({}, '', '/nav-b'); history.back(); });
+    await settle(p);
+  };
+  const createChar = async (p) => { await p.waitForSelector('[data-test=creator]'); await p.fill('[data-test=channel-input]', 'Gizlilik'); await p.click('[data-test=creator-next]'); await p.click('[data-test=path-vlog]'); await p.click('[data-test=creator-start]'); await p.waitForSelector('[data-test=shoot]'); await p.evaluate(() => { const f = window.__fenomen; f.ctrl.state.tut = 99; f.ui.updateTutorial(); }); };
+  // the Settings switch is reached through the real UI (a character is created first; the creator screen has no ⚙)
+  const toggle = async (p) => { if (!(await p.$('[data-test=settings-open]'))) await createChar(p); await p.click('[data-test=settings-open]'); await p.click('[data-test=tel-toggle]'); await p.evaluate(() => window.__fenomen.ui.closeModal()); };
+  const zero = (c) => c.seen === 0 && c.routed === 0;
+
+  // (a) fresh load, empty storage, notice not answered
+  {
+    const T = await context();
+    await T.p.goto(BASE, { waitUntil: 'load' }); await T.p.waitForSelector('[data-test=tel-banner]'); await settle(T.p);
+    await events(T.p); await T.p.reload({ waitUntil: 'load' }); await T.p.waitForSelector('[data-test=tel-banner]'); await settle(T.p);
+    const c = T.count(), tm = await T.timing();
+    ok(TAG + '(a) before the notice: ZERO requests to ' + UMAMI_HOST + ' (load, events, navigation, reload)', zero(c) && tm === 0, JSON.stringify({ c, tm, hits: T.all.filter(isUmami) }));
+    ok(TAG + '(a) before the notice: every request stays on the game origin', T.all.every((u) => u.startsWith(BASE) || /^(data|blob):/.test(u)), T.all.filter((u) => !u.startsWith(BASE)).join(' | '));
+    ok(TAG + '(a) before the notice: nothing Umami-related stored, no script tag', await T.p.evaluate(() => !Object.keys(localStorage).some((k) => /umami/i.test(k)) && !document.querySelector('script[data-test=umami-script]')));
+    await T.ctx.close();
+  }
+  // (b) notice answered with "Kapat"
+  {
+    const T = await context();
+    await T.p.goto(BASE, { waitUntil: 'load' }); await T.p.click('[data-test=tel-off]'); await settle(T.p);
+    await events(T.p); await T.p.reload({ waitUntil: 'load' }); await T.p.waitForSelector('[data-test=creator]'); await events(T.p);
+    const c = T.count(), tm = await T.timing();
+    ok(TAG + '(b) after "Kapat": ZERO requests to ' + UMAMI_HOST + ' (events, navigation, reload)', zero(c) && tm === 0 && !(await T.p.$('script[data-test=umami-script]')), JSON.stringify({ c, tm }));
+    await T.ctx.close();
+  }
+  // positive control + (c) switched off in Settings after an earlier accept + (d) reload while off
+  {
+    const T = await context();
+    await T.p.goto(BASE, { waitUntil: 'load' }); await T.p.click('[data-test=tel-ok]');
+    await T.p.waitForFunction(() => !!document.querySelector('script[data-test=umami-script]'), null, { timeout: 3000 }).catch(() => {});
+    await settle(T.p); await events(T.p);
+    const on = T.count(), sends = T.all.filter((u) => isUmami(u) && u.endsWith('/api/send')).length;
+    ok(TAG + 'positive control: stats ON -> requests to ' + UMAMI_HOST + ' DO occur (script right after "Tamam" via sync(), pageview + events)', T.all.some((u) => isUmami(u) && u.endsWith('/script.js')) && sends >= 3 && on.routed >= 4 && (await T.timing()) >= 1, JSON.stringify({ on, sends }));
+    await createChar(T.p); await settle(T.p);
+    const mark = T.count(), markAll = T.all.length;         // taken BEFORE the switch is touched: nothing may follow it
+    await toggle(T.p);                                      // Settings > Gizlilik switch OFF (real UI click)
+    ok(TAG + '(c) switch is off in storage', (await T.p.evaluate(() => localStorage.getItem('fenomen_tel'))) === 'off');
+    await events(T.p); await events(T.p);
+    const after = T.count();
+    ok(TAG + '(c) switched off in Settings: ZERO requests to ' + UMAMI_HOST + ' from that moment (events + navigation pageviews)', after.seen === mark.seen && after.routed === mark.routed, JSON.stringify({ mark, after, extra: T.all.slice(markAll).filter(isUmami) }));
+    // (d) reload while off (same browser profile)
+    await T.p.reload({ waitUntil: 'load' }); await T.p.waitForSelector('[data-test=creator]'); await settle(T.p); await events(T.p);
+    const rl = T.count();
+    ok(TAG + '(d) reload while off: ZERO requests to ' + UMAMI_HOST + ', no script tag', rl.seen === mark.seen && rl.routed === mark.routed && (await T.timing()) === 0 && !(await T.p.$('script[data-test=umami-script]')), JSON.stringify({ mark, rl }));
+    // switched back on: resumes at once (same capture sees it again)
+    await toggle(T.p); await settle(T.p); await events(T.p);
+    const back = T.count();
+    ok(TAG + 'switched back on: requests resume (script + sends)', back.seen > rl.seen && back.routed > rl.routed, JSON.stringify({ rl, back }));
+    ok(TAG + 'no page errors', T.errors.length === 0, T.errors.join(' | '));
+    await T.ctx.close();
+  }
+}
+
 await browser.close();
 server.close();
 fs.rmSync(OUT, { recursive: true, force: true });
