@@ -257,7 +257,7 @@ test('active play time is stored in meta.playSec and survives save/load and Kana
 test('v2.1 texts: copy writer keys present, temporary changes applied, no "rıza", placeholders', () => {
   assert.equal(tr.move.title, 'Fenomen yeni adresine taşındı!'); assert.equal(tr.move.download, 'Kaydı indir');
   assert.equal(tr.saveFile.importYes, 'Evet, yükle'); assert.equal(tr.import.done, 'Kaydın taşındı. Kaldığın yerden devam et!');
-  assert.ok(tr.import.conflictBody.includes('yedekte kalır'));
+  assert.equal(tr.import.conflictBody, 'Bu cihazda da bir kayıt var. Hangisiyle devam edeceğini seç. Seçmediğin kayıt silinmez, bir süre bu cihazda yedek olarak kalır.');
   for (const k of ['optOld', 'optNew']) assert.ok(tr.import[k].includes('{f}') && tr.import[k].includes('{d}'), k);
   assert.equal(tr.settings.telemetry, 'İsimsiz istatistik gönder'); assert.equal(tr.telemetry.ok, 'Tamam'); assert.equal(tr.telemetry.off, 'Kapat');
   const all = JSON.stringify(tr).toLocaleLowerCase('tr');

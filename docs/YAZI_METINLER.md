@@ -16,7 +16,7 @@ Yazı'nın kesin metinleri uygulandı (move, import, saveFile, telemetry, settin
 - `move.later`: Daha sonra
 - `import.done`: Kaydın taşındı. Kaldığın yerden devam et!
 - `import.conflictTitle`: İki kayıt bulundu
-- `import.conflictBody`: Bu cihazda da bir Fenomen kaydı var. Hangisiyle devam edeceğini seç. Seçmediğin kayıt silinmez, bu cihazda yedekte kalır.
+- `import.conflictBody`: Bu cihazda da bir kayıt var. Hangisiyle devam edeceğini seç. Seçmediğin kayıt silinmez, bir süre bu cihazda yedek olarak kalır.
 - `import.optOld`: Eski adresteki kayıt · {f} takipçi · Son oynama: {d}
 - `import.optNew`: Bu cihazdaki kayıt · {f} takipçi · Son oynama: {d}
 - `import.fail`: Kayıt otomatik taşınamadı. Eski adresteki “Kaydı indir” düğmesiyle kaydını al, burada Ayarlar'dan içe aktar.

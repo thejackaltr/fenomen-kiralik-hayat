@@ -540,7 +540,7 @@ async function runV21() {
     await T.p.goto(NEW + '?t=2#import=' + code, { waitUntil: 'load' });
     await T.p.waitForSelector('[data-test=import-conflict]');
     const c = await T.S(() => ({ t: document.querySelector('[data-test=import-conflict]').textContent, o: document.querySelector('[data-test=conflict-old]').textContent, n: document.querySelector('[data-test=conflict-new]').textContent, h: location.hash }));
-    ok(tag + 'conflict dialog: both saves with followers + last played date', c.t.includes('İki kayıt bulundu') && c.t.includes('yedekte kalır') && /Eski adresteki kayıt · 7,8\sB takipçi · Son oynama: 1 Eylül 2026 12:30/.test(c.o) && /Bu cihazdaki kayıt · 7\d\d takipçi · Son oynama: \d+ \S+ 2026/.test(c.n) && c.h === '', c.o + ' | ' + c.n);
+    ok(tag + 'conflict dialog: both saves with followers + last played date', c.t.includes('İki kayıt bulundu') && c.t.includes('bir süre bu cihazda yedek olarak kalır') && /Eski adresteki kayıt · 7,8\sB takipçi · Son oynama: 1 Eylül 2026 12:30/.test(c.o) && /Bu cihazdaki kayıt · 7\d\d takipçi · Son oynama: \d+ \S+ 2026/.test(c.n) && c.h === '', c.o + ' | ' + c.n);
     await T.tap('[data-test=conflict-old]'); await T.p.waitForTimeout(300);
     ok(tag + 'pick old-address save -> loaded, device save kept as backup', await T.S(() => { const s = window.__fenomen.ctrl.state; const b = JSON.parse(localStorage.getItem('fenomen_save_backup')); return s.char.channel === 'Eski Kanal' && Math.floor(s.followers) >= 7777 && JSON.parse(b.save).char.channel === 'Bu Cihaz'; }));
     code = await mkCode(99, 'Başka Kanal');
