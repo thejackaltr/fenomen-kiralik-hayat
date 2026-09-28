@@ -513,7 +513,7 @@
       "Her aşama bir cihazdan yalnızca bir kez sayılır. Bunu cihazın kendisi hatırlar, sunucuya kimlik gitmez. Oyunu açman ise en fazla yarım saatte bir sayılır.",
       "Oyun sayfasına gelen ziyaretleri de Teserix'in kendi analiz sunucusunda sayıyoruz. Bunun için çerez kullanılmaz ve kimliğin saklanmaz. Sayacı kapatınca bu sayım da durur.",
       "Sunucu, bağlantı sırasında IP adresini teknik kayıtlarda görebilir. IP adresi istatistik tablosuna yazılmaz.",
-      "Aşama sayacı kayıtları 180 gün sonra silinir. Ziyaret sayımı kayıtları da 180 gün sonra silinir.",
+      "Aşama sayacı kayıtları 180 gün sonra silinir. Ziyaret sayımı kayıtları da 13 ay sonra silinir.",
       "İstediğin zaman Ayarlar'daki Gizlilik bölümünden kapatabilirsin. Kapattığın anda hiçbir şey gönderilmez.",
       "Bu bilgilerin veri sorumlusu Teserix Bilişim ve Dijital Çözümler. Bilgiler Teserix'in kendi sunucusunda tutulur, bağlantı trafiğini Cloudflare taşır. KVKK'nın 11. maddesindeki haklarını kullanmak için info@teserix.com adresine yazabilirsin."
     ]

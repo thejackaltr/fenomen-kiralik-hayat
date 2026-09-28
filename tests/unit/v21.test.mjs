@@ -364,7 +364,7 @@ test('conflict choice: the save not chosen stays on this device as the backup, b
     assert.equal(readBackup(b).save, JSON.stringify(incoming)); assert.equal(b.getItem(SAVE_KEY), JSON.stringify(local));
   }
 });
-test('telemetry.details: approved final copy (9 items, Umami visit count as #5, 180-day sentence for visits in #7)', () => {
+test('telemetry.details: approved final copy (9 items, Umami visit count as #5, #7: stage counter 180 days, visits 13 months)', () => {
   const d = tr.telemetry.details;
   assert.equal(d.length, 9);
   assert.ok(d[1].startsWith('Aşama sayacına gönderilen her bilgide yalnızca dört şey var:'));
@@ -372,7 +372,7 @@ test('telemetry.details: approved final copy (9 items, Umami visit count as #5, 
   assert.ok(d[3].startsWith('Her aşama bir cihazdan yalnızca bir kez sayılır'));
   assert.equal(d[4], "Oyun sayfasına gelen ziyaretleri de Teserix'in kendi analiz sunucusunda sayıyoruz. Bunun için çerez kullanılmaz ve kimliğin saklanmaz. Sayacı kapatınca bu sayım da durur.");
   assert.ok(d[5].startsWith('Sunucu, bağlantı sırasında IP adresini'));
-  assert.equal(d[6], 'Aşama sayacı kayıtları 180 gün sonra silinir. Ziyaret sayımı kayıtları da 180 gün sonra silinir.');
+  assert.equal(d[6], 'Aşama sayacı kayıtları 180 gün sonra silinir. Ziyaret sayımı kayıtları da 13 ay sonra silinir.');
   assert.ok(d[8].includes('info@teserix.com') && d[8].includes('veri sorumlusu'));
   assert.deepEqual(emptyLegalItems(tr), []);
 });
