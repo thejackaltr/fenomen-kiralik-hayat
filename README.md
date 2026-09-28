@@ -7,7 +7,7 @@ Hedef: kiralık hayattan gerçek eşyalara ve yatırımlara geçmek.
 **Oyna:** https://thejackaltr.github.io/fenomen-kiralik-hayat/ (yüklenebilir PWA, çevrimdışı çalışır)
 
 ## v1 kapsamı
-- Karakter yaratma (erkek/kadın, ten, saç, kanal adı) ve kariyer yolu: **Vlog** ve **Oyun yayını** oynanabilir; Eğitim ve Lüks yaşam "yakında".
+- Karakter yaratma (erkek/kadın, ten, saç, kanal adı) ve kariyer yolu: **Vlog** ve **Oyun yayını** oynanabilir (v2: Lüks yaşam da); Eğitim "yakında".
 - Kurgu mini oyunu (oynatıcı yeşil anlardan geçerken KES) → kalite izlenmeyi çarpar. Kurgucu kurguyu sabit kaliteyle yapar, menajer otomatik video yükler (boşta ilerleme).
 - Lüks eşyalar (saat ×2, koleksiyonluk ayakkabı, tablo, araba ×2, yat, villa): satın al / kirala / iade et / kiradan kurtul. Kira her oyun günü (`CFG.daySec`) ödenir, ödenemezse eşya geri alınır.
 - Güven ve İfşa: kiralık eşya gösteren her video Güven'i düşürür; İfşa ihtimali `base + slope·(100−Güven)/100`. 5 İfşa kartı, "Özür videosu çek" / "Görmezden gel" seçimleri.
@@ -15,6 +15,16 @@ Hedef: kiralık hayattan gerçek eşyalara ve yatırımlara geçmek.
 - Yatırımlar (pasif gelir; videoda göstermek ekstra izlenme), FanKutusu (müstehcen olmayan parodi abonelik sayfası).
 - Çevrimdışı kazanç + "Tekrar hoş geldin" penceresi (8 saat sınırı), video kapağı tarzında paylaşım kartı (1080×1920, UTM'li bağlantı).
 - İlk dakikalar için rehber ipuçları. Arka uç yok: **yalnızca yerel kayıt** (`localStorage`, ID bazlı).
+
+## v2 kapsamı
+- **Lüks yaşam** kariyeri oynanabilir: kiralık eşyalar takipçiyi en çok burada artırır (`PATHS.luks.rentFollowMult`), İfşa riski (`ifsaMult`) ve Güven kaybı (`rentTrustMult`) da en yüksek. Kendi arka planı (`bg_lounge_01`) ve başlığı var.
+- **Kiralık kıyafet**: gösterişli parçalar (`CFG.rent.wearMinPrice` üstü) kiralanabilir, satın alınarak kiradan kurtarılabilir ya da iade edilebilir. Aynı KİRALIK etiket katmanı: etiket yalnızca mağaza/dolapta, videoda ise ancak İfşa'dan sonra görünür (yeni kart: Etiket ifşası). Menajer kiralık kıyafet giymez.
+- **Kanalı Sat** (prestij): en yüksek takipçi `FAME.minFollowers` (200 B) olunca kanal satılır, yeni hesap açılır ve kalıcı **Şöhret** kazanılır: `floor(√(en yüksek takipçi / FAME.unit))`. Kazanılan her Şöhret takipçi kazanımını +%6 artırır; harcanmamış her puan izlenmeye +%1 verir (en çok +%50).
+- **Şöhret ağacı** (4 dal × 3 sıralı düğüm: Saat ve moda, Garaj, Ev ve stil, Ekip): alınan düğüm hemen ve her yeni hesapta baştan sahip olunan eşya/kıyafet/ekip/ekipman verir.
+- **Başarım "Kiralıksız Hayat"**: tüm gösteriş eşyalarına aynı anda gerçekten sahip ol (+5 Şöhret, bir kez).
+- **Ses**: yalnızca 3 efekt (bildirim, yazar kasa, İfşa alarmı), WebAudio ile kodda üretilir; varsayılan açık, tek dokunuşla kapanır ve hatırlanır (`fenomen_sound`).
+- **Denge**: izleyici doygunluğu (`CFG.video.satFollowers/satExp`) v1'deki 30. dakikadan sonraki kontrolsüz büyümeyi durdurur; ilk Kanalı Sat 31–40. dakikada açılır, Kiralıksız Hayat tipik olarak 3.–4. hesapta (~2,5–3 saat). `npm run balance` zaman tablosunu yazdırır.
+- Kayıt v1 → v2 kayıpsız taşınır (anahtar aynı: `fenomen_save_v1`, alan `v: 2`). Analitik/sayaç yok.
 
 ## Geliştirme
 ```bash
@@ -25,7 +35,7 @@ npm run build      # dist/ + sürümlü service worker
 npm run preview    # http://localhost:4180
 SHOTS=1 npm run smoke                                   # başsız duman testi (390×844 + 1280×800)
 BASE=https://thejackaltr.github.io/fenomen-kiralik-hayat/ npm run smoke
-npm run balance    # ilk 40 dakikanın denge simülasyonu
+npm run balance    # denge simülasyonu: tek hesap + Kanalı Sat kampanyası
 npm run art        # görselleri koddan yeniden üret (CHROME=/yol/chrome)
 ```
 
@@ -33,7 +43,7 @@ npm run art        # görselleri koddan yeniden üret (CHROME=/yol/chrome)
 - `src/logic/config.js` — **tüm sayılar ve kataloglar** (CFG). `game.js` saf oyun mantığı, `save.js` ID bazlı kayıt + doğrulama, `edit.js` kurgu kuralları.
 - `src/logic/i18n.js`, `format.js` — yerelleştirme ve Intl biçimlendirme. `src/locales/tr.json` — **tüm metinler** (kaynak + yedek dil).
 - `src/render/` — Canvas 2D: görsel yükleme ve renklendirme, paper-doll, video sahnesi/küçük resim.
-- `src/ui/` — DOM arayüzü, paylaşım kartı. `src/controller.js` — döngü, otomatik kayıt, çevrimdışı telafi.
+- `src/ui/` — DOM arayüzü, paylaşım kartı, `sound.js` (WebAudio efektleri). `src/controller.js` — döngü, otomatik kayıt, çevrimdışı telafi.
 - `tools/art/` — prosedürel görsel üretimi. `tools/balance.mjs` — denge simülasyonu.
 
 Neden Phaser değil de DOM + Canvas 2D? Oyun ağırlıklı olarak menü/kart arayüzü ve katmanlı karakter çizimi; Canvas 2D ile JS paketi ~26 KB gzip kalıyor (Phaser tek başına ~340 KB).
@@ -48,4 +58,4 @@ Neden Phaser değil de DOM + Canvas 2D? Oyun ağırlıklı olarak menü/kart ara
 - Parodi isimler çevrilmez, her dilde yerel karşılığı bulunur; `tr.json` → `_notes` açıklamaları içerir.
 
 ## Lisans
-Kod MIT (`LICENSE`), görseller CC0 (`CREDITS.md`).
+Kod MIT (`LICENSE`), görseller ve sesler CC0 (`CREDITS.md`).

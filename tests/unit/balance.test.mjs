@@ -20,3 +20,31 @@ for (const path of ['vlog', 'oyun']) {
     assert.ok(r.s.money < 1e9 && r.s.followers < 1e9, 'no runaway numbers at 40 min');
   });
 }
+
+// ---------- v2: Lüks Yaşam, audience saturation, Kanalı Sat prestige ----------
+import { campaign } from '../../tools/balance.mjs';
+test('Lüks Yaşam pacing: playable end to end, early game like the others', () => {
+  const r = simulate({ path: 'luks', minutes: 40 });
+  assert.ok(at(r, 'ekipman1') <= 2 && at(r, 'kira:watch_01') <= 6 && at(r, 'kurgucu') <= 14 && at(r, 'menajer') <= 25);
+  assert.ok(r.ms.some((m) => m.k.startsWith('kirakiyafet:')), 'rents clothing');
+  assert.ok(r.s.stats.ifsa > simulate({ path: 'vlog', minutes: 40 }).s.stats.ifsa, 'more İfşa than vlog');
+});
+for (const path of ['vlog', 'oyun', 'luks']) {
+  test('first Kanalı Sat is reachable in run 1 (' + path + ')', () => {
+    const t = at(simulate({ path, minutes: 60 }), 'satilabilir');
+    assert.ok(t >= 25 && t <= 45, 'sellable at ' + t + ' min');
+  });
+}
+test('no runaway: single account after 150 min stays below 1e8 followers', () => {
+  for (const path of ['vlog', 'luks']) { const r = simulate({ path, minutes: 150 }); assert.ok(r.s.followers < 1e8, path + ' ' + r.s.followers); }
+});
+test('prestige: each new account reaches Kanalı Sat sooner; content lasts far beyond 40 min', () => {
+  for (const path of ['vlog', 'luks']) {
+    const c = campaign({ path, minutes: 300 });
+    assert.ok(c.runs.length >= 3);
+    for (let i = 1; i < c.runs.length; i++) assert.ok(c.runs[i].sellable < c.runs[i - 1].sellable, path + ' run ' + (i + 1) + ' sellable sooner');
+    const kh = c.ms.find((m) => m.k === 'kiraliksiz_hayat');
+    assert.ok(kh && kh.t >= 90 && kh.run >= 2, path + ': Kiralıksız Hayat after 90 min and after a sale (' + (kh && kh.t) + ')');
+    assert.ok(c.runs[1].peak > c.runs[0].peak, 'run 2 gets further than run 1');
+  }
+});

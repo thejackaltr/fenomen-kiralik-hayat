@@ -4,16 +4,17 @@ import { t, plural, upper, available, locale } from '../logic/i18n.js';
 import { fmt, money, fmtDuration, pct } from '../logic/format.js';
 import * as G from '../logic/game.js';
 import { makeZones, cut as editCut, quality as editQuality } from '../logic/edit.js';
-import { CFG, LUXURY, WEARABLES, EQUIPMENT, STAFF, INVESTMENTS, TITLES, PATHS, SKINS, HAIRS, LUX, WEAR, TTL, CARD } from '../logic/config.js';
+import { CFG, LUXURY, WEARABLES, EQUIPMENT, STAFF, INVESTMENTS, TITLES, PATHS, SKINS, HAIRS, LUX, WEAR, TTL, CARD, FAME, FAME_TREE, EQ, STF } from '../logic/config.js';
 import { url as assetUrl } from '../render/assets.js';
 import { drawScene, thumbCanvas } from '../render/scene.js';
 import { drawDoll, wearThumb } from '../render/doll.js';
 import { openShare } from './share.js';
+import { Sound } from './sound.js';
 
 // Element.append(null) would print "null": always go through ap()
 function ap(el, ...k) { el.append(...k.filter((x) => x != null && x !== false)); return el; }
 const SLOTS = ['top', 'bottom', 'shoes', 'accessory', 'glasses'];
-const itemName = (id) => t('items.names.' + id);
+const itemName = (id) => (WEAR[id] ? t('wear.' + id) : t('items.names.' + id));
 
 export class UI {
   constructor(root, ctrl, opts) {
@@ -21,8 +22,13 @@ export class UI {
     this.tab = 'studio'; this.shopTab = 'luxury'; this.modals = []; this.modalOpen = null; this.flow = null;
     ctrl.on('change', () => this.refresh());
     ctrl.on('tick', () => this.tickUpdate());
-    ctrl.on('ifsa', () => this.queueIfsa());
-    ctrl.on('welcome', (sum) => this.showWelcome(sum));
+    this.sound = this.opts.sound || new Sound();
+    ctrl.on('ifsa', () => { this.sound.play('ifsa'); this.queueIfsa(); });
+    ctrl.on('published', (e) => { if (!e.auto) this.sound.play('notify'); });
+    ctrl.on('welcome', (sum) => { this.sound.play('notify'); this.showWelcome(sum); });
+    ctrl.on('achievement', (e) => { this.sound.play('notify'); this.showAchievement(e); });
+    ctrl.on('fameNode', (e) => this.toast(t('fame.bought', { x: this.nodeName(e.id) }), 'ok'));
+    ctrl.on('sold', (e) => { this.flow = null; this.tab = 'studio'; this.build(); this.toast(t('sell.done', { n: fmt(e.gain) }), 'ok'); });
     ctrl.on('repossessed', (e) => this.toast(t('toast.repossessed', { x: itemName(e.id) }), 'bad'));
     ctrl.on('reset', () => { this.flow = null; this.build(); });
     this.build();
@@ -40,6 +46,7 @@ export class UI {
       this.hudFollowers = h('div', { class: 'stat followers', 'data-test': 'hud-followers', title: t('hud.followers') }),
       h('div', { class: 'stat trust', title: t('hud.trustHint'), 'data-test': 'hud-trust' },
         h('span', { class: 'lbl', text: t('hud.trust') }), this.trustBar = h('div', { class: 'bar' }, this.trustFill = h('i')), this.trustTxt = h('span', { class: 'val' })),
+      this.soundBtn = h('button', { class: 'icon-btn sound-btn', 'data-test': 'sound-toggle', onclick: () => { this.sound.toggle(); this.updateSoundBtn(); this.toast(t(this.sound.muted ? 'sound.off' : 'sound.on')); } }),
       h('button', { class: 'icon-btn', 'aria-label': t('nav.settings'), title: t('nav.settings'), 'data-test': 'settings-open', onclick: () => this.showSettings() }, '⚙'));
     this.stage = h('canvas', { class: 'stage-canvas', 'data-test': 'stage' });
     this.hintEl = h('div', { class: 'tut hidden', 'data-test': 'tut-hint' });
@@ -49,7 +56,13 @@ export class UI {
     this.sheetEl = h('div', { class: 'sheet hidden', 'data-test': 'sheet' });
     ap(r, this.hud, h('main', { class: 'main' }, h('section', { class: 'stage' }, this.stage, this.hintEl), this.panel), this.nav, this.sheetEl, this.modalEl, this.toastEl);
     new ResizeObserver(() => this.drawStage()).observe(this.stage);
+    this.updateSoundBtn();
     this.refresh();
+  }
+  updateSoundBtn() {
+    const m = this.sound.muted, b = this.soundBtn; if (!b) return;
+    b.textContent = m ? '🔇' : '🔊'; b.setAttribute('aria-label', t(m ? 'sound.unmute' : 'sound.mute')); b.title = t(m ? 'sound.unmute' : 'sound.mute');
+    b.setAttribute('aria-pressed', m ? 'true' : 'false'); b.classList.toggle('muted', m);
   }
   setTab(id) { this.tab = id; this.panel.scrollTop = 0; this.refresh(); }
   refresh() {
@@ -74,6 +87,7 @@ export class UI {
     // affordability without rebuilding (no click races)
     for (const b of this.panel.querySelectorAll('[data-cost]')) b.disabled = s.money + 1e-9 < +b.dataset.cost || b.dataset.lock === '1';
     if (this.tab === 'studio' && this.liveList) this.updateLive();
+    if (this.tab === 'channel' && this.sellKey !== G.fameGain(s) + ':' + Math.floor(Math.log10(1 + s.stats.peakFollowers) * 20)) this.refresh();
     if (this.tut === 'equip' && s.money >= G.equipCost('camera', 0)) this.updateTutorial();
   }
 
@@ -108,7 +122,8 @@ export class UI {
         const sw = (arr, key, label) => h('div', { class: 'field' }, h('div', { class: 'lbl', text: label }), h('div', { class: 'swatches' }, ...arr.map((col, i) =>
           h('button', { class: 'swatch' + (c[key] === i ? ' on' : ''), style: { background: col }, 'aria-label': t('creator.swatch', { n: i + 1 }), 'data-test': key + '-' + i, onclick: () => { c[key] = i; render(); } }))));
         const input = h('input', { type: 'text', maxlength: '24', class: 'input', placeholder: t('creator.channelPlaceholder'), 'data-test': 'channel-input', value: c.channel, oninput: (e) => { c.channel = e.target.value; } });
-        ap(wrap, h('h1', { class: 'logo', text: t('app.name') }), h('p', { class: 'tagline', text: t('app.tagline') }),
+        ap(wrap, h('h1', { class: 'logo', text: t('app.name') }), h('p', { class: 'tagline', text: s.meta.sales ? t('sell.newAccount') : t('app.tagline') }),
+          s.meta.fame > 0 || s.meta.unlocks.length ? h('p', { class: 'center chip fame-chip', 'data-test': 'creator-fame' }, h('img', { src: assetUrl('items/fame_star'), alt: '', width: 20, height: 20 }), t('fame.points', { n: fmt(s.meta.fame) })) : null,
           h('div', { class: 'creator-row' },
             h('div', { class: 'doll-box' }, preview),
             h('div', { class: 'creator-form' },
@@ -193,7 +208,7 @@ export class UI {
     if (!f) return;
     const box = h('div', { class: 'sheet-box' }); ap(el, box);
     const preview = h('canvas', { class: 'preview', 'data-test': 'preview' });
-    const spec = () => this.sceneSpec(f.show, { exposed: f.show.filter((id) => G.rented(s, id) && s.items[id].exposed), investShow: f.showInvest, investIcons: INVESTMENTS.filter((x) => s.invest[x.id]).map((x) => x.id), title: f.titleId ? t('video.titles.' + f.titleId) : '' });
+    const spec = () => this.sceneSpec(f.show, { exposed: f.show.filter((id) => G.rented(s, id) && s.items[id].exposed).concat(Object.values(s.wear.worn).filter((id) => id && s.wear.rented[id] && s.wear.rented[id].exposed)), investShow: f.showInvest, investIcons: INVESTMENTS.filter((x) => s.invest[x.id]).map((x) => x.id), title: f.titleId ? t('video.titles.' + f.titleId) : '' });
     const paint = (extra) => thumbCanvas(Object.assign(spec(), extra || {}), 640, 360, preview);
     if (f.step === 'plan') {
       const avail = G.availableTitles(s, f.show, f.showInvest);
@@ -209,7 +224,7 @@ export class UI {
             h('img', { src: assetUrl('items/' + id), alt: '', width: 28, height: 28 }), itemName(id))),
           G.investTypes(s) ? h('button', { class: 'chip toggle' + (f.showInvest ? ' on' : ''), 'data-test': 'show-invest', onclick: () => { f.showInvest = !f.showInvest; this.renderFlow(); } }, t('shoot.showInvest')) : null)
           : h('p', { class: 'muted', text: t('shoot.showNone') }),
-        f.show.some((id) => G.rented(s, id)) ? h('p', { class: 'note warn', 'data-test': 'rented-warn', text: t('shoot.rentedWarn') }) : null,
+        f.show.some((id) => G.rented(s, id)) || Object.values(s.wear.worn).some((id) => id && s.wear.rented[id]) ? h('p', { class: 'note warn', 'data-test': 'rented-warn', text: t('shoot.rentedWarn') }) : null,
         h('h3', { text: t('shoot.pickTitle') }),
         h('div', { class: 'titles' }, ...titles.map((id) => {
           const ok = avail.includes(id), need = TTL[id].needs;
@@ -289,7 +304,8 @@ export class UI {
   queueIfsa() {
     this.queueModal((box, close) => {
       const s = this.s, p = s.ifsa.pending; if (!p) { close(); return; }
-      const th = thumbCanvas(this.sceneSpec([p.itemId], { exposed: [p.itemId], title: null }), 640, 360);
+      const wearId = WEAR[p.itemId] ? p.itemId : null;
+      const th = thumbCanvas(this.sceneSpec(wearId ? [] : [p.itemId], { exposed: [p.itemId], title: null, worn: wearId ? Object.assign({}, s.wear.worn, { [WEAR[wearId].slot]: wearId }) : s.wear.worn }), 640, 360);
       box.classList.add('ifsa');
       ap(box, h('div', { class: 'ifsa-head', text: t('ifsa.title') }),
         h('div', { class: 'ifsa-card', 'data-test': 'ifsa-card' }, th,
@@ -309,17 +325,25 @@ export class UI {
     ap(p, h('div', { class: 'subtabs' }, ...tabs.map((id) => h('button', { class: 'subtab' + (this.shopTab === id ? ' on' : ''), 'data-test': 'shop-tab-' + id, onclick: () => { this.shopTab = id; this.refresh(); } }, t('shop.tabs.' + id)))));
     const list = h('div', { class: 'cards' }); ap(p, list);
     const s = this.s;
-    const buyBtn = (label, cost, fn, test, extraCls) => h('button', { class: 'btn ' + (extraCls || 'primary'), 'data-cost': cost, 'data-test': test, disabled: s.money + 1e-9 < cost, onclick: () => { if (!fn()) this.toast(t('toast.noMoney'), 'bad'); } }, label + ' · ' + money(cost));
+    const buyBtn = (label, cost, fn, test, extraCls) => h('button', { class: 'btn ' + (extraCls || 'primary'), 'data-cost': cost, 'data-test': test, disabled: s.money + 1e-9 < cost, onclick: () => { if (fn()) this.sound.play('cash'); else this.toast(t('toast.noMoney'), 'bad'); } }, label + ' · ' + money(cost));
     if (this.shopTab === 'luxury') {
       p.insertBefore(h('p', { class: 'note', text: t('shop.rentExplain') }), list);
       for (const d of LUXURY) ap(list, this.luxuryCard(d, buyBtn));
     } else if (this.shopTab === 'wear') {
+      p.insertBefore(h('p', { class: 'note', text: t('shop.rentWearInfo') }), list);
       for (const d of WEARABLES) {
-        const own = s.wear.owned.includes(d.id), on = s.wear.worn[d.slot] === d.id;
-        ap(list, h('div', { class: 'card' }, h('div', { class: 'card-img' }, wearThumb(d.id, s.wear.colors[d.id], 96)),
+        const own = s.wear.owned.includes(d.id), rent = s.wear.rented[d.id], on = s.wear.worn[d.slot] === d.id;
+        const wearBtn = h('button', { class: 'btn' + (on ? ' ghost' : ''), disabled: on, 'data-test': 'wear-' + d.id, onclick: () => this.ctrl.act(G.wear, d.id) }, on ? t('shop.wearing') : t('shop.wear'));
+        const actions = h('div', { class: 'row wrap' });
+        if (own) ap(actions, wearBtn);
+        else if (rent) ap(actions, wearBtn, buyBtn(t('shop.buyOut'), d.price, () => { const ok = this.ctrl.act(G.buyWear, d.id); if (ok) this.toast(t('toast.bought', { x: itemName(d.id) }), 'ok'); return ok; }, 'wear-buy-' + d.id),
+          h('button', { class: 'btn ghost', 'data-test': 'wear-return-' + d.id, onclick: () => { if (this.ctrl.act(G.returnWear, d.id)) this.toast(t('toast.returned', { x: itemName(d.id) })); } }, t('shop.return')));
+        else ap(actions, buyBtn(t('shop.buy'), d.price, () => this.ctrl.act(G.buyWear, d.id), 'wear-buy-' + d.id),
+          G.canRentWear(d.id) ? buyBtn(t('shop.rent'), G.rentPerDay(d.id) * CFG.rent.upfrontDays, () => { const ok = this.ctrl.act(G.rentWear, d.id); if (ok) this.toast(t('toast.rented', { x: itemName(d.id) })); return ok; }, 'wear-rent-' + d.id, 'secondary') : null);
+        ap(list, h('div', { class: 'card', 'data-test': 'wearcard-' + d.id }, this.wearImg(d.id, 96),
           h('div', { class: 'card-body' }, h('b', { text: t('wear.' + d.id) }), h('span', { class: 'muted', text: t('wear.slots.' + d.slot) + (d.style ? ' · ' + t('shop.style', { v: pct(d.style) }) : '') }),
-            h('div', { class: 'row' }, own ? h('button', { class: 'btn' + (on ? ' ghost' : ''), disabled: on, 'data-test': 'wear-' + d.id, onclick: () => this.ctrl.act(G.wear, d.id) }, on ? t('shop.wearing') : t('shop.wear'))
-              : buyBtn(t('shop.buy'), d.price, () => this.ctrl.act(G.buyWear, d.id), 'wear-buy-' + d.id)))));
+            G.canRentWear(d.id) && !own ? h('div', { class: 'chips' }, h('span', { class: 'chip bad', text: t('shop.rentInfo', { v: t('fmt.perDay', { v: money(G.rentPerDay(d.id)) }) }) })) : null,
+            actions)));
       }
     } else if (this.shopTab === 'equip') {
       for (const d of EQUIPMENT) {
@@ -375,29 +399,39 @@ export class UI {
         actions));
   }
 
+  // wear thumbnail + KİRALIK tag layer (shop/closet only) for rented clothes
+  wearImg(id, size) {
+    const s = this.s, r = s.wear.rented[id];
+    const box = h('div', { class: 'card-img wear-img' }, wearThumb(id, s.wear.colors[id], size));
+    if (r) ap(box, h('span', { class: 'rent-tag', 'data-test': 'rent-tag-' + id, text: upper(t('tags.rented')) }));
+    if (r && r.exposed) ap(box, h('span', { class: 'exposed-tag', text: t('ifsa.exposed') }));
+    return box;
+  }
+
   // ------------------------------------------------------------ closet (inventory)
   renderCloset(p) {
     const s = this.s;
     ap(p, h('h3', { text: t('closet.items') }));
     const mine = LUXURY.filter((d) => s.items[d.id]);
-    if (!mine.length) ap(p, h('p', { class: 'muted', text: t('closet.empty') }));
+    const rentAll = G.rentPerSec(s) * CFG.daySec;
+    if (!mine.length) { ap(p, h('p', { class: 'muted', text: t('closet.empty') })); if (rentAll > 0) ap(p, h('p', { class: 'note warn', text: t('closet.rentedTotal', { v: money(rentAll) }) })); }
     else {
-      const rent = G.rentPerSec(s) * CFG.daySec;
+      const rent = rentAll;
       if (rent > 0) ap(p, h('p', { class: 'note warn', text: t('closet.rentedTotal', { v: money(rent) }) }));
       const g = h('div', { class: 'cards' }); ap(p, g);
-      const buyBtn = (label, cost, fn, test, extraCls) => h('button', { class: 'btn ' + (extraCls || 'primary'), 'data-cost': cost, 'data-test': test, disabled: s.money < cost, onclick: () => { if (!fn()) this.toast(t('toast.noMoney'), 'bad'); } }, label + ' · ' + money(cost));
+      const buyBtn = (label, cost, fn, test, extraCls) => h('button', { class: 'btn ' + (extraCls || 'primary'), 'data-cost': cost, 'data-test': test, disabled: s.money < cost, onclick: () => { if (fn()) this.sound.play('cash'); else this.toast(t('toast.noMoney'), 'bad'); } }, label + ' · ' + money(cost));
       for (const d of mine) ap(g, this.luxuryCard(d, buyBtn, true));
     }
     if (G.investTypes(s)) ap(p, h('h3', { text: t('closet.investments') }), h('div', { class: 'chips wrap' }, ...INVESTMENTS.filter((x) => s.invest[x.id]).map((x) => h('span', { class: 'chip' }, h('img', { src: assetUrl('items/' + x.id), alt: '', width: 24, height: 24 }), t('invest.' + x.id + '.name') + ' ×' + s.invest[x.id]))));
     ap(p, h('h3', { text: t('closet.wearables') }));
     for (const slot of SLOTS) {
-      const owned = WEARABLES.filter((d) => d.slot === slot && s.wear.owned.includes(d.id));
+      const owned = WEARABLES.filter((d) => d.slot === slot && (s.wear.owned.includes(d.id) || s.wear.rented[d.id]));
       const row = h('div', { class: 'slot-row' }, h('div', { class: 'lbl', text: t('wear.slots.' + slot) }));
       const items = h('div', { class: 'wear-row' });
       if (slot === 'accessory' || slot === 'glasses') ap(items, h('button', { class: 'wear-opt' + (!s.wear.worn[slot] ? ' on' : ''), 'data-test': 'unwear-' + slot, onclick: () => this.ctrl.act(G.unwear, slot) }, h('span', { class: 'none', text: t('wear.none') })));
       for (const d of owned) {
         const on = s.wear.worn[slot] === d.id;
-        ap(items, h('button', { class: 'wear-opt' + (on ? ' on' : ''), title: t('wear.' + d.id), 'aria-label': t('wear.' + d.id), 'data-test': 'wear-' + d.id, onclick: () => this.ctrl.act(G.wear, d.id) }, wearThumb(d.id, s.wear.colors[d.id], 64)));
+        ap(items, h('button', { class: 'wear-opt' + (on ? ' on' : ''), title: t('wear.' + d.id), 'aria-label': t('wear.' + d.id), 'data-test': 'wear-' + d.id, onclick: () => this.ctrl.act(G.wear, d.id) }, this.wearImg(d.id, 64)));
       }
       ap(row, items);
       const cur = s.wear.worn[slot];
@@ -413,13 +447,67 @@ export class UI {
     ap(p, h('h2', { class: 'channel-name', text: s.char.channel || t('creator.channelDefault') }),
       h('div', { class: 'stats' }, ...[['channel.videos', fmt(st.videos)], ['channel.views', fmt(st.views)], ['channel.earned', money(st.earned)], ['channel.ifsa', fmt(st.ifsa)], ['channel.repossessed', fmt(st.repossessed)]].map(([k, v]) =>
         h('div', { class: 'stat-box' }, h('b', { text: v }), h('span', { text: t(k) })))),
-      h('button', { class: 'btn primary big', 'data-test': 'share-open', onclick: () => this.share() }, t('channel.share')),
-      h('h3', { text: t('channel.recent') }));
+      h('button', { class: 'btn primary big', 'data-test': 'share-open', onclick: () => this.share() }, t('channel.share')));
+    this.renderPrestige(p);
+    ap(p, h('h3', { text: t('channel.recent') }));
     const vids = s.videos.slice().reverse().map((v) => ({ titleId: v.titleId, views: v.total, show: v.show, outfit: v.outfit, colors: v.colors, exposed: v.exposed, showInvest: v.showInvest })).concat(s.history);
     const g = h('div', { class: 'thumbs' });
     for (const v of vids.slice(0, 8)) ap(g, h('div', { class: 'thumb-card' }, thumbCanvas(this.videoSpec(v), 320, 180), h('span', { text: plural('plural.views', Math.floor(v.views), { n: fmt(v.views) }) })));
     if (!vids.length) ap(g, h('p', { class: 'muted', text: t('channel.noVideo') }));
     ap(p, g);
+  }
+  nodeName(id) { const n = FAME_TREE.flatMap((b) => b.nodes).find((x) => x.id === id); return n && n.give.item ? itemName(n.give.item) : t('fame.nodes.' + id); }
+  nodeIcon(n) {
+    const g = n.give;
+    if (g.item) return h('img', { src: assetUrl('items/' + g.item), alt: '', width: 44, height: 44 });
+    if (g.wear) return wearThumb(g.wear[0], 0, 44);
+    if (g.staff) return h('img', { src: assetUrl('items/' + STF[g.staff[0]].icon), alt: '', width: 44, height: 44 });
+    return h('img', { src: assetUrl('items/' + EQ[g.equip[0]].icon), alt: '', width: 44, height: 44 });
+  }
+  // Kanalı Sat + Şöhret tree + achievements
+  renderPrestige(p) {
+    const s = this.s, m = s.meta, gain = G.fameGain(s), peak = s.stats.peakFollowers;
+    this.sellKey = gain + ':' + Math.floor(Math.log10(1 + peak) * 20);
+    const sell = h('div', { class: 'card prestige sell', 'data-test': 'sell-card' }, h('img', { class: 'card-img', src: assetUrl('items/sell_channel'), alt: '', width: 72, height: 72 }),
+      h('div', { class: 'card-body' }, h('b', { text: t('sell.title') }), h('span', { class: 'muted', text: t('sell.desc') }),
+        G.canSell(s) ? h('div', { class: 'chips' }, h('span', { class: 'chip ok', 'data-test': 'sell-gain', text: t('sell.gain', { n: fmt(gain) }) }), h('span', { class: 'chip', text: t('sell.next', { n: fmt(G.nextFameAt(s)) }) }))
+          : h('div', {}, h('span', { class: 'chip', text: t('sell.progress', { n: fmt(FAME.minFollowers) }) }), h('div', { class: 'progress' }, h('i', { style: { width: Math.min(100, peak / FAME.minFollowers * 100) + '%' } }))),
+        h('div', { class: 'row' }, h('button', { class: 'btn primary', 'data-test': 'sell-open', disabled: !G.canSell(s), onclick: () => this.confirmSell() }, t('sell.button')))));
+    const fameCard = h('div', { class: 'card prestige fame', 'data-test': 'fame-card' }, h('img', { class: 'card-img', src: assetUrl('items/fame_star'), alt: '', width: 72, height: 72 }),
+      h('div', { class: 'card-body' }, h('b', { text: t('fame.title') }),
+        h('div', { class: 'chips' }, h('span', { class: 'chip ok', 'data-test': 'fame-points', text: t('fame.unspent') + ': ' + fmt(m.fame) }), h('span', { class: 'chip', text: t('fame.earned') + ': ' + fmt(m.fameEarned) }),
+          m.sales ? h('span', { class: 'chip', text: t('sell.sales') + ': ' + fmt(m.sales) }) : null),
+        h('div', { class: 'chips' }, h('span', { class: 'chip', text: t('fame.followBonus', { v: pct(G.fameFollowMult(s) - 1) }) }), h('span', { class: 'chip', text: t('fame.unspentBonus', { v: pct(G.fameViewsMult(s) - 1) }) }))));
+    const tree = h('div', { class: 'tree', 'data-test': 'fame-tree' });
+    for (const b of FAME_TREE) {
+      ap(tree, h('div', { class: 'branch' }, h('div', { class: 'lbl', text: t('fame.branches.' + b.id) }), h('div', { class: 'nodes' }, ...b.nodes.map((n) => {
+        const st = G.nodeState(s, n.id);
+        return h('button', { class: 'node ' + st, disabled: st !== 'buyable', 'data-test': 'fame-node-' + n.id, title: this.nodeName(n.id),
+          onclick: () => { if (this.ctrl.act(G.buyFameNode, n.id)) this.sound.play('cash'); } },
+          this.nodeIcon(n), h('span', { class: 'nn', text: this.nodeName(n.id) }),
+          h('small', { text: st === 'owned' ? t('fame.owned') : st === 'locked' ? t('fame.locked') : t('fame.buy', { n: fmt(n.cost) }) }));
+      }))));
+    }
+    const ownedLux = LUXURY.filter((d) => G.owned(s, d.id)).length, done = m.achievements.includes('rent_free');
+    const ach = h('div', { class: 'card prestige ach' + (done ? ' done' : ''), 'data-test': 'ach-rent_free' }, h('img', { class: 'card-img', src: assetUrl('items/ach_trophy'), alt: '', width: 72, height: 72 }),
+      h('div', { class: 'card-body' }, h('b', { text: t('ach.rent_free.name') }), h('span', { class: 'muted', text: t('ach.rent_free.desc') }),
+        done ? h('span', { class: 'chip ok', text: t('ach.earned') }) : h('div', {}, h('span', { class: 'chip', text: t('ach.progress', { a: ownedLux, b: LUXURY.length }) }), h('div', { class: 'progress' }, h('i', { style: { width: ownedLux / LUXURY.length * 100 + '%' } })))));
+    ap(p, h('h3', { text: t('sell.title') }), sell, h('h3', { text: t('fame.title') }), fameCard, h('h3', { text: t('fame.tree') }), h('p', { class: 'note', text: t('fame.treeHelp') }), tree,
+      h('h3', { text: t('ach.title') }), ach);
+  }
+  confirmSell() {
+    const s = this.s;
+    this.showModal((box, close) => ap(box, box.setAttribute('data-test', 'sell-confirm') || null, h('img', { src: assetUrl('items/sell_channel'), alt: '', width: 80, height: 80, class: 'modal-icon' }),
+      h('h2', { text: t('sell.confirmTitle') }), h('p', { text: t('sell.confirm') }), h('p', { class: 'big ok', text: t('sell.gain', { n: fmt(G.fameGain(s)) }) }),
+      h('div', { class: 'row end' }, h('button', { class: 'btn', onclick: close }, t('sell.no')),
+        h('button', { class: 'btn primary', 'data-test': 'sell-yes', onclick: () => { close(); this.sound.play('cash'); this.ctrl.sell(); } }, t('sell.yes')))));
+  }
+  showAchievement(e) {
+    this.toast(t('ach.' + e.id + '.done', { n: fmt(e.fame) }), 'ok');
+    this.queueModal((box, close) => ap(box, box.setAttribute('data-test', 'achievement') || null, h('img', { src: assetUrl('items/ach_trophy'), alt: '', width: 96, height: 96, class: 'modal-icon' }),
+      h('h2', { text: t('ach.' + e.id + '.name') }), h('p', { text: t('ach.' + e.id + '.desc') }), h('p', { class: 'big ok', text: t('fame.points', { n: '+' + fmt(e.fame) }) }),
+      h('button', { class: 'btn primary big', 'data-test': 'achievement-ok', onclick: close }, t('welcome.ok'))));
+    if (this.tab === 'channel') this.refresh();
   }
   lastVideo() { const s = this.s; const v = s.videos[s.videos.length - 1]; if (v) return { titleId: v.titleId, views: v.total, show: v.show, outfit: v.outfit, colors: v.colors, exposed: v.exposed, showInvest: v.showInvest }; return s.history[0] || null; }
   share() {

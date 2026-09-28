@@ -1,7 +1,9 @@
 // Video scene / thumbnail composition (Canvas 2D). All text (titles, KİRALIK tag) is drawn at runtime from the locale.
 import { img } from './assets.js';
-import { drawDoll } from './doll.js';
-import { LUX, PATH } from '../logic/config.js';
+import { drawDoll, DOLL } from './doll.js';
+// where a KİRALIK tag sits on a worn piece (doll canvas coordinates)
+const TAG_ANCHOR = { top: [128, 300], bottom: [128, 410], shoes: [128, 482], accessory: [128, 262], glasses: [128, 178], acc_cap_01: [128, 104] };
+import { LUX, PATH, WEAR } from '../logic/config.js';
 import { t, upper } from '../logic/i18n.js';
 
 export const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, sans-serif';
@@ -82,6 +84,13 @@ export function drawScene(ctx, W, H, spec) {
   ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(dx, dy - dh * 0.02, dh * 0.2, dh * 0.03, 0, 0, Math.PI * 2); ctx.fill();
   drawDoll(ctx, dx, dy, dh, spec.char, spec.worn, spec.colors, watch);
   if (watch && exposed.has(watch)) tags.push([dx - dh * 0.2, dy - dh * 0.25, H * 0.04]);
+  // rented clothing exposed by an İfşa: tag at the slot's anchor on the doll (doll coordinates -> canvas)
+  const ds = dh / DOLL.h;
+  for (const [slot, id] of Object.entries(spec.worn || {})) {
+    if (!id || !WEAR[id] || !exposed.has(id)) continue;
+    const [ax, ay] = TAG_ANCHOR[id] || TAG_ANCHOR[slot];
+    tags.push([dx + (ax - DOLL.pivot[0]) * ds, dy + (ay - DOLL.pivot[1]) * ds, H * 0.035]);
+  }
   // collectible sneaker on the floor
   if (show.includes('sneaker_rare_01')) { const im = img('items/sneaker_rare_01'); const w = W * 0.14, h = w * 0.6, x = dx - dh * 0.55, y = H * 0.97 - h; if (im) ctx.drawImage(im, x, y, w, h); if (exposed.has('sneaker_rare_01')) tags.push([x + w / 2, y + h * 0.3, H * 0.04]); }
   if (show.includes('villa_01') && exposed.has('villa_01')) tags.push([W * 0.55, H * 0.3, H * 0.07]);

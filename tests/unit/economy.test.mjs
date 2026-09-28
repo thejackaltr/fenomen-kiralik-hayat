@@ -12,7 +12,8 @@ test('new game starts from zero', () => {
 });
 test('only playable paths can be chosen', () => {
   const s = G.newGame(0, 1);
-  assert.equal(G.choosePath(s, 'egitim'), false); assert.equal(G.choosePath(s, 'luks'), false); assert.equal(G.choosePath(s, 'nope'), false);
+  assert.equal(G.choosePath(s, 'egitim'), false); assert.equal(G.choosePath(s, 'nope'), false);
+  assert.equal(G.choosePath(G.newGame(0, 1), 'luks'), true);
   assert.equal(G.choosePath(s, 'oyun'), true); assert.equal(s.created, true);
 });
 test('published video pays money + followers as views arrive, converging to its total', () => {

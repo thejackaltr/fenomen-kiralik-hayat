@@ -45,7 +45,7 @@ test('cards match the exposed item category; follower loss on reveal; item gets 
   const f0 = s.followers; const p = G.triggerIfsa(s, ['villa_01']);
   assert.equal(s.followers, f0 - Math.floor(f0 * CFG.ifsa.followerLoss)); assert.equal(p.loss, Math.floor(f0 * CFG.ifsa.followerLoss));
   assert.equal(s.items.villa_01.exposed, true);
-  assert.equal(IFSA_CARDS.length, 5);
+  assert.equal(IFSA_CARDS.length, 6);
 });
 test('"Özür videosu çek": followers drop, Güven recovers a bit, next video is the apology', () => {
   const s = fresh(); G.rentItem(s, 'car_01'); s.trust = 30; G.triggerIfsa(s, ['car_01']);

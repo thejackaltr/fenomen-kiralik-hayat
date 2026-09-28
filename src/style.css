@@ -179,3 +179,33 @@ h1, h2, h3 { margin: 0.4em 0; line-height: 1.2; overflow-wrap: anywhere; } h3 { 
   .logo { font-size: 34px; }
 }
 @media (max-width: 360px) { .stat.trust .lbl { display: none; } }
+
+/* ---------- v2: sound toggle, rented clothes, Kanalı Sat / Şöhret / achievements ---------- */
+.sound-btn.muted { opacity: 0.6; }
+.card-img.wear-img { position: relative; display: grid; place-items: center; }
+.wear-opt { position: relative; }
+.wear-opt .card-img.wear-img { width: auto; height: auto; background: none; padding: 0; }
+.wear-opt .rent-tag { font-size: 8px; padding: 1px 3px; }
+.fame-chip { display: inline-flex; gap: 6px; align-items: center; margin: 0 auto 6px; }
+.creator .fame-chip { display: flex; width: max-content; }
+.prestige .card-body b { font-size: 16px; }
+.prestige .progress { margin-top: 6px; }
+.prestige.ach.done { border: 1px solid var(--gold); }
+.tree { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.branch .lbl { font-weight: 700; color: var(--mut); font-size: 13px; margin-bottom: 4px; }
+.nodes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.node { position: relative; border: 1px solid var(--line); background: var(--card); color: var(--txt); border-radius: 12px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; min-width: 0; font: inherit; }
+.node img, .node canvas { width: 44px; height: 44px; }
+.node .nn { font-size: 12px; font-weight: 700; text-align: center; overflow-wrap: anywhere; line-height: 1.15; }
+.node small { font-size: 11px; color: var(--gold); font-weight: 700; }
+.node.owned { border-color: var(--ok); background: #1f3a2e; } .node.owned small { color: var(--ok); }
+.node.buyable { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255, 211, 90, 0.25); }
+.node.locked, .node.poor { opacity: 0.55; cursor: default; } .node.locked small { color: var(--mut); }
+.node + .node::before { content: ''; position: absolute; left: -7px; top: 28px; width: 8px; height: 2px; background: var(--line); }
+.modal-icon { display: block; margin: 0 auto 6px; }
+p.big { font-size: 18px; font-weight: 800; } p.ok { color: var(--ok); }
+@media (max-width: 440px) {   /* v2: room for the sound toggle so "Güven" stays readable */
+  .hud { gap: 6px; padding-left: 8px; padding-right: 6px; }
+  .hud .icon-btn { width: 30px; font-size: 18px; }
+  .hud .stat.trust .bar { width: 52px; }
+}

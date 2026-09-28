@@ -285,6 +285,14 @@
   ic('path_egitim', (c) => { disc(c, '#233a2e'); poly(c, [20, 64, 80, 40, 140, 64, 80, 88]); fs(c, '#2a2d36', '#0c0d12', 3); rr(c, 50, 76, 60, 30, 8); fs(c, '#2a2d36'); c.strokeStyle = '#ffd35a'; c.lineWidth = 4; c.beginPath(); c.moveTo(128, 68); c.lineTo(128, 104); c.stroke(); ell(c, 128, 108, 6, 6); fs(c, '#ffd35a'); });
   ic('path_luks', (c) => { disc(c, '#3a3323'); poly(c, [40, 62, 60, 36, 100, 36, 120, 62, 80, 124]); fs(c, vgrad(c, 36, 124, '#d8f4ff', '#5ab4ea'), '#1d4f8e', 3); c.strokeStyle = '#1d4f8e'; c.lineWidth = 2; c.beginPath(); c.moveTo(40, 62); c.lineTo(120, 62); c.moveTo(60, 36); c.lineTo(70, 62); c.lineTo(80, 124); c.lineTo(90, 62); c.lineTo(100, 36); c.stroke(); });
 
+  // v2 icons: Şöhret, achievement, Kanalı Sat (no text in images)
+  const star = (c, cx, cy, R, r) => { const pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? r : R; pts.push(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad); } poly(c, pts); };
+  ic('fame_star', (c) => { disc(c, '#3a2a10'); star(c, 80, 84, 60, 26); fs(c, vgrad(c, 24, 144, '#fff1a0', '#f2a818'), '#8a5a0a', 4); star(c, 80, 84, 30, 13); fs(c, 'rgba(255,255,255,0.35)'); });
+  ic('ach_trophy', (c) => { disc(c, '#2e2a3a'); c.strokeStyle = '#c8901a'; c.lineWidth = 8; c.beginPath(); c.arc(42, 62, 18, Math.PI * 0.5, Math.PI * 1.5); c.stroke(); c.beginPath(); c.arc(118, 62, 18, -Math.PI * 0.5, Math.PI * 0.5); c.stroke();
+    c.beginPath(); c.moveTo(42, 36); c.lineTo(118, 36); c.quadraticCurveTo(116, 96, 80, 102); c.quadraticCurveTo(44, 96, 42, 36); fs(c, vgrad(c, 36, 102, '#ffe36a', '#e0a020'), '#8a5a0a', 3); rr(c, 72, 100, 16, 18, 2); fs(c, '#e0a020'); rr(c, 52, 116, 56, 16, 4); fs(c, '#6a4a2a', '#3a2a1a', 2); star(c, 80, 62, 16, 7); fs(c, '#fff6c0'); });
+  ic('sell_channel', (c) => { disc(c, '#1f3a2e'); rr(c, 40, 24, 58, 108, 10); fs(c, '#1b1d24', '#50545e', 3); rr(c, 46, 34, 46, 84, 4); fs(c, vgrad(c, 34, 118, '#ff7ab8', '#7a3cff')); poly(c, [62, 62, 62, 90, 84, 76]); fs(c, '#ffffff');
+    poly(c, [92, 92, 120, 64, 146, 90, 118, 118]); fs(c, '#3fd28a', '#1a6a3a', 3); ell(c, 118, 76, 5, 5); fs(c, '#1a6a3a'); c.strokeStyle = '#1a6a3a'; c.lineWidth = 4; c.beginPath(); c.moveTo(110, 98); c.lineTo(128, 98); c.moveTo(119, 90); c.lineTo(119, 106); c.stroke(); });
+
   // ---------- backgrounds 960x540 ----------
   const bg = (id, draw) => add('bg/' + id, 960, 540, draw, { pivot: [0, 0] });
   function floor(c, y, a, b) { c.fillStyle = vgrad(c, y, 540, a, b); c.fillRect(0, y, 960, 540 - y); }
@@ -314,6 +322,19 @@
     floor(c, 330, '#e8dcc4', '#d4c4a4'); rr(c, 0, 400, 960, 140, 0); c.fillStyle = vgrad(c, 400, 540, '#4ad0f0', '#1a8ab8'); c.fillRect(0, 410, 960, 130);
     c.strokeStyle = 'rgba(255,255,255,0.55)'; c.lineWidth = 4; for (let i = 0; i < 12; i++) { c.beginPath(); c.moveTo(40 + i * 80, 450 + (i % 3) * 25); c.quadraticCurveTo(60 + i * 80, 440 + (i % 3) * 25, 80 + i * 80, 450 + (i % 3) * 25); c.stroke(); }
     for (const x of [80, 230]) { rr(c, x - 6, 150, 12, 190, 5); fs(c, '#8a6a4a'); for (let k = 0; k < 6; k++) { c.save(); c.translate(x, 150); c.rotate(k / 6 * Math.PI * 2); ell(c, 40, 0, 44, 12); fs(c, '#3e9a4a'); c.restore(); } }
+  });
+  bg('bg_lounge_01', (c) => {   // Lüks Yaşam home: penthouse lounge at night
+    c.fillStyle = vgrad(c, 0, 380, '#140f24', '#2a1f3e'); c.fillRect(0, 0, 960, 380);
+    rr(c, 40, 40, 880, 300, 4); fs(c, vgrad(c, 40, 340, '#0b1030', '#3a2a6a'), '#c8a060', 6);   // window wall
+    for (let i = 0; i < 14; i++) { const hh = 70 + ((i * 67) % 170), x = 50 + i * 63; rr(c, x, 340 - hh, 52, hh, 2); fs(c, i % 2 ? '#1a1a3a' : '#24204a'); for (let y = 340 - hh + 10; y < 330; y += 18) for (let k = 0; k < 3; k++) if ((y + k * 7 + i * 3) % 4) { rr(c, x + 7 + k * 15, y, 8, 8, 1); fs(c, (y + i) % 3 ? '#ffd88a' : '#9ad0ff'); } }
+    ell(c, 780, 100, 26, 26); fs(c, '#fff6d8');
+    c.strokeStyle = '#c8a060'; c.lineWidth = 6; for (const x of [260, 480, 700]) { c.beginPath(); c.moveTo(x, 40); c.lineTo(x, 340); c.stroke(); }
+    floor(c, 340, '#e8e2ee', '#b8aecb'); c.strokeStyle = 'rgba(120,100,150,0.25)'; c.lineWidth = 2; for (let x = -100; x < 960; x += 120) { c.beginPath(); c.moveTo(x, 540); c.lineTo(x + 60, 340); c.stroke(); } c.beginPath(); c.moveTo(0, 420); c.lineTo(960, 420); c.stroke();
+    rr(c, 40, 360, 330, 110, 30); fs(c, '#6a1a4a', '#3a0a2a', 4); rr(c, 60, 330, 290, 60, 24); fs(c, '#8a2a5a', '#3a0a2a', 4); for (const x of [90, 190, 290]) { rr(c, x, 346, 60, 36, 14); fs(c, '#f2c230'); }   // velvet sofa
+    rr(c, 400, 440, 160, 18, 6); fs(c, '#f4f1ea', '#c8a060', 3); rr(c, 430, 458, 12, 40, 3); fs(c, '#c8a060'); rr(c, 518, 458, 12, 40, 3); fs(c, '#c8a060');   // marble table
+    rr(c, 460, 404, 24, 38, 8); fs(c, '#3fd2c8', '#1a6a6a', 2); for (const [dx, dy] of [[-10, -12], [0, -20], [10, -12]]) { ell(c, 472 + dx, 404 + dy, 8, 8); fs(c, '#ff7ab8'); }   // vase + flowers
+    c.strokeStyle = '#c8a060'; c.lineWidth = 6; c.beginPath(); c.moveTo(860, 480); c.lineTo(860, 200); c.quadraticCurveTo(860, 160, 820, 160); c.stroke(); ell(c, 820, 176, 30, 16); fs(c, '#ffe9a8', '#c8a060', 3); ell(c, 860, 486, 34, 10); fs(c, '#c8a060');   // gold arc lamp
+    c.fillStyle = 'rgba(255,233,168,0.18)'; poly(c, [790, 186, 850, 186, 900, 470, 740, 470]); c.fill();
   });
   bg('bg_street_01', (c) => {
     c.fillStyle = vgrad(c, 0, 320, '#ffb35c', '#ffe0b0'); c.fillRect(0, 0, 960, 320); ell(c, 180, 250, 70, 70); fs(c, '#fff0c0');

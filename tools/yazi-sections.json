@@ -1,16 +1,112 @@
 [
-  ["v1.0.1 — Yazı düzeltmeleri (uygulandı)", ["welcome.auto", "ifsa.cards.ifsa_plate.body", "toast.rented", "meta.description", "staff.editor.desc", "paths.vlog.desc"]],
-  ["Rehber (ilk dakikalar)", ["tut"]],
-  ["Onaylanan ek video başlıkları", ["video.titles.t_gameend", "video.titles.t_invest"]],
-  ["İfşa kartları ve seçimler", ["ifsa"]],
-  ["Oyun adı / slogan", ["app", "meta"]],
-  ["Lüks eşyalar", ["items"]],
-  ["Kıyafetler", ["wear"]],
-  ["Ekipman / ekip / yatırım", ["equip", "staff", "invest"]],
-  ["FanKutusu (parodi, müstehcen değil)", ["fanbox"]],
-  ["Kariyer yolları", ["paths"]],
-  ["Mağaza / uyarılar / bildirimler", ["shop", "shoot.rentedWarn", "studio.fatigue", "toast"]],
-  ["Tekrar hoş geldin", ["welcome"]],
-  ["Paylaşım kartı", ["share"]],
-  ["Kurgu mini oyunu", ["edit"]]
+  [
+    "v2 — YENİ METİNLER (taslak, Yazı'nın elden geçirmesi gerekiyor)",
+    [
+      "paths.luks",
+      "video.titles.t_outfit",
+      "ifsa.cards.ifsa_tag",
+      "shop.rentWearInfo",
+      "sell",
+      "fame",
+      "ach",
+      "sound"
+    ],
+    "47 yeni anahtar + 1 değişen anahtar: `paths.luks.desc` (v1'de \"Sadece gösteriş. Çok yakında.\" idi). Hepsi geçici (placeholder) Türkçe metin. {n}, {x}, {v}, {a}, {b} yer tutucuları kodla doldurulur, aynen kalmalı. Eşya adları (Şöhret ağacı düğümleri) items.names.* anahtarlarından gelir; yalnız eşya olmayan 4 düğümün adı fame.nodes.* altında. Kıyafetler için de tekrar kullanılan v1 anahtarları: shop.rent / shop.buyOut / shop.return / shop.rentInfo / tags.rented / ifsa.exposed / toast.rented / toast.bought / toast.returned; başarım penceresinin düğmesi welcome.ok (\"Harika\"). Ses düğmesi yalnız simge (🔊/🔇); sound.mute/unmute ekran okuyucu etiketi, sound.on/off kısa bildirim."
+  ],
+  [
+    "v1.0.1 — Yazı düzeltmeleri (uygulandı)",
+    [
+      "welcome.auto",
+      "ifsa.cards.ifsa_plate.body",
+      "toast.rented",
+      "meta.description",
+      "staff.editor.desc",
+      "paths.vlog.desc"
+    ]
+  ],
+  [
+    "Rehber (ilk dakikalar)",
+    [
+      "tut"
+    ]
+  ],
+  [
+    "Onaylanan ek video başlıkları",
+    [
+      "video.titles.t_gameend",
+      "video.titles.t_invest"
+    ]
+  ],
+  [
+    "İfşa kartları ve seçimler",
+    [
+      "ifsa"
+    ]
+  ],
+  [
+    "Oyun adı / slogan",
+    [
+      "app",
+      "meta"
+    ]
+  ],
+  [
+    "Lüks eşyalar",
+    [
+      "items"
+    ]
+  ],
+  [
+    "Kıyafetler",
+    [
+      "wear"
+    ]
+  ],
+  [
+    "Ekipman / ekip / yatırım",
+    [
+      "equip",
+      "staff",
+      "invest"
+    ]
+  ],
+  [
+    "FanKutusu (parodi, müstehcen değil)",
+    [
+      "fanbox"
+    ]
+  ],
+  [
+    "Kariyer yolları",
+    [
+      "paths"
+    ]
+  ],
+  [
+    "Mağaza / uyarılar / bildirimler",
+    [
+      "shop",
+      "shoot.rentedWarn",
+      "studio.fatigue",
+      "toast"
+    ]
+  ],
+  [
+    "Tekrar hoş geldin",
+    [
+      "welcome"
+    ]
+  ],
+  [
+    "Paylaşım kartı",
+    [
+      "share"
+    ]
+  ],
+  [
+    "Kurgu mini oyunu",
+    [
+      "edit"
+    ]
+  ]
 ]

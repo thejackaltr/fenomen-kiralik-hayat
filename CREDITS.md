@@ -11,6 +11,11 @@ They are dedicated to the public domain under **CC0 1.0**. No third-party images
   (a unit test asserts the art generator never calls `fillText`/`strokeText`).
 - All designs are generic: no real brand, logo, model, show, actor or person is depicted or named.
 
+## Sound
+The three sound effects (notification chime, cash register, İfşa alert) are **synthesized in code** at runtime with the Web Audio API
+(`src/ui/sound.js`: oscillators + a filtered noise burst). No audio files are shipped or downloaded.
+They are original to this project and dedicated to the public domain under **CC0 1.0**.
+
 ## Fonts
 System font stack only (`system-ui`, Segoe UI, Roboto, Noto Sans, Ubuntu…), all of which cover Turkish (latin-ext). No font files are shipped.
 

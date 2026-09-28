@@ -101,7 +101,7 @@
     },
     "luks": {
       "name": "Lüks yaşam",
-      "desc": "Sadece gösteriş. Çok yakında."
+      "desc": "Sadece gösteriş. Kiralık eşyalar takipçiyi en çok burada uçurur, ama İfşa riski de en yüksek."
     }
   },
   "studio": {
@@ -173,7 +173,8 @@
     "wear": "Giy",
     "wearing": "Üstünde",
     "rentExplain": "Kiralık eşya videoda aynı gösterişi ve takipçi artışını sağlar ama her gün kira öder, Güven'i düşürür ve İfşa riski taşır.",
-    "investExplain": "Yatırımlar pasif gelir getirir. Videoda 'Yatırımlarım'ı gösterirsen ekstra izlenme alırsın."
+    "investExplain": "Yatırımlar pasif gelir getirir. Videoda 'Yatırımlarım'ı gösterirsen ekstra izlenme alırsın.",
+    "rentWearInfo": "Kiralık kıyafet de videoda aynı stili verir; İfşa olursa etiketi görünür."
   },
   "tags": {
     "rented": "Kiralık",
@@ -292,7 +293,8 @@
       "t_newpc": "Yeni bilgisayarımı kurduk (ışıkları dahil)",
       "t_gameend": "Bu oyunu kimse bitiremedi (ben de)",
       "t_invest": "Paramı nereye yatırdım? (gerçekten)",
-      "t_apology": "Gerçekler ortaya çıktı… (özür videosu)"
+      "t_apology": "Gerçekler ortaya çıktı… (özür videosu)",
+      "t_outfit": "Bugün 5 kıyafet değiştirdim (hiçbiri benim değil)"
     },
     "needs": {
       "car": "Araba göster",
@@ -333,6 +335,10 @@
       "ifsa_live": {
         "title": "Canlı yayın ifşası",
         "body": "Canlı yayında ekrana bildirim düştü: 'Kira ödemeniz yarın.'"
+      },
+      "ifsa_tag": {
+        "title": "Etiket ifşası",
+        "body": "Takipçiler videodaki kıyafetin üstünde unutulan kiralama etiketini fark etti."
       }
     }
   },
@@ -430,5 +436,62 @@
     "close": "Kapat",
     "ok": "Tamam",
     "back": "Geri"
+  },
+  "fame": {
+    "title": "Şöhret",
+    "points": "{n} Şöhret",
+    "unspent": "Harcanabilir Şöhret",
+    "earned": "Toplam kazanılan",
+    "followBonus": "Takipçi kazanımı +{v}",
+    "unspentBonus": "Harcanmamış puan bonusu: izlenme +{v}",
+    "tree": "Şöhret ağacı",
+    "treeHelp": "Aldığın her şeye şimdi ve her yeni hesabında baştan sahip olursun. Harcamadığın her puan izlenmeye küçük bir bonus verir.",
+    "branches": {
+      "saat": "Saat ve moda",
+      "garaj": "Garaj",
+      "ev": "Ev ve stil",
+      "ekip": "Ekip"
+    },
+    "buy": "{n} Şöhret",
+    "owned": "Açık",
+    "locked": "Önce öncekini aç",
+    "nodes": {
+      "f_suit": "Takım elbise seti",
+      "f_editor": "Tanıdık kurgucu",
+      "f_camera": "Kamera seviye 3",
+      "f_manager": "Tanıdık menajer"
+    },
+    "bought": "Şöhret ağacı: {x} artık her hesapta seninle."
+  },
+  "sell": {
+    "title": "Kanalı Sat",
+    "desc": "Kanalını sat, sıfırdan yeni bir hesap aç ve kalıcı Şöhret kazan.",
+    "progress": "Satış için en az {n} takipçiye ulaş.",
+    "gain": "Kazanacağın Şöhret: {n}",
+    "next": "Bir sonraki puan için: {n} takipçi",
+    "button": "Kanalı sat",
+    "confirmTitle": "Kanalı satıyor musun?",
+    "confirm": "Para, takipçiler, eşyalar, ekip ve videolar sıfırlanır. Şöhret, Şöhret ağacı ve başarımlar kalır.",
+    "yes": "Evet, sat",
+    "no": "Vazgeç",
+    "done": "Kanal satıldı! +{n} Şöhret. Yeni hesabın hazır.",
+    "newAccount": "Yeni hesap: kariyerini seç",
+    "sales": "Satılan kanal"
+  },
+  "ach": {
+    "title": "Başarımlar",
+    "progress": "{a}/{b} gösteriş eşyası gerçekten senin",
+    "rent_free": {
+      "name": "Kiralıksız Hayat",
+      "desc": "Tüm gösteriş eşyalarına gerçekten sahip ol.",
+      "done": "Başarım: Kiralıksız Hayat! +{n} Şöhret"
+    },
+    "earned": "Kazanıldı"
+  },
+  "sound": {
+    "mute": "Sesi kapat",
+    "unmute": "Sesi aç",
+    "off": "Ses kapalı",
+    "on": "Ses açık"
   }
 }

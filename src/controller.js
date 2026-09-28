@@ -38,6 +38,8 @@ export class Controller {
   }
   save() { this.state.lastSeen = Date.now(); return save(this.storage, this.state); }
   reset() { try { this.storage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } this.state = G.newGame(Date.now()); this.emit('reset'); }
+  // "Kanalı Sat": swap in the brand-new account (keeps Şöhret/tree/achievements), then the UI shows the creator again
+  sell() { const ns = G.sellChannel(this.state, Date.now()); if (!ns) return null; this.state = ns; this.state.events.length = 0; this.save(); this.emit('sold', ns.lastSale); return ns.lastSale; }
   // actions -> { ok }
   act(fn, ...args) { const ok = fn(this.state, ...args); this.drain(); if (ok) { this.emit('change'); this.save(); } return ok; }
   create(opts, path) { G.createCharacter(this.state, opts); const ok = G.choosePath(this.state, path); if (ok) { this.state.lastSeen = Date.now(); this.save(); this.emit('change'); } return ok; }

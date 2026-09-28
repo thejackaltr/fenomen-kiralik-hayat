@@ -28,7 +28,7 @@ test('saves store IDs, never display names', () => {
 test('unknown IDs and bad values are dropped/clamped on load', () => {
   const o = JSON.parse(serialize(played()));
   o.items.car_99 = { status: 'owned' }; o.items.watch_01.status = 'stolen';
-  o.wear.owned.push('hat_zz'); o.wear.worn.glasses = 'hat_zz'; o.equip.camera = 999; o.invest.inv_moon = 3; o.path = 'luks'; o.money = -5; o.trust = 500;
+  o.wear.owned.push('hat_zz'); o.wear.worn.glasses = 'hat_zz'; o.equip.camera = 999; o.invest.inv_moon = 3; o.path = 'egitim'; o.money = -5; o.trust = 500;
   const r = deserialize(JSON.stringify(o));
   assert.equal(r.items.car_99, undefined); assert.equal(r.items.watch_01, undefined);
   assert.ok(!r.wear.owned.includes('hat_zz')); assert.equal(r.wear.worn.glasses, null);

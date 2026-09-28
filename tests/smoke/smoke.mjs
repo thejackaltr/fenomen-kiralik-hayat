@@ -38,7 +38,7 @@ async function run(kind) {
   await p.fill('[data-test=channel-input]', mobile ? 'Işıl Vlog' : 'Oyuncu Çağrı');
   await shot(p, (mobile ? '01-character-creator.png' : 'desktop-01-character-creator.png'));
   await tap('[data-test=creator-next]');
-  ok(tag + 'eğitim + lüks yaşam are "yakında"', await S(() => document.querySelector('[data-test=path-egitim]').disabled && document.querySelector('[data-test=path-luks]').disabled));
+  ok(tag + 'eğitim is "yakında", Lüks Yaşam playable (v2)', await S(() => document.querySelector('[data-test=path-egitim]').disabled && !document.querySelector('[data-test=path-luks]').disabled));
   await tap('[data-test=path-' + (mobile ? 'vlog' : 'oyun') + ']');
   await tap('[data-test=creator-start]');
   await p.waitForSelector('[data-test=shoot]');
@@ -199,6 +199,147 @@ async function run(kind) {
   await ctx.close();
 }
 
+
+// ---------------------------------------------------------------- v2: Lüks Yaşam, rented clothes, Kanalı Sat, Şöhret, sound
+async function runV2(kind) {
+  const mobile = kind === 'mobile';
+  const ctx = await browser.newContext(mobile ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'tr-TR' } : { viewport: { width: 1280, height: 800 }, locale: 'tr-TR' });
+  await ctx.addInitScript(TEXT_HOOK);
+  const p = await ctx.newPage();
+  const errors = [];
+  p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
+  p.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+  const tap = async (sel) => { const el = await p.waitForSelector(sel, { state: 'visible', timeout: 8000 }); if (mobile) { await el.scrollIntoViewIfNeeded(); await p.waitForTimeout(60); const b = await el.boundingBox(); await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); } else await el.click(); };
+  const S = (js, arg) => p.evaluate(js, arg);
+  const tag = '[v2 ' + kind + '] ';
+  const vshot = async (name) => { if (SHOTS) { await p.waitForTimeout(250); await p.screenshot({ path: 'screenshots/v2-' + (mobile ? '' : 'desktop-') + name + '.png' }); } };
+  const give = (m) => S((m) => { const f = window.__fenomen; f.ctrl.state.money += m; f.ctrl.emit('change'); }, m);
+  const publishQuick = async () => {
+    await tap('[data-test=tab-studio]'); await tap('[data-test=shoot]'); await p.waitForSelector('[data-test=shoot-go]');
+    await tap('[data-test=shoot-go]'); await p.waitForSelector('[data-test=edit-editor]', { timeout: 8000 }); await tap('[data-test=edit-editor]');
+    await p.waitForSelector('[data-test=publish-go]'); await tap('[data-test=publish-go]'); await p.waitForTimeout(300);
+  };
+  const create = async (name) => {
+    await p.waitForSelector('[data-test=creator]');
+    await p.fill('[data-test=channel-input]', name); await tap('[data-test=creator-next]');
+    await tap('[data-test=path-luks]'); await tap('[data-test=creator-start]'); await p.waitForSelector('[data-test=shoot]');
+  };
+
+  await p.goto(BASE, { waitUntil: 'load' });
+  await p.waitForSelector('[data-test=creator]');
+  await tap('[data-test=body-f]'); await tap('[data-test=hair-3]');
+  await p.fill('[data-test=channel-input]', 'Lüks Ece'); await tap('[data-test=creator-next]');
+  await tap('[data-test=path-luks]');
+  ok(tag + 'Lüks Yaşam selectable in the creator', await S(() => document.querySelector('[data-test=path-luks]').classList.contains('on')));
+  await vshot('luks-creator');
+  await tap('[data-test=creator-start]'); await p.waitForSelector('[data-test=shoot]');
+  await S(() => { const f = window.__fenomen; f.ctrl.state.tut = 99; f.ui.updateTutorial(); });
+  ok(tag + 'Lüks Yaşam home background', await S(() => window.__fenomen.ctrl.state.path === 'luks'));
+  // sound on by default, one-tap toggle
+  ok(tag + 'sound on by default (toggle says "Sesi kapat")', (await S(() => document.querySelector('[data-test=sound-toggle]').getAttribute('aria-label'))) === 'Sesi kapat');
+
+  // --- rented clothing
+  await give(12000);
+  await tap('[data-test=tab-shop]'); await tap('[data-test=shop-tab-team]'); await tap('[data-test=hire-editor]');
+  ok(tag + 'cash register sound on purchase', await S(() => window.__sounds.some((x) => x.name === 'cash' && !x.muted)));
+  await tap('[data-test=shop-tab-wear]');
+  ok(tag + 'cheap clothes are not rentable', !(await p.$('[data-test=wear-rent-top_hoodie_01]')));
+  await tap('[data-test=wear-rent-top_suit_01]'); await tap('[data-test=wear-rent-glasses_sun_01]');
+  ok(tag + 'suit + sunglasses rented and worn', await S(() => { const s = window.__fenomen.ctrl.state; return !!s.wear.rented.top_suit_01 && s.wear.worn.top === 'top_suit_01' && s.wear.worn.glasses === 'glasses_sun_01' && !s.wear.owned.includes('top_suit_01'); }));
+  ok(tag + 'KİRALIK tag on rented clothes in shop', (await S(() => document.querySelector('[data-test=wearcard-top_suit_01] .rent-tag')?.textContent)) === 'KİRALIK');
+  await tap('[data-test=tab-closet]');
+  ok(tag + 'KİRALIK tag on rented clothes in closet', (await S(() => document.querySelector('[data-test=wear-top_suit_01] .rent-tag')?.textContent)) === 'KİRALIK');
+  await S(() => document.querySelector('.slot-row').scrollIntoView({ block: 'start' }));
+  if (SHOTS) await p.waitForTimeout(3000);
+  await vshot('rented-clothes');
+  // video before İfşa: no tag drawn
+  await S(() => { window.__texts.length = 0; });
+  await tap('[data-test=tab-studio]'); await tap('[data-test=shoot]'); await p.waitForSelector('[data-test=shoot-go]');
+  ok(tag + 'rented warning also for worn rented clothes', !!(await p.$('[data-test=rented-warn]')));
+  await tap('[data-test=shoot-cancel]');
+  await publishQuick();
+  ok(tag + 'notification sound on publish', await S(() => window.__sounds.some((x) => x.name === 'notify')));
+  ok(tag + 'no KİRALIK on clothes in videos before İfşa', !(await S(() => window.__texts.includes('KİRALIK'))));
+  // İfşa on clothing (forced)
+  await S(() => { const f = window.__fenomen; f.ctrl.state.followers = Math.max(f.ctrl.state.followers, 9000); f.G.triggerIfsa(f.ctrl.state, ['top_suit_01']); f.ctrl.state.ifsa.pending.cardId = 'ifsa_tag'; f.ctrl.drain(); });
+  await p.waitForSelector('[data-test=ifsa-card]');
+  const card = await S(() => document.querySelector('[data-test=ifsa-card]').textContent);
+  ok(tag + 'clothing İfşa card (Etiket ifşası)', card.includes('Etiket ifşası') && card.includes('kiralama etiketini'), card.slice(0, 90));
+  ok(tag + 'İfşa alert sound', await S(() => window.__sounds.some((x) => x.name === 'ifsa')));
+  ok(tag + 'KİRALIK drawn on the clothes after İfşa', await S(() => window.__texts.includes('KİRALIK')));
+  await vshot('ifsa-clothes');
+  await tap('[data-test=ifsa-apology]');
+  await S(() => { window.__texts.length = 0; const f = window.__fenomen; f.ctrl.state.ifsa.apologyDue = false; });
+  await publishQuick();
+  ok(tag + 'next video with the exposed suit shows the tag', await S(() => { const s = window.__fenomen.ctrl.state; const v = s.videos[s.videos.length - 1]; return v.exposed.includes('top_suit_01') && window.__texts.includes('KİRALIK'); }));
+  // buy out a rented piece clears the stigma
+  await give(3000); await tap('[data-test=tab-shop]'); await tap('[data-test=shop-tab-wear]'); await tap('[data-test=wear-buy-top_suit_01]');
+  ok(tag + 'buy-out rented suit -> owned, tag gone', await S(() => { const s = window.__fenomen.ctrl.state; return s.wear.owned.includes('top_suit_01') && !s.wear.rented.top_suit_01 && !document.querySelector('[data-test=wearcard-top_suit_01] .rent-tag'); }));
+
+  // --- Kanalı Sat
+  await tap('[data-test=tab-channel]');
+  ok(tag + 'Kanalı Sat locked below the threshold', await S(() => document.querySelector('[data-test=sell-open]').disabled));
+  await S(() => { const f = window.__fenomen; const s = f.ctrl.state; s.followers = 260000; s.stats.peakFollowers = 260000; f.ctrl.emit('change'); });
+  await p.waitForSelector('[data-test=sell-gain]');
+  ok(tag + 'sell preview: "Kazanacağın Şöhret: 5"', (await S(() => document.querySelector('[data-test=sell-gain]').textContent)) === 'Kazanacağın Şöhret: 5');
+  await S(() => document.querySelector('[data-test=sell-card]').scrollIntoView({ block: 'start' }));
+  await vshot('kanali-sat');
+  await tap('[data-test=sell-open]'); await p.waitForSelector('[data-test=sell-yes]');
+  await vshot('kanali-sat-onay');
+  await tap('[data-test=sell-yes]');
+  await p.waitForSelector('[data-test=creator]');
+  ok(tag + 'after sale: creator for the new account, 5 Şöhret kept', (await S(() => document.querySelector('[data-test=creator-fame]')?.textContent)) === '5 Şöhret' && await S(() => window.__fenomen.ctrl.state.money === 0 && window.__fenomen.ctrl.state.meta.sales === 1));
+  await vshot('yeni-hesap');
+  await create('Lüks Ece 2');
+  // --- Şöhret tree
+  await S(() => { const f = window.__fenomen; f.ctrl.state.tut = 99; f.ui.updateTutorial(); });
+  await tap('[data-test=tab-channel]');
+  await tap('[data-test=fame-node-f_watch_01]'); await tap('[data-test=fame-node-f_editor]'); await tap('[data-test=fame-node-f_painting]');
+  ok(tag + 'tree nodes bought: watch owned + editor hired now', await S(() => { const s = window.__fenomen.ctrl.state; return s.items.watch_01?.status === 'owned' && s.items.painting_01?.status === 'owned' && s.staff.editor === 1 && s.meta.fame === 1; }));
+  ok(tag + 'locked node needs the previous one', await S(() => document.querySelector('[data-test=fame-node-f_boat]').disabled && document.querySelector('[data-test=fame-node-f_boat]').classList.contains('locked')));
+  await S(() => document.querySelector('[data-test=fame-tree]').scrollIntoView({ block: 'start' }));
+  if (SHOTS) await p.waitForTimeout(2800);
+  await vshot('sohret-agaci');
+  // second sale: the new account starts owning the tree items
+  await S(() => { const f = window.__fenomen; const s = f.ctrl.state; s.followers = 210000; s.stats.peakFollowers = 210000; f.ctrl.emit('change'); });
+  await tap('[data-test=sell-open]'); await tap('[data-test=sell-yes]');
+  await create('Lüks Ece 3');
+  ok(tag + 'each new account starts owning the chosen items', await S(() => { const s = window.__fenomen.ctrl.state; return s.items.watch_01?.status === 'owned' && s.items.painting_01?.status === 'owned' && s.staff.editor === 1 && s.meta.fame === 6 && s.meta.sales === 2 && s.stats.videos === 0; }));
+  // --- Kiralıksız Hayat
+  await give(5e6);
+  await S(() => { const f = window.__fenomen; for (const id of ['sneaker_rare_01', 'car_01', 'watch_02', 'car_02', 'boat_01']) f.G.buyItem(f.ctrl.state, id); f.ctrl.state.events.length = 0; f.ctrl.emit('change'); });
+  await tap('[data-test=tab-shop]'); await tap('[data-test=shop-tab-luxury]'); await tap('[data-test=buy-villa_01]');
+  await p.waitForSelector('[data-test=achievement]');
+  ok(tag + 'achievement "Kiralıksız Hayat" +5 Şöhret', (await S(() => document.querySelector('[data-test=achievement]').textContent)).includes('Kiralıksız Hayat') && await S(() => window.__fenomen.ctrl.state.meta.achievements.includes('rent_free') && window.__fenomen.ctrl.state.meta.fame === 11));
+  await vshot('kiraliksiz-hayat');
+  await tap('[data-test=achievement-ok]');
+
+  // --- sound toggle remembered across reload
+  await tap('[data-test=sound-toggle]');
+  ok(tag + 'mute: one tap', (await S(() => localStorage.getItem('fenomen_sound'))) === 'off' && (await S(() => document.querySelector('[data-test=sound-toggle]').getAttribute('aria-label'))) === 'Sesi aç');
+  await vshot('ses-kapali');
+  await S(() => window.__fenomen.ctrl.save());
+  await p.reload({ waitUntil: 'load' }); await p.waitForSelector('[data-test=shoot]');
+  while (await p.$('[data-test=welcome-ok]')) { await tap('[data-test=welcome-ok]'); await p.waitForTimeout(150); }
+  ok(tag + 'mute remembered after reload', (await S(() => document.querySelector('[data-test=sound-toggle]').getAttribute('aria-label'))) === 'Sesi aç');
+  ok(tag + 'meta survives reload', await S(() => { const m = window.__fenomen.ctrl.state.meta; return m.sales === 2 && m.unlocks.length === 3 && m.achievements.includes('rent_free'); }));
+  await tap('[data-test=sound-toggle]');
+  ok(tag + 'unmute: one tap', (await S(() => localStorage.getItem('fenomen_sound'))) === 'on');
+
+  // --- v1 save migrates losslessly in the browser
+  const v1 = fs.readFileSync(new URL('../fixtures/save_v1.json', import.meta.url), 'utf8');
+  await ctx.addInitScript(() => { const v = sessionStorage.getItem('injectV1'); if (v) { sessionStorage.removeItem('injectV1'); localStorage.setItem('fenomen_save_v1', v); } });
+  await S((v1) => sessionStorage.setItem('injectV1', v1), v1);
+  await p.reload({ waitUntil: 'load' }); await p.waitForSelector('[data-test=shoot]');
+  while (await p.$('[data-test=welcome-ok]')) { await tap('[data-test=welcome-ok]'); await p.waitForTimeout(150); }
+  const mig = await S((v1) => { const o = JSON.parse(v1), s = window.__fenomen.ctrl.state; return s.v === 2 && s.char.channel === o.char.channel && JSON.stringify(Object.keys(s.items).sort()) === JSON.stringify(Object.keys(o.items).sort()) && s.staff.manager === o.staff.manager && s.invest.inv_fund === o.invest.inv_fund && s.wear.worn.top === o.wear.worn.top && s.meta.fame === 0 && s.fanbox === o.fanbox; }, v1);
+  ok(tag + 'v1 save loads in v2 (lossless)', mig);
+
+  const real = errors.filter((e) => !/requestfailed: .*(favicon)/.test(e));
+  ok(tag + 'no console errors/warnings', real.length === 0, real.slice(0, 5).join(' | '));
+  await ctx.close();
+}
+
 async function installability() {
   const dir = fs.mkdtempSync('/tmp/fen-prof-');
   const ctx = await chromium.launchPersistentContext(dir, { executablePath: exe, args: ['--no-sandbox'], viewport: { width: 1280, height: 800 } });
@@ -211,7 +352,7 @@ async function installability() {
   ok('[pwa] manifest parsed without errors', m.errors.length === 0 && m.url.endsWith('manifest.webmanifest'), JSON.stringify(m.errors));
   await ctx.close();
 }
-try { await run('mobile'); await run('desktop'); await installability(); }
+try { await run('mobile'); await run('desktop'); await runV2('mobile'); await runV2('desktop'); await installability(); }
 catch (e) { ok('smoke crashed: ' + e.message, false); }
 await browser.close();
 console.log(results.join('\n'));

@@ -1,6 +1,6 @@
 {
   "name": "fenomen-kiralik-hayat",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "description": "Fenomen: Kiralık Hayat — Türkçe fenomen kariyer oyunu (DOM + Canvas, PWA)",
