@@ -13,7 +13,7 @@
       "settings.credits",
       "backup"
     ],
-    "Yazı'nın kesin metinleri uygulandı (move, import, saveFile, telemetry, settings.*). GEÇİCİ (Yazı'nın metnini bekliyor): backup.* (yedek yuvası doluyken yeni içe aktarmadan önce çıkan adım: backup.title/body/summary/download/discard/cancel/downloaded/cancelled/fileName). telemetry.details'in son maddesi (veri sorumlusu, alıcılar, haklar) BOŞ: avukat/Aryen onayından sonra yazılacak; boşken ekranda hiçbir paragraf çıkmaz ve `npm run build` hata verir (geliştirme/test için ALLOW_EMPTY_LEGAL=1). telemetry.ok/off (\"Tamam\"/\"Kapat\") aynı görsel ağırlıkta gösterilir. \"rıza\" kelimesi geçmemeli (KVKK raporu §7(c)). {f}, {d}, {n}, {url} yer tutucuları kodla doldurulur."
+    "Yazı'nın kesin metinleri uygulandı (move, import, saveFile, telemetry, settings.*). GEÇİCİ (Yazı'nın metnini bekliyor): backup.* (yedek yuvası doluyken yeni içe aktarmadan önce çıkan adım: backup.title/body/summary/download/discard/cancel/downloaded/cancelled/fileName). telemetry.details'in son maddesi (veri sorumlusu, alıcılar, haklar) Aryen onayıyla yazıldı; 5. madde (ziyaret sayımı, Umami) eklendi. BEKLİYOR: 3. madde (konum) ve ziyaret verisinin saklama süresi. Herhangi bir madde boşsa ekranda paragraf çıkmaz ve `npm run build` hata verir (geliştirme/test için ALLOW_EMPTY_LEGAL=1). telemetry.ok/off (\"Tamam\"/\"Kapat\") aynı görsel ağırlıkta gösterilir. \"rıza\" kelimesi geçmemeli (KVKK raporu §7(c)). {f}, {d}, {n}, {url} yer tutucuları kodla doldurulur."
   ],
   [
     "v2.0.2 — Yazı düzeltmeleri (uygulandı)",

@@ -508,11 +508,12 @@
     "offToast": "Sayaç kapatıldı. Hiçbir şey gönderilmeyecek.",
     "details": [
       "Oyunu daha iyi yapmak için kaç oyuncunun hangi aşamaya geldiğini sayıyoruz (ör. ilk video, ilk kiralama, ilk personel).",
-      "Gönderilen her bilgide yalnızca dört şey var: aşamanın adı, oyun sürümü, cihaz türü (mobil ya da masaüstü) ve yaklaşık oynama süresi aralığı (ör. 10-30 dakika).",
+      "Aşama sayacına gönderilen her bilgide yalnızca dört şey var: aşamanın adı, oyun sürümü, cihaz türü (mobil ya da masaüstü) ve yaklaşık oynama süresi aralığı (ör. 10-30 dakika).",
       "Adın, e-postan, kanal adın, oyun kaydın, konumun ya da seni tanıtan başka bir bilgi toplanmaz. Reklam, profil çıkarma ya da başka şirketlerin analiz araçları yok.",
       "Her aşama bir cihazdan yalnızca bir kez sayılır. Bunu cihazın kendisi hatırlar, sunucuya kimlik gitmez. Oyunu açman ise en fazla yarım saatte bir sayılır.",
+      "Oyun sayfasına gelen ziyaretleri de Teserix'in kendi analiz sunucusunda sayıyoruz. Bunun için çerez kullanılmaz ve kimliğin saklanmaz. Sayacı kapatınca bu sayım da durur.",
       "Sunucu, bağlantı sırasında IP adresini teknik kayıtlarda görebilir. IP adresi istatistik tablosuna yazılmaz.",
-      "İstatistik kayıtları 180 gün sonra silinir.",
+      "Aşama sayacı kayıtları 180 gün sonra silinir.",
       "İstediğin zaman Ayarlar'daki Gizlilik bölümünden kapatabilirsin. Kapattığın anda hiçbir şey gönderilmez.",
       "Bu bilgilerin veri sorumlusu Teserix Bilişim ve Dijital Çözümler. Bilgiler Teserix'in kendi sunucusunda tutulur, bağlantı trafiğini Cloudflare taşır. KVKK'nın 11. maddesindeki haklarını kullanmak için info@teserix.com adresine yazabilirsin."
     ]
