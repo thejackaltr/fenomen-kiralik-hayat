@@ -421,12 +421,12 @@
     "install": "Uygulamayı yükle",
     "iosInstall": "Yüklemek için Paylaş > Ana Ekrana Ekle'ye dokun.",
     "version": "Sürüm {v}",
-    "credits": "Tüm görseller kodla üretildi. Kaydın bu cihazda tutulur.",
+    "credits": "Tüm görseller kodla üretildi. Oyun kaydın yalnızca bu cihazda tutulur.",
     "close": "Kapat",
     "saveTitle": "Kayıt",
     "privacy": "Gizlilik",
     "telemetry": "İsimsiz istatistik gönder",
-    "telemetryHint": "Yalnızca oyunda hangi aşamaya gelindiği sayılır, seni tanıtan hiçbir bilgi gitmez."
+    "telemetryHint": "Yalnızca oyunda hangi aşamaya geldiğin isimsiz olarak sayılır. Seni tanıtan hiçbir bilgi gönderilmez."
   },
   "update": {
     "ready": "Yeni sürüm hazır.",
@@ -500,7 +500,7 @@
   },
   "telemetry": {
     "title": "İsimsiz sayaç",
-    "body": "Oyunu geliştirmek için hangi aşamaya kaç kişinin geldiğini isimsiz olarak sayıyoruz. Seni tanıtan hiçbir bilgi toplanmaz.",
+    "body": "Oyunu geliştirmek için oyuncuların hangi aşamalara geldiğini isimsiz olarak sayıyoruz. Seni tanıtan hiçbir bilgi gönderilmez. İstemezsen kapatabilirsin.",
     "ok": "Tamam",
     "off": "Kapat",
     "detailsLink": "Ayrıntılar",
@@ -508,13 +508,13 @@
     "offToast": "Sayaç kapatıldı. Hiçbir şey gönderilmeyecek.",
     "details": [
       "Oyunu daha iyi yapmak için kaç oyuncunun hangi aşamaya geldiğini sayıyoruz (ör. ilk video, ilk kiralama, ilk personel).",
-      "Her kayıtta yalnızca şunlar var: aşamanın adı, oyun sürümü, cihaz türü (mobil ya da masaüstü) ve kaba oynama süresi aralığı (ör. 10-30 dakika).",
-      "Adın, e-postan, kanal adın, kaydın, konumun ya da seni tanıtan herhangi bir kimlik toplanmaz. Reklam, profil çıkarma ya da başka şirketlerin analiz araçları yok.",
-      "Aynı aşama bir cihazdan yalnızca bir kez sayılır. Bunu cihazın kendisi hatırlar, sunucuya kimlik gitmez.",
-      "Sunucu bağlantı sırasında IP adresini teknik kayıtlarda görebilir; IP adresi istatistik tablosuna yazılmaz.",
-      "Kayıtlar 180 gün sonra silinir.",
-      "İstediğin zaman Ayarlar > Gizlilik bölümünden kapatabilirsin. Kapatınca hemen hiçbir şey gönderilmez.",
-      "Veri sorumlusu, alıcılar ve hakların ayrıntıları yayından önce buraya eklenecek."
+      "Gönderilen her bilgide yalnızca dört şey var: aşamanın adı, oyun sürümü, cihaz türü (mobil ya da masaüstü) ve yaklaşık oynama süresi aralığı (ör. 10-30 dakika).",
+      "Adın, e-postan, kanal adın, oyun kaydın, konumun ya da seni tanıtan başka bir bilgi toplanmaz. Reklam, profil çıkarma ya da başka şirketlerin analiz araçları yok.",
+      "Her aşama bir cihazdan yalnızca bir kez sayılır. Bunu cihazın kendisi hatırlar, sunucuya kimlik gitmez. Oyunu açman ise en fazla yarım saatte bir sayılır.",
+      "Sunucu, bağlantı sırasında IP adresini teknik kayıtlarda görebilir. IP adresi istatistik tablosuna yazılmaz.",
+      "İstatistik kayıtları 180 gün sonra silinir.",
+      "İstediğin zaman Ayarlar'daki Gizlilik bölümünden kapatabilirsin. Kapattığın anda hiçbir şey gönderilmez.",
+      ""
     ]
   },
   "move": {
@@ -523,18 +523,18 @@
     "go": "Şimdi geç",
     "homeIcon": "Oyunu ana ekrana eklediysen eski simgeyi sil ve yeni adresten tekrar ekle.",
     "download": "Kaydı indir",
-    "tooBig": "Kaydın otomatik taşınamayacak kadar büyük. \"Kaydı indir\" ile dosyanı al, sonra {url} adresinde Ayarlar'dan içe aktar.",
-    "bandBody": "Kaydını tek dokunuşla yeni adrese taşıyabilirsin. Bu adres {n} gün daha açık kalacak.",
-    "later": "Sonra"
+    "tooBig": "Kaydın otomatik taşınamayacak kadar büyük. Önce “Kaydı indir” ile dosyanı al. Sonra {url} adresinde Ayarlar'ı aç ve “Kaydı içe aktar”ı seç.",
+    "bandBody": "Kaydını tek dokunuşla yeni adrese taşıyabilirsin. Bu adreste {n} gün daha oynayabilirsin, sonra oyun yalnızca yeni adreste açılacak.",
+    "later": "Daha sonra"
   },
   "import": {
     "done": "Kaydın taşındı. Kaldığın yerden devam et!",
     "conflictTitle": "İki kayıt bulundu",
-    "conflictBody": "Hangisiyle devam etmek istersin? Seçmediğin kayıt yedekte kalır.",
-    "optOld": "Eski adresteki kayıt · {f} takipçi · {d}",
-    "optNew": "Bu cihazdaki kayıt · {f} takipçi · {d}",
+    "conflictBody": "Bu cihazda da bir Fenomen kaydı var. Hangisiyle devam edeceğini seç. Seçmediğin kayıt silinmez, bu cihazda yedekte kalır.",
+    "optOld": "Eski adresteki kayıt · {f} takipçi · Son oynama: {d}",
+    "optNew": "Bu cihazdaki kayıt · {f} takipçi · Son oynama: {d}",
     "fail": "Kayıt otomatik taşınamadı. Eski adresteki \"Kaydı indir\" düğmesiyle kaydını al, burada Ayarlar'dan içe aktar.",
-    "dateUnknown": "tarih bilinmiyor"
+    "dateUnknown": "bilinmiyor"
   },
   "saveFile": {
     "export": "Kaydı dışa aktar",
@@ -544,15 +544,15 @@
     "importYes": "Evet, yükle",
     "importBad": "Bu dosya bir Fenomen kaydı değil ya da bozulmuş.",
     "fileName": "fenomen-kayit-{d}.json",
-    "codeLabel": "Dosyayı açamazsan bu kayıt kodunu kopyalayıp sakla:",
+    "codeLabel": "Dosyaya ulaşamazsan bu kayıt kodunu kopyalayıp bir yere not et. Kaydını bu kodla da geri yükleyebilirsin.",
     "copyCode": "Kodu kopyala",
     "codeCopied": "Kod kopyalandı",
-    "pickFile": "Dosya seç",
-    "pasteLabel": "Ya da kayıt kodunu buraya yapıştır:",
-    "codePlaceholder": "Kayıt kodu",
+    "pickFile": "Kayıt dosyasını seç",
+    "pasteLabel": "Dosyan yoksa kayıt kodunu buraya yapıştır:",
+    "codePlaceholder": "Kayıt kodunu yapıştır",
     "useCode": "Kodla yükle",
-    "sumCurrent": "Şimdiki kayıt · {f} takipçi · {d}",
-    "sumFile": "Yüklenecek kayıt · {f} takipçi · {d}",
-    "backupNote": "Şimdiki kayıt silinmez, yedek olarak saklanır."
+    "sumCurrent": "Şimdiki kayıt · {f} takipçi · Son oynama: {d}",
+    "sumFile": "Yüklenecek kayıt · {f} takipçi · Son oynama: {d}",
+    "backupNote": "Şimdiki kayıt silinmez, bu cihazda yedek olarak saklanır."
   }
 }
