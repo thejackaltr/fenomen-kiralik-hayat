@@ -1,0 +1,15 @@
+# Dokploy (project "fenomen"): builds the Dockerfile and serves the game on teserix_network.
+# The Cloudflare Tunnel routes fenomen.teserix.com to http://fenomen-web:80.
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    mem_limit: 64m
+    networks:
+      teserix_network:
+        aliases:
+          - fenomen-web
+
+networks:
+  teserix_network:
+    external: true
