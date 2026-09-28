@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import { HTML_CFG } from './src/config.js';
 
 const tr = JSON.parse(fs.readFileSync(new URL('./src/locales/tr.json', import.meta.url)));
 const pkg = JSON.parse(fs.readFileSync(new URL('./package.json', import.meta.url)));
@@ -10,7 +11,10 @@ const VERSION = pkg.version + '-' + (process.env.GITHUB_SHA ? process.env.GITHUB
 const lookup = (k) => k.split('.').reduce((o, p) => (o ? o[p] : undefined), tr);
 
 // %t:key% placeholders in index.html come from tr.json (no hardcoded UI text)
-const i18nHtml = { name: 'i18n-html', transformIndexHtml: (html) => html.replace(/%t:([\w.]+)%/g, (m, k) => { const v = lookup(k); if (typeof v !== 'string') throw new Error('missing tr key ' + k); return v.replace(/"/g, '&quot;'); }) };
+// %cfg:KEY% placeholders come from src/config.js (HTML_CFG): the site address lives in one place only
+const i18nHtml = { name: 'i18n-html', transformIndexHtml: (html) => html
+  .replace(/%t:([\w.]+)%/g, (m, k) => { const v = lookup(k); if (typeof v !== 'string') throw new Error('missing tr key ' + k); return v.replace(/"/g, '&quot;'); })
+  .replace(/%cfg:(\w+)%/g, (m, k) => { const v = HTML_CFG[k]; if (typeof v !== 'string') throw new Error('missing HTML_CFG ' + k); return v.replace(/"/g, '&quot;'); }) };
 
 // write dist/sw.js with a versioned precache list of every built file
 const swPlugin = {
@@ -45,7 +49,7 @@ const manifestPlugin = {
 
 export default defineConfig({
   base: './',
-  define: { __APP_VERSION__: JSON.stringify(VERSION) },
+  define: { __APP_VERSION__: JSON.stringify(VERSION), __APP_SEMVER__: JSON.stringify(pkg.version) },
   plugins: [i18nHtml, manifestPlugin, swPlugin],
   build: { target: 'es2019', assetsInlineLimit: 0, chunkSizeWarningLimit: 1600, sourcemap: false }
 });

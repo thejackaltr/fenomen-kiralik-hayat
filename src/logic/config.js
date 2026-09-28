@@ -48,7 +48,7 @@ export const CFG = {
   investShowPerType: 0.2,      // showing investments: views x (1 + 0.2 * owned investment types)
   fanbox: { unlockFollowers: 5000, cost: 3000, perFollowerSec: 0.0015 },
   equipGrowth: 2.3, equipMax: 6, equipEffect: 0.15,   // equipment bonuses add up: 1 + sum(level*effect*pathWeight)
-  share: { url: 'https://thejackaltr.github.io/fenomen-kiralik-hayat/', utm: 'utm_source=share&utm_medium=video_cover&utm_campaign=fenomen' }
+  share: { utm: 'utm_source=share&utm_medium=video_cover&utm_campaign=fenomen' }   // link = BASE_URL (src/config.js) + '?' + utm, tags kept verbatim
 };
 
 export const BODIES = ['m', 'f'];

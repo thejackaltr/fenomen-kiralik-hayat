@@ -3,14 +3,16 @@ import { h } from './dom.js';
 import { t } from '../logic/i18n.js';
 import { fmt } from '../logic/format.js';
 import { CFG } from '../logic/config.js';
+import { BASE_URL } from '../config.js';
 import { drawScene, drawTitle, wrap, FONT } from '../render/scene.js';
 import { drawDoll } from '../render/doll.js';
 
-export function gameUrl(loc = location) { return loc.origin + loc.pathname.replace(/index\.html$/, ''); }
-export function shareUrl(loc = location) { return gameUrl(loc) + '?' + CFG.share.utm; }
-function prettyUrl(loc = location) { return gameUrl(loc).replace(/^https?:\/\//, '').replace(/\/$/, ''); }
+// the share card always points to the new address (BASE_URL), whichever address the game runs on
+export function gameUrl(base = BASE_URL) { return base; }
+export function shareUrl(base = BASE_URL) { return gameUrl(base) + '?' + CFG.share.utm; }
+function prettyUrl(base = BASE_URL) { return gameUrl(base).replace(/^https?:\/\//, '').replace(/\/$/, ''); }
 
-export function composeCover(state, spec, video, loc = location) {
+export function composeCover(state, spec, video, base = BASE_URL) {
   const W = 1080, H = 1920;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d');
@@ -46,7 +48,7 @@ export function composeCover(state, spec, video, loc = location) {
   const lines = wrap(x, t('share.cta'), W * 0.5);
   lines.forEach((ln, i) => x.fillText(ln, 60, H - 520 + i * 84));
   x.fillStyle = '#ffd35a'; x.font = '700 38px ' + FONT;
-  x.fillText(prettyUrl(loc), 60, H - 110);
+  x.fillText(prettyUrl(base), 60, H - 110);
   return c;
 }
 function toBlob(canvas) { return new Promise((res) => canvas.toBlob((b) => res(b), 'image/png')); }
