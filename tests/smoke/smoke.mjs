@@ -297,6 +297,7 @@ async function runV2(kind) {
   await tap('[data-test=fame-node-f_watch_01]'); await tap('[data-test=fame-node-f_editor]'); await tap('[data-test=fame-node-f_painting]');
   ok(tag + 'tree nodes bought: watch owned + editor hired now', await S(() => { const s = window.__fenomen.ctrl.state; return s.items.watch_01?.status === 'owned' && s.items.painting_01?.status === 'owned' && s.staff.editor === 1 && s.meta.fame === 1; }));
   ok(tag + 'locked node needs the previous one', await S(() => document.querySelector('[data-test=fame-node-f_boat]').disabled && document.querySelector('[data-test=fame-node-f_boat]').classList.contains('locked')));
+  ok(tag + 'channel tab is not rebuilt while followers grow (no click races)', await S(() => { const el = document.querySelector('[data-test=fame-node-f_sneaker]'); const f = window.__fenomen; const st = f.ctrl.state.stats; st.peakFollowers = 50000; f.ui.tickUpdate(); st.peakFollowers = 90000; f.ui.tickUpdate(); return el.isConnected; }));
   await S(() => document.querySelector('[data-test=fame-tree]').scrollIntoView({ block: 'start' }));
   if (SHOTS) await p.waitForTimeout(2800);
   await vshot('sohret-agaci');

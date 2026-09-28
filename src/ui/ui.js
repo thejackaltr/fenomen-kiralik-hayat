@@ -64,7 +64,7 @@ export class UI {
     b.textContent = m ? '🔇' : '🔊'; b.setAttribute('aria-label', t(m ? 'sound.unmute' : 'sound.mute')); b.title = t(m ? 'sound.unmute' : 'sound.mute');
     b.setAttribute('aria-pressed', m ? 'true' : 'false'); b.classList.toggle('muted', m);
   }
-  setTab(id) { this.tab = id; this.panel.scrollTop = 0; this.refresh(); }
+  setTab(id) { this.sellGain = undefined; this.tab = id; this.panel.scrollTop = 0; this.refresh(); }
   refresh() {
     if (!this.s.created) return;
     if (!this.panel) return this.build();
@@ -87,7 +87,11 @@ export class UI {
     // affordability without rebuilding (no click races)
     for (const b of this.panel.querySelectorAll('[data-cost]')) b.disabled = s.money + 1e-9 < +b.dataset.cost || b.dataset.lock === '1';
     if (this.tab === 'studio' && this.liveList) this.updateLive();
-    if (this.tab === 'channel' && this.sellKey !== G.fameGain(s) + ':' + Math.floor(Math.log10(1 + s.stats.peakFollowers) * 20)) this.refresh();
+    // channel tab: rebuild only when the Şöhret preview changes (rare); the progress bar updates in place (no click races)
+    if (this.tab === 'channel' && this.sellGain !== undefined) {
+      if (this.sellGain !== G.fameGain(s)) this.refresh();
+      else if (this.sellBar) this.sellBar.style.width = Math.min(100, s.stats.peakFollowers / FAME.minFollowers * 100) + '%';
+    }
     if (this.tut === 'equip' && s.money >= G.equipCost('camera', 0)) this.updateTutorial();
   }
 
@@ -467,11 +471,11 @@ export class UI {
   // Kanalı Sat + Şöhret tree + achievements
   renderPrestige(p) {
     const s = this.s, m = s.meta, gain = G.fameGain(s), peak = s.stats.peakFollowers;
-    this.sellKey = gain + ':' + Math.floor(Math.log10(1 + peak) * 20);
+    this.sellGain = gain; this.sellBar = null;
     const sell = h('div', { class: 'card prestige sell', 'data-test': 'sell-card' }, h('img', { class: 'card-img', src: assetUrl('items/sell_channel'), alt: '', width: 72, height: 72 }),
       h('div', { class: 'card-body' }, h('b', { text: t('sell.title') }), h('span', { class: 'muted', text: t('sell.desc') }),
         G.canSell(s) ? h('div', { class: 'chips' }, h('span', { class: 'chip ok', 'data-test': 'sell-gain', text: t('sell.gain', { n: fmt(gain) }) }), h('span', { class: 'chip', text: t('sell.next', { n: fmt(G.nextFameAt(s)) }) }))
-          : h('div', {}, h('span', { class: 'chip', text: t('sell.progress', { n: fmt(FAME.minFollowers) }) }), h('div', { class: 'progress' }, h('i', { style: { width: Math.min(100, peak / FAME.minFollowers * 100) + '%' } }))),
+          : h('div', {}, h('span', { class: 'chip', text: t('sell.progress', { n: fmt(FAME.minFollowers) }) }), h('div', { class: 'progress' }, this.sellBar = h('i', { style: { width: Math.min(100, peak / FAME.minFollowers * 100) + '%' } }))),
         h('div', { class: 'row' }, h('button', { class: 'btn primary', 'data-test': 'sell-open', disabled: !G.canSell(s), onclick: () => this.confirmSell() }, t('sell.button')))));
     const fameCard = h('div', { class: 'card prestige fame', 'data-test': 'fame-card' }, h('img', { class: 'card-img', src: assetUrl('items/fame_star'), alt: '', width: 72, height: 72 }),
       h('div', { class: 'card-body' }, h('b', { text: t('fame.title') }),
