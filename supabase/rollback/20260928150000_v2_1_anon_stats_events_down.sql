@@ -36,3 +36,4 @@ drop table if exists public.anon_stats_events;
 drop function if exists public.anon_stats_cleanup();
 drop function if exists public.anon_stats_events_limit_batch();
 drop function if exists public.anon_stats_retention_cutoff();
+drop function if exists public.anon_stats_today();

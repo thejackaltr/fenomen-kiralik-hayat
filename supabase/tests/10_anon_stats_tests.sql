@@ -91,6 +91,7 @@ select test_harness.expect_error('B30 null event',                 $$insert into
 select test_harness.expect_error('B31 missing play_bucket',        $$insert into public.anon_stats_events(event, version, device_class) values ('first_video','2.1.0','mobil')$$, '23502');
 select test_harness.expect_error('B32 anon EXECUTE anon_stats_cleanup()',          $$select public.anon_stats_cleanup()$$, '42501');
 select test_harness.expect_error('B33 anon EXECUTE anon_stats_retention_cutoff()', $$select public.anon_stats_retention_cutoff()$$, '42501');
+select test_harness.expect_error('B34 anon EXECUTE anon_stats_today()', $$select public.anon_stats_today()$$, '42501');
 reset role;
 
 \echo '== C. authenticated role =='
@@ -100,6 +101,7 @@ select test_harness.expect_ok('C1 authenticated INSERT valid row',
 select test_harness.expect_error('C2 authenticated SELECT', $$select * from public.anon_stats_events$$, '42501');
 select test_harness.expect_error('C3 authenticated UPDATE', $$update public.anon_stats_events set play_bucket = '0-10'$$, '42501');
 select test_harness.expect_error('C4 authenticated DELETE', $$delete from public.anon_stats_events$$, '42501');
+select test_harness.expect_error('C5 authenticated EXECUTE anon_stats_today()', $$select public.anon_stats_today()$$, '42501');
 reset role;
 
 \echo '== D. service_role (server side only) =='
@@ -107,8 +109,10 @@ set role service_role;
 select test_harness.check('D1 service_role SELECT sees all client rows (1+22+5+1=29)',
   (select count(*) from public.anon_stats_events) = 29, (select count(*)::text from public.anon_stats_events));
 select test_harness.expect_error('D2 service_role UPDATE (events immutable)', $$update public.anon_stats_events set play_bucket = '0-10'$$, '42501');
-select test_harness.check('D3 all client rows dated today (UTC)',
-  (select bool_and(created_at = (now() at time zone 'utc')::date) from public.anon_stats_events));
+select test_harness.check('D3 all client rows dated today (Istanbul, = anon_stats_today())',
+  (select bool_and(created_at = (now() at time zone 'Europe/Istanbul')::date and created_at = public.anon_stats_today())
+     from public.anon_stats_events));
+select test_harness.check('D4 service_role can call anon_stats_today() (reports)', public.anon_stats_today() is not null);
 reset role;
 
 \echo '== E. owner "postgres" (non-superuser, FORCE RLS applies) =='
@@ -122,23 +126,72 @@ do $$ declare n int; begin
 end $$;
 reset role;
 
-\echo '== F. cleanup (older than 180 days) =='
--- seed dated rows as superuser (bypasses RLS/grants): ages 400, 181, 180, 179, 1 days
+\echo '== F. cleanup (older than 180 Istanbul days) =='
+-- seed dated rows as superuser (bypasses RLS/grants): Istanbul ages 400, 181, 180, 179, 1 days
 insert into public.anon_stats_events(event, version, device_class, play_bucket, created_at)
-select 'session_start', '2.1.0', 'mobil', '0-10', (now() at time zone 'utc')::date - a
+select 'session_start', '2.1.0', 'mobil', '0-10', public.anon_stats_today() - a
   from unnest(array[400, 181, 180, 179, 1]) as a;
-select created_at, (now() at time zone 'utc')::date - created_at as age_days, count(*)
+select created_at, public.anon_stats_today() - created_at as istanbul_age_days, count(*)
   from public.anon_stats_events group by 1 order by 1;
 set role postgres;
 select test_harness.check('F1 cleanup (as owner, like pg_cron) deletes exactly the 2 rows older than 180 days',
   (select public.anon_stats_cleanup()) = 2);
 reset role;
 select test_harness.check('F2 180-day-old row kept, 181/400 gone, 179/1/today kept',
-  (select array_agg(distinct (now() at time zone 'utc')::date - created_at order by (now() at time zone 'utc')::date - created_at)
+  (select array_agg(distinct public.anon_stats_today() - created_at order by public.anon_stats_today() - created_at)
      from public.anon_stats_events) = array[0, 1, 179, 180],
-  (select array_agg(distinct (now() at time zone 'utc')::date - created_at order by (now() at time zone 'utc')::date - created_at)::text
+  (select array_agg(distinct public.anon_stats_today() - created_at order by public.anon_stats_today() - created_at)::text
      from public.anon_stats_events));
 set role service_role;
 select test_harness.check('F3 cleanup callable by service_role, nothing left to delete', (select public.anon_stats_cleanup()) = 0);
 reset role;
 select test_harness.check('F4 row count after cleanup = 29 + 3', (select count(*) from public.anon_stats_events) = 32);
+
+\echo '== H. day boundary = Europe/Istanbul (helper + drift guards; wall-clock simulation is in 50_day_boundary_tests.sql) =='
+select now() at time zone 'utc' as utc_now, now() at time zone 'Europe/Istanbul' as istanbul_now,
+       public.anon_stats_today() as anon_stats_today, public.anon_stats_retention_cutoff() as retention_cutoff;
+select test_harness.check('H1 anon_stats_today() = Istanbul date of now()',
+  public.anon_stats_today() = (now() at time zone 'Europe/Istanbul')::date);
+select test_harness.check('H2 retention cutoff = anon_stats_today() - 180',
+  public.anon_stats_retention_cutoff() = public.anon_stats_today() - 180);
+select test_harness.check('H3 helper: STABLE, search_path='''', body uses Europe/Istanbul',
+  (select provolatile = 's' and proconfig = array['search_path=""'] and prosrc like '%''Europe/Istanbul''%' and prosrc not ilike '%utc%'
+     from pg_proc where oid = 'public.anon_stats_today()'::regprocedure),
+  (select provolatile::text || ' ' || coalesce(proconfig::text, '-') from pg_proc where oid = 'public.anon_stats_today()'::regprocedure));
+select test_harness.check('H4 retention cutoff is defined via anon_stats_today() (single source)',
+  (select prosrc like '%public.anon_stats_today()%' and prosrc not ilike '%utc%'
+     from pg_proc where oid = 'public.anon_stats_retention_cutoff()'::regprocedure));
+-- the exact deparsed text of the helper's expression; default and policy must match it
+\set ist_expr '((now() AT TIME ZONE ''Europe/Istanbul''::text))::date'
+select test_harness.check('H5 created_at default = inline Istanbul expression (no drift from helper)',
+  (select pg_get_expr(d.adbin, d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+    where d.adrelid = 'public.anon_stats_events'::regclass and a.attname = 'created_at') = :'ist_expr',
+  (select pg_get_expr(d.adbin, d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+    where d.adrelid = 'public.anon_stats_events'::regclass and a.attname = 'created_at'));
+select test_harness.check('H6 client INSERT policy = inline Istanbul expression (no drift from helper)',
+  (select with_check from pg_policies where tablename = 'anon_stats_events' and policyname = 'anon_stats_events_client_insert')
+  = '(created_at = ' || :'ist_expr' || ')',
+  (select with_check from pg_policies where tablename = 'anon_stats_events' and policyname = 'anon_stats_events_client_insert'));
+select test_harness.check('H7 no UTC day logic left in table/policies/functions',
+  not exists (select 1 from pg_policies where tablename = 'anon_stats_events' and (coalesce(qual,'') || coalesce(with_check,'')) ilike '%utc%')
+  and not exists (select 1 from pg_proc where proname like 'anon_stats%' and prosrc ilike '%utc%'));
+set time zone 'America/Los_Angeles';
+select test_harness.check('H8 anon_stats_today() unchanged under TimeZone=America/Los_Angeles',
+  public.anon_stats_today() = (now() at time zone 'Europe/Istanbul')::date);
+reset time zone;
+
+-- policy test independent of column grants: temporarily let anon send created_at, then revoke.
+select public.anon_stats_today() as ist_today \gset
+grant insert (created_at) on public.anon_stats_events to anon;
+set role anon;
+select test_harness.expect_ok('H9 policy: anon row dated Istanbul today accepted',
+  format($q$insert into public.anon_stats_events(event, version, device_class, play_bucket, created_at) values ('first_video','2.1.0','mobil','0-10', %L)$q$, :'ist_today'));
+select test_harness.expect_error('H10 policy: anon row dated Istanbul yesterday rejected (RLS)',
+  format($q$insert into public.anon_stats_events(event, version, device_class, play_bucket, created_at) values ('first_video','2.1.0','mobil','0-10', %L::date - 1)$q$, :'ist_today'), '42501');
+select test_harness.expect_error('H11 policy: anon row dated Istanbul tomorrow rejected (RLS)',
+  format($q$insert into public.anon_stats_events(event, version, device_class, play_bucket, created_at) values ('first_video','2.1.0','mobil','0-10', %L::date + 1)$q$, :'ist_today'), '42501');
+reset role;
+revoke insert (created_at) on public.anon_stats_events from anon;
+select test_harness.check('H12 temporary created_at grant revoked again (anon: 4 payload columns only)',
+  (select string_agg(column_name, ',' order by column_name) from information_schema.column_privileges
+    where table_schema='public' and table_name='anon_stats_events' and grantee = 'anon') = 'device_class,event,play_bucket,version');

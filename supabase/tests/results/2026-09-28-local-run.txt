@@ -8,6 +8,8 @@ COMMENT
 COMMENT
 CREATE INDEX
 CREATE FUNCTION
+COMMENT
+CREATE FUNCTION
 CREATE FUNCTION
 CREATE TRIGGER
 REVOKE
@@ -23,8 +25,11 @@ COMMENT
 REVOKE
 REVOKE
 REVOKE
+REVOKE
 GRANT
-psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:199: NOTICE:  anon_stats_events: pg_cron job fenomen_anon_stats_cleanup scheduled (17 0 * * * UTC)
+GRANT
+GRANT
+psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:229: NOTICE:  anon_stats_events: pg_cron job fenomen_anon_stats_cleanup scheduled (17 0 * * * UTC = 03:17 TSİ)
 DO
 PASS  migration applies (exit 0)
 
@@ -36,19 +41,19 @@ Pager usage is off.
  anon_stats_events | t           | t          | postgres
 (1 row)
 
- column_name  | data_type | is_nullable |              column_default              
---------------+-----------+-------------+------------------------------------------
+ column_name  | data_type | is_nullable |                    column_default                    
+--------------+-----------+-------------+------------------------------------------------------
  id           | uuid      | NO          | gen_random_uuid()
  event        | text      | NO          | 
  version      | text      | NO          | 
  device_class | text      | NO          | 
  play_bucket  | text      | NO          | 
- created_at   | date      | NO          | ((now() AT TIME ZONE 'utc'::text))::date
+ created_at   | date      | NO          | ((now() AT TIME ZONE 'Europe/Istanbul'::text))::date
 (6 rows)
 
-                policyname                |  cmd   |        roles         |                     qual                     |                       with_check                        
-------------------------------------------+--------+----------------------+----------------------------------------------+---------------------------------------------------------
- anon_stats_events_client_insert          | INSERT | {anon,authenticated} |                                              | (created_at = ((now() AT TIME ZONE 'utc'::text))::date)
+                policyname                |  cmd   |        roles         |                     qual                     |                             with_check                              
+------------------------------------------+--------+----------------------+----------------------------------------------+---------------------------------------------------------------------
+ anon_stats_events_client_insert          | INSERT | {anon,authenticated} |                                              | (created_at = ((now() AT TIME ZONE 'Europe/Istanbul'::text))::date)
  anon_stats_events_owner_retention_delete | DELETE | {postgres}           | (created_at < anon_stats_retention_cutoff()) | 
  anon_stats_events_owner_select           | SELECT | {postgres}           | true                                         | 
 (3 rows)
@@ -314,28 +319,40 @@ psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:93: 
  
 (1 row)
 
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:94: NOTICE:  PASS  B34 anon EXECUTE anon_stats_today() (as anon): 42501 permission denied for function anon_stats_today
+ expect_error 
+--------------
+ 
+(1 row)
+
 RESET
 == C. authenticated role ==
 SET
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:99: NOTICE:  PASS  C1 authenticated INSERT valid row (as authenticated)
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:100: NOTICE:  PASS  C1 authenticated INSERT valid row (as authenticated)
  expect_ok 
 -----------
  
 (1 row)
 
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:100: NOTICE:  PASS  C2 authenticated SELECT (as authenticated): 42501 permission denied for table anon_stats_events
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:101: NOTICE:  PASS  C2 authenticated SELECT (as authenticated): 42501 permission denied for table anon_stats_events
  expect_error 
 --------------
  
 (1 row)
 
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:101: NOTICE:  PASS  C3 authenticated UPDATE (as authenticated): 42501 permission denied for table anon_stats_events
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:102: NOTICE:  PASS  C3 authenticated UPDATE (as authenticated): 42501 permission denied for table anon_stats_events
  expect_error 
 --------------
  
 (1 row)
 
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:102: NOTICE:  PASS  C4 authenticated DELETE (as authenticated): 42501 permission denied for table anon_stats_events
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:103: NOTICE:  PASS  C4 authenticated DELETE (as authenticated): 42501 permission denied for table anon_stats_events
+ expect_error 
+--------------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:104: NOTICE:  PASS  C5 authenticated EXECUTE anon_stats_today() (as authenticated): 42501 permission denied for function anon_stats_today
  expect_error 
 --------------
  
@@ -344,19 +361,25 @@ psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:102:
 RESET
 == D. service_role (server side only) ==
 SET
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:108: NOTICE:  PASS  D1 service_role SELECT sees all client rows (1+22+5+1=29) 29
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:110: NOTICE:  PASS  D1 service_role SELECT sees all client rows (1+22+5+1=29) 29
  check 
 -------
  
 (1 row)
 
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:109: NOTICE:  PASS  D2 service_role UPDATE (events immutable) (as service_role): 42501 permission denied for table anon_stats_events
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:111: NOTICE:  PASS  D2 service_role UPDATE (events immutable) (as service_role): 42501 permission denied for table anon_stats_events
  expect_error 
 --------------
  
 (1 row)
 
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:111: NOTICE:  PASS  D3 all client rows dated today (UTC) 
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:114: NOTICE:  PASS  D3 all client rows dated today (Istanbul, = anon_stats_today()) 
+ check 
+-------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:115: NOTICE:  PASS  D4 service_role can call anon_stats_today() (reports) 
  check 
 -------
  
@@ -365,51 +388,135 @@ psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:111:
 RESET
 == E. owner "postgres" (non-superuser, FORCE RLS applies) ==
 SET
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:116: NOTICE:  PASS  E1 owner SELECT via owner policy 
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:120: NOTICE:  PASS  E1 owner SELECT via owner policy 
  check 
 -------
  
 (1 row)
 
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:122: NOTICE:  PASS  E2 owner UPDATE hits 0 rows (no UPDATE policy) 0 rows
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:122: NOTICE:  PASS  E3 owner DELETE of fresh rows hits 0 rows (only expired rows deletable) 0 rows
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:126: NOTICE:  PASS  E2 owner UPDATE hits 0 rows (no UPDATE policy) 0 rows
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:126: NOTICE:  PASS  E3 owner DELETE of fresh rows hits 0 rows (only expired rows deletable) 0 rows
 DO
 RESET
-== F. cleanup (older than 180 days) ==
+== F. cleanup (older than 180 Istanbul days) ==
 INSERT 0 5
- created_at | age_days | count 
-------------+----------+-------
- 2025-08-24 |      400 |     1
- 2026-03-31 |      181 |     1
- 2026-04-01 |      180 |     1
- 2026-04-02 |      179 |     1
- 2026-09-27 |        1 |     1
- 2026-09-28 |        0 |    29
+ created_at | istanbul_age_days | count 
+------------+-------------------+-------
+ 2025-08-24 |               400 |     1
+ 2026-03-31 |               181 |     1
+ 2026-04-01 |               180 |     1
+ 2026-04-02 |               179 |     1
+ 2026-09-27 |                 1 |     1
+ 2026-09-28 |                 0 |    29
 (6 rows)
 
 SET
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:134: NOTICE:  PASS  F1 cleanup (as owner, like pg_cron) deletes exactly the 2 rows older than 180 days 
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:138: NOTICE:  PASS  F1 cleanup (as owner, like pg_cron) deletes exactly the 2 rows older than 180 days 
  check 
 -------
  
 (1 row)
 
 RESET
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:140: NOTICE:  PASS  F2 180-day-old row kept, 181/400 gone, 179/1/today kept {0,1,179,180}
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:144: NOTICE:  PASS  F2 180-day-old row kept, 181/400 gone, 179/1/today kept {0,1,179,180}
  check 
 -------
  
 (1 row)
 
 SET
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:142: NOTICE:  PASS  F3 cleanup callable by service_role, nothing left to delete 
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:146: NOTICE:  PASS  F3 cleanup callable by service_role, nothing left to delete 
  check 
 -------
  
 (1 row)
 
 RESET
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:144: NOTICE:  PASS  F4 row count after cleanup = 29 + 3 
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:148: NOTICE:  PASS  F4 row count after cleanup = 29 + 3 
+ check 
+-------
+ 
+(1 row)
+
+== H. day boundary = Europe/Istanbul (helper + drift guards; wall-clock simulation is in 50_day_boundary_tests.sql) ==
+          utc_now          |       istanbul_now        | anon_stats_today | retention_cutoff 
+---------------------------+---------------------------+------------------+------------------
+ 2026-09-28 12:53:27.24921 | 2026-09-28 15:53:27.24921 | 2026-09-28       | 2026-04-01
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:154: NOTICE:  PASS  H1 anon_stats_today() = Istanbul date of now() 
+ check 
+-------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:156: NOTICE:  PASS  H2 retention cutoff = anon_stats_today() - 180 
+ check 
+-------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:160: NOTICE:  PASS  H3 helper: STABLE, search_path='', body uses Europe/Istanbul s {"search_path=\"\""}
+ check 
+-------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:163: NOTICE:  PASS  H4 retention cutoff is defined via anon_stats_today() (single source) 
+ check 
+-------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:170: NOTICE:  PASS  H5 created_at default = inline Istanbul expression (no drift from helper) ((now() AT TIME ZONE 'Europe/Istanbul'::text))::date
+ check 
+-------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:174: NOTICE:  PASS  H6 client INSERT policy = inline Istanbul expression (no drift from helper) (created_at = ((now() AT TIME ZONE 'Europe/Istanbul'::text))::date)
+ check 
+-------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:177: NOTICE:  PASS  H7 no UTC day logic left in table/policies/functions 
+ check 
+-------
+ 
+(1 row)
+
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:180: NOTICE:  PASS  H8 anon_stats_today() unchanged under TimeZone=America/Los_Angeles 
+ check 
+-------
+ 
+(1 row)
+
+RESET
+GRANT
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:188: NOTICE:  PASS  H9 policy: anon row dated Istanbul today accepted (as anon)
+ expect_ok 
+-----------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:190: NOTICE:  PASS  H10 policy: anon row dated Istanbul yesterday rejected (RLS) (as anon): 42501 new row violates row-level security policy for table "anon_stats_events"
+ expect_error 
+--------------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:192: NOTICE:  PASS  H11 policy: anon row dated Istanbul tomorrow rejected (RLS) (as anon): 42501 new row violates row-level security policy for table "anon_stats_events"
+ expect_error 
+--------------
+ 
+(1 row)
+
+RESET
+REVOKE
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/10_anon_stats_tests.sql:197: NOTICE:  PASS  H12 temporary created_at grant revoked again (anon: 4 payload columns only) 
  check 
 -------
  
@@ -424,7 +531,7 @@ Pager usage is off.
  fenomen_anon_stats_cleanup | 17 0 * * * | select public.anon_stats_cleanup() | postgres | fenomen_test | t
 (1 row)
 
-psql:/workspace/fenomen-v2.1-backend/supabase/tests/20_pg_cron_test.sql:8: NOTICE:  PASS  G1 daily job fenomen_anon_stats_cleanup scheduled as postgres (17 0 * * * UTC) 
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/20_pg_cron_test.sql:8: NOTICE:  PASS  G1 daily job fenomen_anon_stats_cleanup scheduled as postgres (17 0 * * * UTC = 03:17 TSI) 
  check 
 -------
  
@@ -477,23 +584,23 @@ TRUNCATE TABLE
 INSERT 0 426
 INSERT 0 7
 SELECT 15
- step_no |       step        |  n  | rate_from_prev | suppressed 
----------+-------------------+-----+----------------+------------
-       1 | game_open_new     | 100 |                | f
-       2 | character_created |  80 |          0.800 | f
-       3 | path_chosen_*     |  60 |          0.750 | f
-       4 | first_video       |  50 |          0.833 | f
-       5 | first_edit_game   |  40 |          0.800 | f
-       6 | first_shop_buy    |  30 |          0.750 | f
-       7 | first_rent        |  20 |          0.667 | f
-       8 | first_ifsa        |  12 |          0.600 | f
-       9 | first_staff       |  10 |          0.833 | f
-      10 | followers_10B     |   8 |          0.800 | f
-      11 | first_manager     |   6 |          0.750 | f
-      12 | followers_100B    |     |                | t
-      13 | first_sell        |     |                | t
-      14 | first_fame_node   |     |                | t
-      15 | kiraliksiz_hayat  |     |                | t
+ step_no |       step        |  n  | rate_from_prev | suppressed | from_date  |  to_date   
+---------+-------------------+-----+----------------+------------+------------+------------
+       1 | game_open_new     | 100 |                | f          | 2026-08-30 | 2026-09-28
+       2 | character_created |  80 |          0.800 | f          | 2026-08-30 | 2026-09-28
+       3 | path_chosen_*     |  60 |          0.750 | f          | 2026-08-30 | 2026-09-28
+       4 | first_video       |  50 |          0.833 | f          | 2026-08-30 | 2026-09-28
+       5 | first_edit_game   |  40 |          0.800 | f          | 2026-08-30 | 2026-09-28
+       6 | first_shop_buy    |  30 |          0.750 | f          | 2026-08-30 | 2026-09-28
+       7 | first_rent        |  20 |          0.667 | f          | 2026-08-30 | 2026-09-28
+       8 | first_ifsa        |  12 |          0.600 | f          | 2026-08-30 | 2026-09-28
+       9 | first_staff       |  10 |          0.833 | f          | 2026-08-30 | 2026-09-28
+      10 | followers_10B     |   8 |          0.800 | f          | 2026-08-30 | 2026-09-28
+      11 | first_manager     |   6 |          0.750 | f          | 2026-08-30 | 2026-09-28
+      12 | followers_100B    |     |                | t          | 2026-08-30 | 2026-09-28
+      13 | first_sell        |     |                | t          | 2026-08-30 | 2026-09-28
+      14 | first_fame_node   |     |                | t          | 2026-08-30 | 2026-09-28
+      15 | kiraliksiz_hayat  |     |                | t          | 2026-08-30 | 2026-09-28
 (15 rows)
 
 psql:/workspace/fenomen-v2.1-backend/supabase/tests/30_funnel_report_test.sql:21: NOTICE:  PASS  R1 step1 n=100 (other version ignored) 
@@ -532,6 +639,45 @@ psql:/workspace/fenomen-v2.1-backend/supabase/tests/30_funnel_report_test.sql:26
  
 (1 row)
 
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/30_funnel_report_test.sql:28: NOTICE:  PASS  R7 default range = last 30 Istanbul days (today-29 .. today) 
+ check 
+-------
+ 
+(1 row)
+
+TRUNCATE TABLE
+INSERT 0 18
+DROP TABLE
+SELECT 15
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/30_funnel_report_test.sql:39: NOTICE:  PASS  R8 default range: today (6) + today-29 (5) counted, today-30 (7) excluded -> 11 11
+ check 
+-------
+ 
+(1 row)
+
+SELECT 15
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/30_funnel_report_test.sql:47: NOTICE:  PASS  R9 explicit from_date/to_date (today-30 .. today-29) -> 7 + 5 = 12, today excluded 12 2026-08-29..2026-08-30
+ check 
+-------
+ 
+(1 row)
+
+SELECT 15
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/30_funnel_report_test.sql:55: NOTICE:  PASS  R10 last_n_days=1 -> only Istanbul today (6 rows) 6
+ check 
+-------
+ 
+(1 row)
+
+SET
+SELECT 15
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/30_funnel_report_test.sql:61: NOTICE:  PASS  R11 report runs as service_role, same result 
+ check 
+-------
+ 
+(1 row)
+
+RESET
 TRUNCATE TABLE
 PASS  30_funnel_report_test.sql ran to the end (exit 0)
 
@@ -542,12 +688,12 @@ Pager usage is off.
 -----------------------------+-------
  table                       |     1
  policies                    |     3
- functions                   |     3
+ functions                   |     4
  cron_jobs (-1 = no pg_cron) |     1
  rows                        |     1
 (5 rows)
 
-psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:60: ERROR:  relation "anon_stats_events" already exists
+psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:66: ERROR:  relation "anon_stats_events" already exists
 PASS  second run fails (psql exit 3 = script error) (exit 3)
 -- state after:
 Pager usage is off.
@@ -555,7 +701,7 @@ Pager usage is off.
 -----------------------------+-------
  table                       |     1
  policies                    |     3
- functions                   |     3
+ functions                   |     4
  cron_jobs (-1 = no pg_cron) |     1
  rows                        |     1
 (5 rows)
@@ -566,6 +712,7 @@ psql:/workspace/fenomen-v2.1-backend/supabase/rollback/20260928150000_v2_1_anon_
 DO
 DO
 DROP TABLE
+DROP FUNCTION
 DROP FUNCTION
 DROP FUNCTION
 DROP FUNCTION
@@ -590,11 +737,15 @@ psql:/workspace/fenomen-v2.1-backend/supabase/rollback/20260928150000_v2_1_anon_
 DROP FUNCTION
 psql:/workspace/fenomen-v2.1-backend/supabase/rollback/20260928150000_v2_1_anon_stats_events_down.sql:38: NOTICE:  function public.anon_stats_retention_cutoff() does not exist, skipping
 DROP FUNCTION
+psql:/workspace/fenomen-v2.1-backend/supabase/rollback/20260928150000_v2_1_anon_stats_events_down.sql:39: NOTICE:  function public.anon_stats_today() does not exist, skipping
+DROP FUNCTION
 PASS  rollback #2 (nothing left, still clean) (exit 0)
 CREATE TABLE
 COMMENT
 COMMENT
 CREATE INDEX
+CREATE FUNCTION
+COMMENT
 CREATE FUNCTION
 CREATE FUNCTION
 CREATE TRIGGER
@@ -611,11 +762,14 @@ COMMENT
 REVOKE
 REVOKE
 REVOKE
+REVOKE
 GRANT
-psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:199: NOTICE:  anon_stats_events: pg_cron job fenomen_anon_stats_cleanup scheduled (17 0 * * * UTC)
+GRANT
+GRANT
+psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:229: NOTICE:  anon_stats_events: pg_cron job fenomen_anon_stats_cleanup scheduled (17 0 * * * UTC = 03:17 TSİ)
 DO
 PASS  re-apply after rollback (exit 0)
-psql:/workspace/fenomen-v2.1-backend/supabase/ops/anon_stats_schedule_cleanup.sql:20: NOTICE:  anon_stats_events: pg_cron job fenomen_anon_stats_cleanup scheduled (17 0 * * * UTC)
+psql:/workspace/fenomen-v2.1-backend/supabase/ops/anon_stats_schedule_cleanup.sql:20: NOTICE:  anon_stats_events: pg_cron job fenomen_anon_stats_cleanup scheduled (17 0 * * * UTC = 03:17 TSİ)
 DO
 PASS  ops/anon_stats_schedule_cleanup.sql re-schedules (no duplicate job) (exit 0)
 Pager usage is off.
@@ -623,7 +777,7 @@ Pager usage is off.
 -----------------------------+-------
  table                       |     1
  policies                    |     3
- functions                   |     3
+ functions                   |     4
  cron_jobs (-1 = no pg_cron) |     1
  rows                        |     0
 (5 rows)
@@ -641,6 +795,8 @@ COMMENT
 COMMENT
 CREATE INDEX
 CREATE FUNCTION
+COMMENT
+CREATE FUNCTION
 CREATE FUNCTION
 CREATE TRIGGER
 REVOKE
@@ -656,8 +812,11 @@ COMMENT
 REVOKE
 REVOKE
 REVOKE
+REVOKE
 GRANT
-psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:199: NOTICE:  anon_stats_events: pg_cron not installed, cleanup NOT scheduled; see supabase/README-v2.1-stats.md
+GRANT
+GRANT
+psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:229: NOTICE:  anon_stats_events: pg_cron not installed, cleanup NOT scheduled; see supabase/README-v2.1-stats.md
 DO
 PASS  migration applies without pg_cron (exit 0)
 Pager usage is off.
@@ -665,7 +824,7 @@ Pager usage is off.
 -----------------------------+-------
  table                       |     1
  policies                    |     3
- functions                   |     3
+ functions                   |     4
  cron_jobs (-1 = no pg_cron) |    -1
  rows                        |     0
 (5 rows)
@@ -700,6 +859,7 @@ PASS  ops schedule script errors clearly without pg_cron (exit 3)
 DO
 DO
 DROP TABLE
+DROP FUNCTION
 DROP FUNCTION
 DROP FUNCTION
 DROP FUNCTION
@@ -740,10 +900,285 @@ DROP TABLE
 DROP FUNCTION
 DROP FUNCTION
 DROP FUNCTION
+DROP FUNCTION
 PASS  final rollback (exit 0)
 
+######## 10. Istanbul day boundary with a SHIFTED server clock (libfaketime; now() itself is simulated)
+
+---- phase P1: server clock = UTC 2026-09-28 20:59:00 = TSİ 2026-09-28 23:59:00 (offset 29128s)
+psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:229: NOTICE:  anon_stats_events: pg_cron not installed, cleanup NOT scheduled; see supabase/README-v2.1-stats.md
+PASS  P1 migration applies at shifted clock (exit 0)
+Pager usage is off.
+ phase |          utc_now           |        istanbul_now        |  utc_date  | istanbul_date |   cutoff   
+-------+----------------------------+----------------------------+------------+---------------+------------
+ P1    | 2026-09-28 20:59:01.140792 | 2026-09-28 23:59:01.140792 | 2026-09-28 | 2026-09-28    | 2026-04-01
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:15: NOTICE:  PASS  P1 T1 simulated clock: Istanbul date = UTC date utc=2026-09-28 istanbul=2026-09-28
+ check 
+-------
+ 
+(1 row)
+
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:20: NOTICE:  PASS  P1 T2 anon INSERT accepted (default + policy use Istanbul day) (as anon)
+ expect_ok 
+-----------
+ 
+(1 row)
+
+RESET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:24: NOTICE:  PASS  P1 T3 stored created_at = Istanbul date 2026-09-28
+ check 
+-------
+ 
+(1 row)
+
+GRANT
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:30: NOTICE:  PASS  P1 T4 policy accepts created_at = Istanbul date (as anon)
+ expect_ok 
+-----------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:33: NOTICE:  PASS  P1 T5 policy rejects created_at = Istanbul date - 1 (as anon): 42501 new row violates row-level security policy for table "anon_stats_events"
+ expect_error 
+--------------
+ 
+(1 row)
+
+RESET
+REVOKE
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:39: NOTICE:  PASS  P1 T6 retention cutoff = Istanbul date - 180 2026-04-01
+ check 
+-------
+ 
+(1 row)
+
+TRUNCATE TABLE
+INSERT 0 3
+ created_at | istanbul_age | utc_age 
+------------+--------------+---------
+ 2026-03-31 |          181 |     181
+ 2026-04-01 |          180 |     180
+ 2026-04-02 |          179 |     179
+(3 rows)
+
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:48: NOTICE:  PASS  P1 T7 cleanup deletes exactly the Istanbul-age-181 row 
+ check 
+-------
+ 
+(1 row)
+
+RESET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:52: NOTICE:  PASS  P1 T8 Istanbul ages 180 and 179 kept {180,179}
+ check 
+-------
+ 
+(1 row)
+
+TRUNCATE TABLE
+INSERT 0 12
+SELECT 15
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:64: NOTICE:  PASS  P1 T9 report last_n_days=1 counts only the Istanbul day (5, not 7) 5 2026-09-28
+ check 
+-------
+ 
+(1 row)
+
+TRUNCATE TABLE
+PASS  P1 50_day_boundary_tests.sql ran to the end (exit 0)
+REST POST at shifted clock -> 201; stored: 2026-09-28 istanbul=2026-09-28 utc=2026-09-28 ok=true
+PASS  P1 K5 REST anon insert 201 at shifted clock, stored date = Istanbul date
+PASS  P1 rollback at shifted clock (exit 0)
+fenomen_clock SQL assertions: 9/9 PASS
+
+---- phase P2: server clock = UTC 2026-09-28 21:00:30 = TSİ 2026-09-29 00:00:30 (offset 29217s)
+psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:229: NOTICE:  anon_stats_events: pg_cron not installed, cleanup NOT scheduled; see supabase/README-v2.1-stats.md
+PASS  P2 migration applies at shifted clock (exit 0)
+Pager usage is off.
+ phase |          utc_now           |        istanbul_now        |  utc_date  | istanbul_date |   cutoff   
+-------+----------------------------+----------------------------+------------+---------------+------------
+ P2    | 2026-09-28 21:00:31.514386 | 2026-09-29 00:00:31.514386 | 2026-09-28 | 2026-09-29    | 2026-04-02
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:15: NOTICE:  PASS  P2 T1 simulated clock: Istanbul date = UTC date + 1 utc=2026-09-28 istanbul=2026-09-29
+ check 
+-------
+ 
+(1 row)
+
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:20: NOTICE:  PASS  P2 T2 anon INSERT accepted (default + policy use Istanbul day) (as anon)
+ expect_ok 
+-----------
+ 
+(1 row)
+
+RESET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:24: NOTICE:  PASS  P2 T3 stored created_at = Istanbul date 2026-09-29
+ check 
+-------
+ 
+(1 row)
+
+GRANT
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:30: NOTICE:  PASS  P2 T4 policy accepts created_at = Istanbul date (as anon)
+ expect_ok 
+-----------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:33: NOTICE:  PASS  P2 T5 policy rejects created_at = Istanbul date - 1 (= the UTC date right now) (as anon): 42501 new row violates row-level security policy for table "anon_stats_events"
+ expect_error 
+--------------
+ 
+(1 row)
+
+RESET
+REVOKE
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:39: NOTICE:  PASS  P2 T6 retention cutoff = Istanbul date - 180 2026-04-02
+ check 
+-------
+ 
+(1 row)
+
+TRUNCATE TABLE
+INSERT 0 3
+ created_at | istanbul_age | utc_age 
+------------+--------------+---------
+ 2026-04-01 |          181 |     180
+ 2026-04-02 |          180 |     179
+ 2026-04-03 |          179 |     178
+(3 rows)
+
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:48: NOTICE:  PASS  P2 T7 cleanup deletes exactly the Istanbul-age-181 row (UTC age only 180) 
+ check 
+-------
+ 
+(1 row)
+
+RESET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:52: NOTICE:  PASS  P2 T8 Istanbul ages 180 and 179 kept {180,179}
+ check 
+-------
+ 
+(1 row)
+
+TRUNCATE TABLE
+INSERT 0 12
+SELECT 15
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:64: NOTICE:  PASS  P2 T9 report last_n_days=1 counts only the Istanbul day (5, not 7) 5 2026-09-29
+ check 
+-------
+ 
+(1 row)
+
+TRUNCATE TABLE
+PASS  P2 50_day_boundary_tests.sql ran to the end (exit 0)
+REST POST at shifted clock -> 201; stored: 2026-09-29 istanbul=2026-09-29 utc=2026-09-28 ok=true
+PASS  P2 K5 REST anon insert 201 at shifted clock, stored date = Istanbul date
+PASS  P2 rollback at shifted clock (exit 0)
+fenomen_clock SQL assertions: 9/9 PASS
+
+---- phase P3: server clock = UTC 2026-09-28 23:59:00 = TSİ 2026-09-29 02:59:00 (offset 39925s)
+psql:/workspace/fenomen-v2.1-backend/supabase/migrations/20260928150000_v2_1_anon_stats_events.sql:229: NOTICE:  anon_stats_events: pg_cron not installed, cleanup NOT scheduled; see supabase/README-v2.1-stats.md
+PASS  P3 migration applies at shifted clock (exit 0)
+Pager usage is off.
+ phase |          utc_now           |        istanbul_now        |  utc_date  | istanbul_date |   cutoff   
+-------+----------------------------+----------------------------+------------+---------------+------------
+ P3    | 2026-09-28 23:59:01.011804 | 2026-09-29 02:59:01.011804 | 2026-09-28 | 2026-09-29    | 2026-04-02
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:15: NOTICE:  PASS  P3 T1 simulated clock: Istanbul date = UTC date + 1 utc=2026-09-28 istanbul=2026-09-29
+ check 
+-------
+ 
+(1 row)
+
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:20: NOTICE:  PASS  P3 T2 anon INSERT accepted (default + policy use Istanbul day) (as anon)
+ expect_ok 
+-----------
+ 
+(1 row)
+
+RESET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:24: NOTICE:  PASS  P3 T3 stored created_at = Istanbul date 2026-09-29
+ check 
+-------
+ 
+(1 row)
+
+GRANT
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:30: NOTICE:  PASS  P3 T4 policy accepts created_at = Istanbul date (as anon)
+ expect_ok 
+-----------
+ 
+(1 row)
+
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:33: NOTICE:  PASS  P3 T5 policy rejects created_at = Istanbul date - 1 (= the UTC date right now) (as anon): 42501 new row violates row-level security policy for table "anon_stats_events"
+ expect_error 
+--------------
+ 
+(1 row)
+
+RESET
+REVOKE
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:39: NOTICE:  PASS  P3 T6 retention cutoff = Istanbul date - 180 2026-04-02
+ check 
+-------
+ 
+(1 row)
+
+TRUNCATE TABLE
+INSERT 0 3
+ created_at | istanbul_age | utc_age 
+------------+--------------+---------
+ 2026-04-01 |          181 |     180
+ 2026-04-02 |          180 |     179
+ 2026-04-03 |          179 |     178
+(3 rows)
+
+SET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:48: NOTICE:  PASS  P3 T7 cleanup deletes exactly the Istanbul-age-181 row (UTC age only 180) 
+ check 
+-------
+ 
+(1 row)
+
+RESET
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:52: NOTICE:  PASS  P3 T8 Istanbul ages 180 and 179 kept {180,179}
+ check 
+-------
+ 
+(1 row)
+
+TRUNCATE TABLE
+INSERT 0 12
+SELECT 15
+psql:/workspace/fenomen-v2.1-backend/supabase/tests/50_day_boundary_tests.sql:64: NOTICE:  PASS  P3 T9 report last_n_days=1 counts only the Istanbul day (5, not 7) 5 2026-09-29
+ check 
+-------
+ 
+(1 row)
+
+TRUNCATE TABLE
+PASS  P3 50_day_boundary_tests.sql ran to the end (exit 0)
+REST POST at shifted clock -> 201; stored: 2026-09-29 istanbul=2026-09-29 utc=2026-09-28 ok=true
+PASS  P3 K5 REST anon insert 201 at shifted clock, stored date = Istanbul date
+PASS  P3 rollback at shifted clock (exit 0)
+fenomen_clock SQL assertions: 9/9 PASS
+
 ######## SUMMARY
-fenomen_test SQL assertions: 83 PASS, 0 FAIL
-fenomen_nocron SQL assertions: 4 PASS, 0 FAIL
-shell-level FAIL count (incl. SQL): 0
+fenomen_test SQL assertions: 103/103 PASS
+fenomen_nocron SQL assertions: 4/4 PASS
+SQL assertions total: 134/134 PASS
+REST checks total (curl K* + supabase-js J*): 18/18 PASS
+shell-level FAIL count (incl. SQL + REST): 0
 RESULT: ALL PASS

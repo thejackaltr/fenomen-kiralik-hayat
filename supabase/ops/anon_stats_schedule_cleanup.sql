@@ -1,5 +1,5 @@
 -- Schedule (or re-schedule) the daily v2.1 stats cleanup via pg_cron.
--- Use when pg_cron was enabled AFTER the migration ran. Same block as section 7 of
+-- 17 0 * * * is UTC (pg_cron default) = 03:17 TSİ. Use when pg_cron was enabled AFTER the migration ran. Same block as section 7 of
 -- migrations/20260928150000_v2_1_anon_stats_events.sql. Run as the table owner (postgres).
 -- Prerequisite (admin, once; the supabase/postgres image preloads pg_cron):
 --   create extension if not exists pg_cron with schema pg_catalog;
@@ -12,7 +12,7 @@ begin
     end if;
     perform cron.schedule('fenomen_anon_stats_cleanup', '17 0 * * *',
                           'select public.anon_stats_cleanup()');
-    raise notice 'anon_stats_events: pg_cron job fenomen_anon_stats_cleanup scheduled (17 0 * * * UTC)';
+    raise notice 'anon_stats_events: pg_cron job fenomen_anon_stats_cleanup scheduled (17 0 * * * UTC = 03:17 TSİ)';
   else
     raise exception 'pg_cron is not installed in this database';
   end if;

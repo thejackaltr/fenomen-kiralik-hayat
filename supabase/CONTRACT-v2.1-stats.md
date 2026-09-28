@@ -17,7 +17,7 @@ Bu belgede gerçek anahtar yok; `<SUPABASE_URL>` ve `<ANON_KEY>` yer tutucudur.
 | `device_class` | text | `"mobil"` / `"masaustu"`. Sınıf istemcide hesaplanır; user agent, ekran boyu gibi ham veriler gönderilmez. |
 | `play_bucket` | text | `"0-10"`, `"10-30"`, `"30-60"`, `"60-120"`, `"120+"`. Toplam oynama dakikası `m` için aralık `[0,10)`, `[10,30)`, `[30,60)`, `[60,120)`, `≥120`. Kesin dakika gönderilmez. |
 
-Sunucu şunları kendisi yazar, istemci **göndermez**: `id` (rastgele uuid) ve `created_at` (sunucunun UTC günü, yalnızca tarih). Bu iki alandan biri gönderilirse istek reddedilir (401 / `42501`). Listede olmayan bir alan gönderilirse (örn. `install_id`) 400 / `PGRST204` döner.
+Sunucu şunları kendisi yazar, istemci **göndermez**: `id` (rastgele uuid) ve `created_at` (sunucu saatine göre **İstanbul günü**, yalnızca tarih; bkz. "Gün sınırı"). Bu iki alandan biri gönderilirse istek reddedilir (401 / `42501`). Listede olmayan bir alan gönderilirse (örn. `install_id`) 400 / `PGRST204` döner.
 
 ### İzinli `event` ID'leri (22)
 `game_open_new`, `character_created`, `path_chosen_vlog`, `path_chosen_oyun`, `path_chosen_luks`, `first_video`, `first_edit_game`, `first_shop_buy`, `first_rent`, `first_ifsa`, `first_ifsa_ozur`, `first_ifsa_gormezden`, `first_staff`, `first_manager`, `followers_1B`, `followers_10B`, `followers_100B`, `followers_1M`, `first_sell`, `first_fame_node`, `kiraliksiz_hayat`, `session_start`
@@ -26,7 +26,51 @@ Notlar:
 - `B` = bin, `M` = milyon (`followers_10B` = 10.000 takipçi). Eşikler config'te dursa bile sunucu listesi sabittir. Eşik, yol ya da aralık değişirse önce backend migration'ı gerekir, yoksa yeni değerler 400 ile reddedilir.
 - `kiraliksiz_hayat` kodda `rent_free` başarımına karşılık gelir (`emit(s,'achievement',{id:'rent_free'})`).
 - `path_chosen_egitim` yok (yol oynanabilir değil).
-- `first_*` tekilleştirmesi ve `session_start` 30 dk sınırı tamamen istemcide yapılır (`sent_<olay>=true` bayrakları localStorage'da kalır, sunucuya gitmez).
+- `first_*` kuralı aşağıda ("`first_*` olayları: cihaz başına en fazla bir kez"). `session_start` 30 dk sınırı da tamamen istemcide yapılır. Bayraklar localStorage'da kalır, sunucuya gitmez.
+
+## Gün sınırı: Europe/Istanbul (TSİ, UTC+3)
+- `created_at`, sunucu saatinin **İstanbul tarihidir** (`(now() at time zone 'Europe/Istanbul')::date`). UTC tarihi değildir, istemcinin saati ya da saat dilimi de kullanılmaz.
+- Örnek: 23:30 UTC'de gelen olay, İstanbul'da 02:30 olduğu için **ertesi günün** satırı olur.
+- Raporlardaki "bugün", "son N gün" ve tarih aralıkları da İstanbul tarihiyle hesaplanır. 180 günlük saklama süresi de İstanbul gününe göre işler: bugün − 180'den eski satırlar silinir.
+- İstemci için değişen bir şey yok: tarih gönderilmez, sunucu yazar.
+
+## `first_*` olayları: cihaz başına en fazla bir kez, arada kayıp olabilir
+Garanti "tam bir kez" değil, **"cihaz başına en fazla bir kez (başarılı gönderim olarak), arada kayıp olabilir"** şeklindedir.
+1. Olay ilk kez tetiklendiğinde istemci isteği gönderir.
+2. `sent_<olay>` bayrağını (örn. `sent_first_video`) **yalnızca 2xx cevap aldıktan sonra** yazar. Bayrak varsa olay bir daha gönderilmez.
+3. Hata olursa (ağ hatası, zaman aşımı ya da 2xx olmayan herhangi bir cevap) bayrak yazılmaz. Bunun yerine "bekleyen" olarak işaretlenir (örn. `retry_<olay>=1`) ve **bir sonraki açılışta bir kez daha** gönderilir.
+4. İkinci deneme de başarısız olursa olay **düşer**: bekleme işareti "vazgeçildi" olarak kapatılır (örn. `retry_<olay>=done`) ve olay bir daha gönderilmez. Toplamda en fazla 2 deneme yapılır, kuyruk ya da ek deneme yoktur.
+- **Sunucuda tekilleştirme yok**, çünkü kimlik tutulmuyor. Kural tamamen istemcide işler. Sunucu aynı olayın ikinci satırını reddetmez, reddedemez de.
+- **Olası çift sayım:** istek sunucuya ulaşıp satır yazılır ama cevap istemciye ulaşmazsa (bağlantı kopar, zaman aşımı, sekme kapanır), istemci bunu hata sayar ve bir sonraki açılışta tekrar gönderir. Bu durumda aynı olay iki kez sayılır. Rapor bunu **küçük bir hata payı** olarak kabul eder. Oranlar kesin değil, yaklaşık okunmalıdır.
+- "Cihaz" aslında tarayıcı depolamasıdır (localStorage). Depolama silinir ya da başka bir tarayıcı/cihaz kullanılırsa aynı kişi yeniden sayılabilir. Bu da aynı hata payının parçasıdır.
+- Kayıp da olabilir: iki deneme de başarısız olursa, ya da oyuncu istatistiği kapatırsa olay hiç sayılmaz.
+
+```js
+// first_* : flag only after 2xx; one retry on the next app open; then drop
+async function sendOnce(event) {               // true only on 2xx
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/anon_stats_events`, {
+      method: 'POST', keepalive: true, signal: AbortSignal.timeout(5000),
+      headers: { apikey: ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ event, version: APP_SEMVER, device_class: deviceClass(), play_bucket: playBucket() }) });
+    return r.ok;                               // 2xx
+  } catch { return false; }                    // network error / timeout
+}
+export async function trackFirst(event) {      // call when the milestone happens
+  if (!statsAllowed() || localStorage.getItem(`sent_${event}`) || localStorage.getItem(`retry_${event}`)) return;
+  if (await sendOnce(event)) localStorage.setItem(`sent_${event}`, 'true');
+  else localStorage.setItem(`retry_${event}`, '1');           // try once more on next open
+}
+export async function retryPendingFirsts() {   // call once per app open
+  if (!statsAllowed()) return;
+  for (const event of FIRST_EVENTS) {
+    if (localStorage.getItem(`retry_${event}`) !== '1' || localStorage.getItem(`sent_${event}`)) continue;
+    localStorage.setItem(`retry_${event}`, 'done');            // at most one retry, even if the tab dies
+    if (await sendOnce(event)) localStorage.setItem(`sent_${event}`, 'true');
+  }
+}
+```
+Bu kod oyun akışını bekletmez (`await` yalnızca bu fonksiyonların içinde; oyun kodu sonucu beklemez). `supabase-js` ile de aynı kural geçerli: `const { error } = await supabase.from('anon_stats_events').insert({...})` çağrısında `!error` 2xx demektir. `fetch` ile `r.ok` kullanılır.
 
 ### Limitler
 - Her istekte **1 satır** gönderin. Sunucu bir istekte en fazla 5 satır kabul eder, fazlası 400 / `23514` ile reddedilir.
@@ -69,9 +113,9 @@ fetch(`${SUPABASE_URL}/rest/v1/anon_stats_events`, {
 - `navigator.sendBeacon` kullanmayın: özel başlık (`apikey`) ekleyemez.
 
 ## Hata yönetimi (oyunu asla bloklamaz)
-- Gönder ve unut. `await` ile oyun akışı bekletilmez, UI'da hata gösterilmez, yeniden deneme ya da kuyruk yok (kapsam dışı). İnternet yoksa olay sessizce düşer.
+- Gönder ve unut. `await` ile oyun akışı bekletilmez, UI'da hata gösterilmez, kuyruk yok (kapsam dışı). `first_*` dışındaki olaylarda (`game_open_new`, `character_created`, `path_chosen_*`, `followers_*`, `kiraliksiz_hayat`, `session_start`) yeniden deneme de yok; internet yoksa olay sessizce düşer. `first_*` için tek yeniden deneme kuralı yukarıda.
 - `201`: tamam. `400` (`23514` / `PGRST204` / `23502`): payload hatası, yani kod hatası; yalnızca DEV'de console'a yazılır. `401` (`42501`): yanlış çağrı (`.select()`, fazladan alan) ya da anahtar/config hatası. `429` / `5xx` / ağ hatası: düşürülür.
-- `first_*` bayrağı olay tetiklendiği anda yazılsın (en fazla bir kez). Yanıt kaybolunca yeniden gönderme yapılmasın, çünkü çift sayım olur. Bu bir öneridir, ürün kararı (bkz. rapor).
+- `first_*`: `sent_<olay>` bayrağı yalnızca 2xx sonrası yazılır. Hata olursa bir sonraki açılışta tek bir deneme daha yapılır, o da olmazsa olay düşer (bkz. "`first_*` olayları"). Cevap kaybolursa çift sayım olabilir ve bu kabul edilmiş bir hata payıdır.
 - İlk açılış bilgilendirmesi kapanmadan ve "Kapat" seçildiyse **hiç istek gitmez**. Ayarlar'daki anahtar kapatılınca gönderim hemen durur.
 
 ## Gönderilmeyecekler
