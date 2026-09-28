@@ -2,7 +2,7 @@
 // nowhere else in the code). The same build runs on both addresses; the old address is detected at runtime.
 //
 // Test/debug override: a script that runs before the app may set `window.__FENOMEN_CFG__ = { oldOrigin, baseUrl,
-// moveMode, moveStart, redirectDelayMs, maxHashChars, telemetryUrl }`. The smoke test uses this to make a local
+// moveMode, moveStart, redirectDelayMs, maxHashChars, telemetryUrl, telemetryKey }`. The smoke test uses this to make a local
 // preview server act as the "old" or "new" address (see tests/smoke/smoke.mjs, runV21). Nothing else sets it.
 const O = (typeof globalThis !== 'undefined' && globalThis.__FENOMEN_CFG__) || {};
 const ENV = (typeof import.meta !== 'undefined' && import.meta.env) || {};
@@ -36,7 +36,7 @@ export const MOVE = {
 // No URL = MOCK transport (console.debug + in-memory list), nothing leaves the device.
 export const TELEMETRY = {
   url: pick('telemetryUrl', ENV.VITE_TELEMETRY_URL || null),    // e.g. https://fenomen-api.teserix.com
-  key: ENV.VITE_TELEMETRY_KEY || null,                           // public anon key, sent ONLY as `apikey` (insert-only table via RLS)
+  key: pick('telemetryKey', ENV.VITE_TELEMETRY_KEY || null),    // public anon key, sent ONLY as `apikey` (insert-only table via RLS)
   table: ENV.VITE_TELEMETRY_TABLE || 'anon_stats_events',        // backend contract v2.1 (CONTRACT-v2.1-stats.md)
   timeoutMs: 5000,
   sessionGapMin: 30,                                             // session_start at most every 30 min (device clock)

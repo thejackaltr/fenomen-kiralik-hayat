@@ -23,8 +23,15 @@
 //  - other once-events (game_open_new, character_created, path_chosen_*, followers_*, kiraliksiz_hayat): flag written
 //    when sent, fire-and-forget, no retry (contract recommendation).
 //  - session_start: rate-limited instead (TELEMETRY.sessionGapMin, device clock).
-// Notice: nothing is sent before the first-launch notice is answered. Events that happen meanwhile wait in memory
-// only; "Tamam" sends them, "Kapat" drops them and turns the counter off. The Settings switch stops sending at once.
+// Notice: nothing is sent before the first-launch notice is answered, and nothing is marked as sent either.
+// Milestones reached meanwhile wait in `fenomen_tel_pending` (local only, never sent as such): a JSON array of event
+// ids from EVENT_IDS and nothing else (no time, no counts, no ids), e.g. ["game_open_new","character_created",
+// "path_chosen_vlog","first_video"]. It survives reloads; seed() never marks a pending milestone as done.
+//  - "Tamam": every pending milestone is sent exactly once (normal once/retry rules), then the key is removed.
+//  - "Kapat" / counter switched off: the key is removed, nothing is ever sent for those milestones.
+//  - notice answered some other way (imported save carrying the answer): handled on the next launch (retryPending).
+// session_start waits in memory only (it is re-triggered on every launch anyway). The Settings switch stops sending
+// at once; milestones reached while the switch is off are not recorded (unchanged v2.1 behaviour).
 import { TELEMETRY } from './config.js';
 
 // fixed server allow list (22). Changing thresholds/paths needs a backend migration first.
@@ -36,7 +43,7 @@ export const PAYLOAD_FIELDS = ['event', 'version', 'device_class', 'play_bucket'
 export const DEVICE_CLASSES = ['mobil', 'masaustu'];
 export const PLAY_BUCKETS = ['0-10', '10-30', '30-60', '60-120', '120+'];
 export const SEMVER = /^\d{1,3}\.\d{1,3}\.\d{1,3}$/;
-export const KEYS = { pref: 'fenomen_tel', notice: 'fenomen_tel_notice', session: 'fenomen_tel_session', utm: 'fenomen_utm', sent: 'fenomen_sent_', retry: 'fenomen_retry_' };
+export const KEYS = { pref: 'fenomen_tel', notice: 'fenomen_tel_notice', session: 'fenomen_tel_session', utm: 'fenomen_utm', sent: 'fenomen_sent_', retry: 'fenomen_retry_', pending: 'fenomen_tel_pending' };
 const ALLOWED = new Set(EVENT_IDS);
 export const dedupeKey = (id) => (id.startsWith('path_chosen_') ? 'path_chosen' : id);
 export const confirmed = (id) => id.startsWith('first_');      // flag only after 2xx, one retry next launch
@@ -102,12 +109,27 @@ export function createTelemetry({ storage, transport = mockTransport(), version 
     noticeNeeded: () => !get(KEYS.notice),
     enabled: () => get(KEYS.pref) !== 'off',
     wasSent: (id) => get(KEYS.sent + dedupeKey(id)) === 'true',
-    setEnabled(on) { set(KEYS.pref, on ? 'on' : 'off'); if (!on) held.length = 0; },
+    setEnabled(on) { set(KEYS.pref, on ? 'on' : 'off'); if (!on) { held.length = 0; T.clearPending(); } },
+    // milestones reached before the notice was answered (stage ids only; see the header)
+    pending() {
+      let a; try { a = JSON.parse(get(KEYS.pending) || '[]'); } catch (e) { a = []; }
+      return Array.isArray(a) ? a.filter((id, i) => typeof id === 'string' && ALLOWED.has(id) && id !== 'session_start' && a.indexOf(id) === i) : [];
+    },
+    addPending(id) { const a = T.pending(); if (!a.some((x) => dedupeKey(x) === dedupeKey(id))) { a.push(id); set(KEYS.pending, JSON.stringify(a)); } },
+    clearPending() { del(KEYS.pending); },
+    // notice answered + counter on: send what waited (each once, normal rules); counter off: forget it
+    flushPending() {
+      if (T.noticeNeeded()) return;
+      const a = T.pending(); T.clearPending();
+      if (T.enabled()) for (const id of a) T.track(id);
+    },
     // first-launch notice: ok = "Tamam" (keep counting), false = "Kapat" (counter off, nothing is ever sent)
     answerNotice(ok) {
-      set(KEYS.notice, '1'); T.setEnabled(!!ok);
+      set(KEYS.notice, '1'); T.setEnabled(!!ok);            // "Kapat" clears the pending list (setEnabled)
       const q = held.splice(0);
-      if (ok) for (const id of q) (id === 'session_start' ? T.sessionStart() : T.track(id));
+      if (!ok) return;
+      for (const id of q) (id === 'session_start' ? T.sessionStart() : T.track(id));
+      T.flushPending();                                     // milestones from earlier sessions (before a reload)
     },
     // exactly the four contract fields
     payload(id) {
@@ -131,7 +153,7 @@ export function createTelemetry({ storage, transport = mockTransport(), version 
       if (!T.enabled()) return 'off';
       if (T.wasSent(id)) return 'dup';
       if (confirmed(id) && (attempted.has(dedupeKey(id)) || T.retryState(id))) return 'retry-later';
-      if (T.noticeNeeded()) { if (!held.includes(id)) held.push(id); return 'held'; }
+      if (T.noticeNeeded()) { if (!held.includes(id)) held.push(id); T.addPending(id); return 'held'; }
       if (confirmed(id)) { T.last = T.sendConfirmed(id, false); return 'sent'; }
       set(KEYS.sent + dedupeKey(id), 'true');
       T.last = T.send(id); return 'sent';
@@ -139,14 +161,16 @@ export function createTelemetry({ storage, transport = mockTransport(), version 
     // app launch: resend each first_* that failed (or was cut off) last time — once. -> promise of results
     retryPending() {
       const out = [];
-      if (!T.enabled() || T.noticeNeeded()) return Promise.resolve(out);
+      if (T.noticeNeeded()) return Promise.resolve(out);
+      if (!T.enabled()) { T.clearPending(); return Promise.resolve(out); }
       const keys = [];
       try { for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (k && k.startsWith(KEYS.retry)) keys.push(k.slice(KEYS.retry.length)); } } catch (e) { /* ignore */ }
       for (const k of keys) {
-        if (get(KEYS.retry + k) !== 'pending' || !ALLOWED.has(k) || !confirmed(k)) continue;
+        if (get(KEYS.retry + k) !== 'pending' || !ALLOWED.has(k) || !confirmed(k) || attempted.has(k)) continue;
         if (T.wasSent(k)) { del(KEYS.retry + k); continue; }
         out.push(T.sendConfirmed(k, true).then((r) => [k, r.ok]));
       }
+      T.flushPending();              // notice answered without this session's band (e.g. imported save): send what waited
       return Promise.all(out);
     },
     sessionStart() {
@@ -176,7 +200,9 @@ export function createTelemetry({ storage, transport = mockTransport(), version 
       if (m.sales > 0) done.push('first_sell');
       if (Array.isArray(m.unlocks) && m.unlocks.length) done.push('first_fame_node');
       if (Array.isArray(m.achievements) && m.achievements.includes('rent_free')) done.push('kiraliksiz_hayat');
-      for (const k of done) if (!get(KEYS.retry + k)) set(KEYS.sent + k, 'true');   // a pending retry keeps its chance
+      // a pending retry keeps its chance; a milestone waiting for the notice answer is not "done" (it was never sent)
+      const waiting = new Set(T.pending().map(dedupeKey));
+      for (const k of done) if (!get(KEYS.retry + k) && !waiting.has(k)) set(KEYS.sent + k, 'true');
     },
     // device-level counter state that travels with an exported save / the move to the new address
     exportState() {
