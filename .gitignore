@@ -3,3 +3,6 @@ dist/
 *.log
 .DS_Store
 tests/smoke/out/
+.env.local
+.env.*.local
+dist-umami/

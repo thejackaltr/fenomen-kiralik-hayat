@@ -12,6 +12,7 @@ import { renderRedirectPage, showMoveBand } from './ui/move.js';
 import { showNoticeBand } from './ui/privacy.js';
 import { saveTools, showConflict, showImportFail } from './ui/savefile.js';
 import './style.css';
+import { analytics, track } from './analytics.js';
 
 // Locales: every src/locales/<code>.json is picked up automatically (tr = source + fallback).
 const LOCALE_KEY = 'fenomen_locale';
@@ -68,6 +69,10 @@ async function boot() {
     else { ctrl.resume(Date.now()); ctrl.start(); tel.sessionStart(); }
   });
   window.addEventListener('pagehide', () => ctrl.save());
+  // reset_or_prestige = selling the channel (Şöhret prestige) or the full reset in Settings ('wiped'; ctrl.reload()
+  // after an import also emits 'reset', which is not a reset by the player)
+  ctrl.on('sold', () => track('reset_or_prestige'));
+  ctrl.on('wiped', () => track('reset_or_prestige'));
 
   await loadAll();
   ui = new UI(document.getElementById('ui'), ctrl, { install, changeLocale, version: __APP_VERSION__, tel, tools });
@@ -75,6 +80,10 @@ async function boot() {
   document.getElementById('boot').remove();
   document.body.classList.add('ready');
   ctrl.start();
+  // Umami: KVKK-gated (src/analytics.js). Nothing loads before the stats notice is answered; off = nothing is sent.
+  // sync() is called again when the notice is answered (ui/privacy.js) and when the Settings switch changes (ui/ui.js).
+  analytics().sync();
+  track('game_start');
   if (ctrl.pendingWelcome) ui.showWelcome(ctrl.pendingWelcome);
   if (ctrl.state.ifsa.pending) ui.queueIfsa();
   showNoticeBand(tel, ui);

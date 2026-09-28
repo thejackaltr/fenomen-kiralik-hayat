@@ -12,7 +12,8 @@
     "test": "node --test tests/unit/*.test.mjs",
     "art": "node tools/art/build.mjs",
     "smoke": "node tests/smoke/smoke.mjs",
-    "balance": "node tools/balance.mjs"
+    "balance": "node tools/balance.mjs",
+    "smoke:umami": "node tests/smoke/umami.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.63.0",

@@ -42,7 +42,7 @@ export class Controller {
     this.save();
   }
   save() { this.state.lastSeen = Date.now(); return save(this.storage, this.state); }
-  reset() { try { this.storage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } this.state = G.newGame(Date.now()); this.emit('reset'); }
+  reset() { try { this.storage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } this.state = G.newGame(Date.now()); this.emit('reset'); this.emit('wiped'); }
   // "Kanalı Sat": swap in the brand-new account (keeps Şöhret/tree/achievements), then the UI shows the creator again
   sell() { const ns = G.sellChannel(this.state, Date.now()); if (!ns) return null; this.state = ns; this.state.events.length = 0; this.save(); this.emit('sold', ns.lastSale); return ns.lastSale; }
   // actions -> { ok }

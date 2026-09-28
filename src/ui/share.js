@@ -6,6 +6,7 @@ import { CFG } from '../logic/config.js';
 import { BASE_URL } from '../config.js';
 import { drawScene, drawTitle, wrap, FONT } from '../render/scene.js';
 import { drawDoll } from '../render/doll.js';
+import { track } from '../analytics.js';
 
 // the share card always points to the new address (BASE_URL), whichever address the game runs on
 export function gameUrl(base = BASE_URL) { return base; }
@@ -64,6 +65,7 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 export function openShare(ui, state, spec, video) {
+  track('share_click');
   const canvas = composeCover(state, spec, video);
   const url = shareUrl();
   const text = t('share.text', { f: fmt(Math.floor(state.followers)) });

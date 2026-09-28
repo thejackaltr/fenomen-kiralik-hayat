@@ -22,6 +22,11 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # Umami: repository variables (Settings > Secrets and variables > Actions > Variables). Unset = analytics off.
+          VITE_UMAMI_SRC: ${{ vars.VITE_UMAMI_SRC }}
+          VITE_UMAMI_WEBSITE_ID: ${{ vars.VITE_UMAMI_WEBSITE_ID }}
+          VITE_UMAMI_DOMAINS: ${{ vars.VITE_UMAMI_DOMAINS }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

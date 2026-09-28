@@ -13,7 +13,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== location.origin) return;
+  if (url.origin !== location.origin) return;               // Umami (analiz.teserix.com script + /api/send) etc.: network only, never cached
   if (req.mode === 'navigate') {
     e.respondWith(caches.match('./index.html', { cacheName: CACHE }).then((r) => r || fetch(req)).catch(() => caches.match('./index.html')));
     return;
