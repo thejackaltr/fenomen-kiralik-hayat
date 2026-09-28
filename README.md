@@ -4,7 +4,7 @@ Sıfırdan fenomen ol: **çek → kurgula → yayınla**. İzlenmeler para ve ta
 Lüksü **satın al ya da kirala** — kiralık eşya videoda aynı gösterişi yapar ama her gün kira öder, Güven'i düşürür ve **İfşa** riski taşır.
 Hedef: kiralık hayattan gerçek eşyalara ve yatırımlara geçmek.
 
-**Oyna:** https://thejackaltr.github.io/fenomen-kiralik-hayat/ (yüklenebilir PWA, çevrimdışı çalışır)
+**Oyna:** https://fenomen.teserix.com/ (yüklenebilir PWA, çevrimdışı çalışır). Eski adres GitHub Pages'teydi; taşıma için bkz. v2.1.
 
 ## v1 kapsamı
 - Karakter yaratma (erkek/kadın, ten, saç, kanal adı) ve kariyer yolu: **Vlog** ve **Oyun yayını** oynanabilir (v2: Lüks yaşam da); Eğitim "yakında".
@@ -24,7 +24,13 @@ Hedef: kiralık hayattan gerçek eşyalara ve yatırımlara geçmek.
 - **Başarım "Kiralıksız Hayat"**: tüm gösteriş eşyalarına aynı anda gerçekten sahip ol (+5 Şöhret, bir kez).
 - **Ses**: yalnızca 3 efekt (bildirim, yazar kasa, İfşa alarmı), WebAudio ile kodda üretilir; varsayılan açık, tek dokunuşla kapanır ve hatırlanır (`fenomen_sound`).
 - **Denge**: izleyici doygunluğu (`CFG.video.satFollowers/satExp`) v1'deki 30. dakikadan sonraki kontrolsüz büyümeyi durdurur; ilk Kanalı Sat 31–40. dakikada açılır, Kiralıksız Hayat tipik olarak 3.–4. hesapta (~2,5–3 saat). `npm run balance` zaman tablosunu yazdırır.
-- Kayıt v1 → v2 kayıpsız taşınır (anahtar aynı: `fenomen_save_v1`, alan `v: 2`). Analitik/sayaç yok.
+- Kayıt v1 → v2 kayıpsız taşınır (anahtar aynı: `fenomen_save_v1`, alan `v: 2`).
+
+## v2.1 kapsamı (istemci)
+- **Adres tek yerde**: `src/config.js` (`OLD_ORIGIN`, `NEW_ORIGIN`, `BASE_URL`, `MOVE`, `TELEMETRY`). Paylaşım bağlantısı (UTM etiketleri aynen), `og:image`/`og:url`/canonical `BASE_URL`'e gider. Eski adres metni yalnızca bu dosyada geçer (birim testi denetler).
+- **İsimsiz sayaç** (`src/telemetry.js`): 22 sabit olay, satır başına yalnızca `event`, `version` (semver), `device_class`, `play_bucket`. Kimlik, çerez, UTM yok. İlk açılışta bilgilendirme bandı (Tamam / Kapat / Ayrıntılar), Ayarlar > Gizlilik'te anahtar. Bant yanıtlanmadan istek gitmez. `first_*` bayrağı yalnızca 2xx sonrası yazılır, başarısızsa bir sonraki açılışta bir kez yeniden denenir. `VITE_TELEMETRY_URL` + `VITE_TELEMETRY_KEY` (derleme zamanı) verilmedikçe **mock** (console.debug + bellek) çalışır. Sözleşme dosyanın başında.
+- **Kaydı dışa/içe aktar** (Ayarlar > Kayıt): JSON dosya + kopyalanabilir kod, sürüm + checksum; içe aktarmadan önce iki kaydın özeti ve onay; değiştirilen kayıt `fenomen_save_backup`'ta kalır.
+- **Tek tıkla taşıma**: eski adreste `MOVE.startDate` ayarlanınca 60 gün (`MOVE.graceDays`) oyun + "taşındı" bandı, sonra yönlendirme sayfası. Kayıt `#import=` içinde (deflate-raw + base64url, en çok `MOVE.maxHashChars` = 16 KB; üstünde yalnızca "Kaydı indir"). Eski kayıt silinmez, `fenomen_migrated_at` ile işaretlenir; yönlendirme sayfası kendi service worker'ını ve `fenomen-*` önbelleklerini siler. Yeni adres içe aktarır, `#`'yı `history.replaceState` ile temizler; bu cihazda dolu kayıt varsa seçim penceresi çıkar, seçilmeyen yedekte kalır.
 
 ## Geliştirme
 ```bash
@@ -34,7 +40,8 @@ npm test           # birim testleri (node:test)
 npm run build      # dist/ + sürümlü service worker
 npm run preview    # http://localhost:4180
 SHOTS=1 npm run smoke                                   # başsız duman testi (390×844 + 1280×800)
-BASE=https://thejackaltr.github.io/fenomen-kiralik-hayat/ npm run smoke
+BASE=http://127.0.0.1:4191/ OLD_BASE=http://127.0.0.1:4192/ npm run smoke   # v2.1 taşıma testleri ikinci bir origin ister
+ONLY=v21 npm run smoke                                  # yalnızca v2.1 akışları
 npm run balance    # denge simülasyonu: tek hesap + Kanalı Sat kampanyası
 npm run art        # görselleri koddan yeniden üret (CHROME=/yol/chrome)
 ```

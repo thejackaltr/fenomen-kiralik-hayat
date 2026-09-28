@@ -1,5 +1,20 @@
 [
   [
+    "v2.1 — Sayaç, kayıt dosyası ve yeni adrese taşıma (GEÇİCİ metinler işaretli)",
+    [
+      "move",
+      "import",
+      "saveFile",
+      "telemetry",
+      "settings.saveTitle",
+      "settings.privacy",
+      "settings.telemetry",
+      "settings.telemetryHint",
+      "settings.credits"
+    ],
+    "Yazı'nın gönderdiği anahtarlar aynen kullanıldı: move.title/body/go/homeIcon/download, import.done/conflictTitle/fail, saveFile.export/exported/import/importAsk/importYes/importBad. GEÇİCİ (Yazı'nın son metnini bekliyor): import.conflictBody (seçilmeyen kayıt artık silinmiyor, yedekte kalıyor), import.optOld/optNew ({d} = son oynama tarihi eklendi), import.dateUnknown, move.tooBig, move.bandBody ({n} = kalan gün), move.later, saveFile.fileName/codeLabel/copyCode/codeCopied/pickFile/pasteLabel/codePlaceholder/useCode/sumCurrent/sumFile/backupNote, telemetry.* (bilgilendirme bandı ve Ayrıntılar metni; \"rıza\" kelimesi geçmemeli, KVKK raporu §7(c)), settings.saveTitle, settings.telemetryHint, settings.credits (\"sunucu yok\" artık doğru değil). settings.privacy (\"Gizlilik\"), settings.telemetry (\"İsimsiz istatistik gönder\"), telemetry.ok/off (\"Tamam\"/\"Kapat\") kapsam belgesinden. telemetry.details'in son maddesi (veri sorumlusu, alıcılar, haklar) avukat/Aryen onayından sonra yazılacak. {f}, {d}, {n}, {url} yer tutucuları kodla doldurulur."
+  ],
+  [
     "v2.0.2 — Yazı düzeltmeleri (uygulandı)",
     [
       "paths.luks.desc",

@@ -2,6 +2,56 @@
 
 Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir). Düzenleme doğrudan tr.json üzerinden yapılır.
 
+## v2.1 — Sayaç, kayıt dosyası ve yeni adrese taşıma (GEÇİCİ metinler işaretli)
+
+Yazı'nın gönderdiği anahtarlar aynen kullanıldı: move.title/body/go/homeIcon/download, import.done/conflictTitle/fail, saveFile.export/exported/import/importAsk/importYes/importBad. GEÇİCİ (Yazı'nın son metnini bekliyor): import.conflictBody (seçilmeyen kayıt artık silinmiyor, yedekte kalıyor), import.optOld/optNew ({d} = son oynama tarihi eklendi), import.dateUnknown, move.tooBig, move.bandBody ({n} = kalan gün), move.later, saveFile.fileName/codeLabel/copyCode/codeCopied/pickFile/pasteLabel/codePlaceholder/useCode/sumCurrent/sumFile/backupNote, telemetry.* (bilgilendirme bandı ve Ayrıntılar metni; "rıza" kelimesi geçmemeli, KVKK raporu §7(c)), settings.saveTitle, settings.telemetryHint, settings.credits ("sunucu yok" artık doğru değil). settings.privacy ("Gizlilik"), settings.telemetry ("İsimsiz istatistik gönder"), telemetry.ok/off ("Tamam"/"Kapat") kapsam belgesinden. telemetry.details'in son maddesi (veri sorumlusu, alıcılar, haklar) avukat/Aryen onayından sonra yazılacak. {f}, {d}, {n}, {url} yer tutucuları kodla doldurulur.
+
+- `move.title`: Fenomen yeni adresine taşındı!
+- `move.body`: Kaydını da yanında getiriyoruz. Birkaç saniye içinde yeni adrese geçeceksin.
+- `move.go`: Şimdi geç
+- `move.homeIcon`: Oyunu ana ekrana eklediysen eski simgeyi sil ve yeni adresten tekrar ekle.
+- `move.download`: Kaydı indir
+- `move.tooBig`: Kaydın otomatik taşınamayacak kadar büyük. "Kaydı indir" ile dosyanı al, sonra {url} adresinde Ayarlar'dan içe aktar.
+- `move.bandBody`: Kaydını tek dokunuşla yeni adrese taşıyabilirsin. Bu adres {n} gün daha açık kalacak.
+- `move.later`: Sonra
+- `import.done`: Kaydın taşındı. Kaldığın yerden devam et!
+- `import.conflictTitle`: İki kayıt bulundu
+- `import.conflictBody`: Hangisiyle devam etmek istersin? Seçmediğin kayıt yedekte kalır.
+- `import.optOld`: Eski adresteki kayıt · {f} takipçi · {d}
+- `import.optNew`: Bu cihazdaki kayıt · {f} takipçi · {d}
+- `import.fail`: Kayıt otomatik taşınamadı. Eski adresteki "Kaydı indir" düğmesiyle kaydını al, burada Ayarlar'dan içe aktar.
+- `import.dateUnknown`: tarih bilinmiyor
+- `saveFile.export`: Kaydı dışa aktar
+- `saveFile.exported`: Kayıt dosyası indirildi. Güvenli bir yerde sakla.
+- `saveFile.import`: Kaydı içe aktar
+- `saveFile.importAsk`: Bu dosyadaki kayıt şimdiki ilerlemenin yerine geçecek. Devam edilsin mi?
+- `saveFile.importYes`: Evet, yükle
+- `saveFile.importBad`: Bu dosya bir Fenomen kaydı değil ya da bozulmuş.
+- `saveFile.fileName`: fenomen-kayit-{d}.json
+- `saveFile.codeLabel`: Dosyayı açamazsan bu kayıt kodunu kopyalayıp sakla:
+- `saveFile.copyCode`: Kodu kopyala
+- `saveFile.codeCopied`: Kod kopyalandı
+- `saveFile.pickFile`: Dosya seç
+- `saveFile.pasteLabel`: Ya da kayıt kodunu buraya yapıştır:
+- `saveFile.codePlaceholder`: Kayıt kodu
+- `saveFile.useCode`: Kodla yükle
+- `saveFile.sumCurrent`: Şimdiki kayıt · {f} takipçi · {d}
+- `saveFile.sumFile`: Yüklenecek kayıt · {f} takipçi · {d}
+- `saveFile.backupNote`: Şimdiki kayıt silinmez, yedek olarak saklanır.
+- `telemetry.title`: İsimsiz sayaç
+- `telemetry.body`: Oyunu geliştirmek için hangi aşamaya kaç kişinin geldiğini isimsiz olarak sayıyoruz. Seni tanıtan hiçbir bilgi toplanmaz.
+- `telemetry.ok`: Tamam
+- `telemetry.off`: Kapat
+- `telemetry.detailsLink`: Ayrıntılar
+- `telemetry.detailsTitle`: İsimsiz sayaç hakkında
+- `telemetry.offToast`: Sayaç kapatıldı. Hiçbir şey gönderilmeyecek.
+- `telemetry.details`: Oyunu daha iyi yapmak için kaç oyuncunun hangi aşamaya geldiğini sayıyoruz (ör. ilk video, ilk kiralama, ilk personel). / Her kayıtta yalnızca şunlar var: aşamanın adı, oyun sürümü, cihaz türü (mobil ya da masaüstü) ve kaba oynama süresi aralığı (ör. 10-30 dakika). / Adın, e-postan, kanal adın, kaydın, konumun ya da seni tanıtan herhangi bir kimlik toplanmaz. Reklam, profil çıkarma ya da başka şirketlerin analiz araçları yok. / Aynı aşama bir cihazdan yalnızca bir kez sayılır. Bunu cihazın kendisi hatırlar, sunucuya kimlik gitmez. / Sunucu bağlantı sırasında IP adresini teknik kayıtlarda görebilir; IP adresi istatistik tablosuna yazılmaz. / Kayıtlar 180 gün sonra silinir. / İstediğin zaman Ayarlar > Gizlilik bölümünden kapatabilirsin. Kapatınca hemen hiçbir şey gönderilmez. / Veri sorumlusu, alıcılar ve hakların ayrıntıları yayından önce buraya eklenecek.
+- `settings.saveTitle`: Kayıt
+- `settings.privacy`: Gizlilik
+- `settings.telemetry`: İsimsiz istatistik gönder
+- `settings.telemetryHint`: Yalnızca oyunda hangi aşamaya gelindiği sayılır, seni tanıtan hiçbir bilgi gitmez.
+- `settings.credits`: Tüm görseller kodla üretildi. Kaydın bu cihazda tutulur.
+
 ## v2.0.2 — Yazı düzeltmeleri (uygulandı)
 
 "ifşa" cümle içinde her yerde küçük harf; büyük harf yalnız "İFŞA!" başlığında (`ifsa.title`, ekranda toLocaleUpperCase ile). Cümle/etiket başındaki "İfşa" (ör. `ifsa.exposed` "İfşa oldu", `channel.ifsa` "İfşa", `shop.rentWearInfo` ikinci cümlesi) büyük harfle kalır. hud.trustHint ve shop.rentExplain bu kurala göre küçültüldü.
