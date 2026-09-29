@@ -17,11 +17,13 @@ registerLocales({ tr }); setLocale('tr');
 class Mem { constructor(o = {}) { this.m = new Map(Object.entries(o)); } getItem(k) { return this.m.has(k) ? this.m.get(k) : null; } setItem(k, v) { this.m.set(k, String(v)); } removeItem(k) { this.m.delete(k); } }
 const game = (o = {}) => { const s = G.newGame(1000, 7); if (o.created !== false) { G.createCharacter(s, { body: 'f', skin: 1, hair: 0, channel: o.channel || 'K' }); G.choosePath(s, 'vlog'); } if (o.videos) s.stats.videos = o.videos; if (o.sales) s.meta.sales = o.sales; if (o.fame) { s.meta.fame = o.fame; s.meta.fameEarned = o.fame; } if (o.followers) s.followers = o.followers; if (o.resetAt) s.resetAt = o.resetAt; return JSON.parse(serialize(s)); };
 
-test('texts: r2 keys in tr.json (account, auth, sync, reset, email), placeholders kept', () => {
+test('texts: r2 keys in tr.json (account, auth, sync, reset, email), placeholders kept (legal), sender approved', () => {
   for (const k of ['account', 'auth', 'sync', 'reset', 'email']) assert.ok(tr[k] && typeof tr[k] === 'object', k);
   for (const k of ['auth.login.privacySummary', 'auth.login.quotaFull', 'auth.login.sendError', 'auth.code.resend', 'auth.code.resendIn', 'sync.conflict.metaLast', 'sync.conflict.keepTitleReset', 'sync.conflict.keepBodyReset', 'reset.otherDevice', 'account.delete.button', 'auth.moveDomain.text']) assert.notEqual(t(k), k, k);
   const all = JSON.stringify(tr);
-  for (const ph of ['[GÖNDERİCİ]', '[TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek]', '[YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]']) assert.ok(all.includes(ph), ph);
+  assert.equal(tr.email.from, '"Fenomen: Kiralık Hayat" <fenomen@teserix.com>');   // approved sender, placeholder gone
+  assert.ok(!all.includes('[GÖNDERİCİ]'));
+  for (const ph of ['[TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek]', '[YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]']) assert.ok(all.includes(ph), ph);
   assert.equal(tr.auth.moveDomain.url, NEW_ORIGIN);
   assert.equal(t('sync.conflict.meta', { f: 1, v: 2, n: 3, k: 4 }), '1 takipçi · 2 ¤ · 3 Şöhret · 4 satış');
   assert.equal(t('reset.backupNote', { n: CLOUD.backupDays }), 'Buluttaki eski kaydın 30 gün yedek olarak saklanır, sonra silinir.');

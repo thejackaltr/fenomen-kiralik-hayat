@@ -4,7 +4,7 @@ Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir)
 
 ## v2.2 — Hesap ve bulut kayıt (Yazı r2 TASLAK; aynen uygulandı)
 
-Yazı r2 (2026-09-29) metinleri anahtar adlarıyla aynen alındı. Açık yer tutucular olduğu gibi duruyor: account.privacy.details #4 [TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek], #5 [YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek], email.from [GÖNDERİCİ]. Giriş açık (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY) bir derleme, account.privacy.details'te [yer tutucu] kaldıkça `npm run build` hata verir (ALLOW_EMPTY_LEGAL=1 yalnız geliştirme/test). email.* oyunda gösterilmez (sunucu e-posta şablonları, supabase/templates/). Kodda kullanılmayanlar: account.title (Ayarlar'da başlık account.menu), auth.code.wrongOnly ve auth.code.expired (sunucu yanlış ve süresi dolmuş kodu aynı yanıtla bildiriyor, ikisi için de wrongCode gösterilir). {email}, {s}, {t}, {f}, {v}, {n}, {k}, {c}, {d} kodla doldurulur; reset.backupNote {n} = 30 (config CLOUD.backupDays). settings.credits ("Oyun kaydın yalnızca bu cihazda tutulur") değiştirilmedi: karar bekliyor (r2 EKSİK 5).
+Yazı r2 (2026-09-29) metinleri anahtar adlarıyla aynen alındı. Açık yer tutucular olduğu gibi duruyor: account.privacy.details #4 [TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek], #5 [YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]. email.from onaylandı (29 Eyl 2026): gönderen fenomen@teserix.com, görünen ad "Fenomen: Kiralık Hayat". Giriş açık (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY) bir derleme, account.privacy.details'te [yer tutucu] kaldıkça `npm run build` hata verir (ALLOW_EMPTY_LEGAL=1 yalnız geliştirme/test). email.* oyunda gösterilmez (sunucu e-posta şablonları, supabase/templates/). Kodda kullanılmayanlar: account.title (Ayarlar'da başlık account.menu), auth.code.wrongOnly ve auth.code.expired (sunucu yanlış ve süresi dolmuş kodu aynı yanıtla bildiriyor, ikisi için de wrongCode gösterilir). {email}, {s}, {t}, {f}, {v}, {n}, {k}, {c}, {d} kodla doldurulur; reset.backupNote {n} = 30 (config CLOUD.backupDays). settings.credits ("Oyun kaydın yalnızca bu cihazda tutulur") değiştirilmedi: karar bekliyor (r2 EKSİK 5).
 
 - `account.privacy.title`: Hesap ve bulut kayıt hakkında
 - `account.privacy.detailsLink`: Ayrıntılar
@@ -90,7 +90,7 @@ Yazı r2 (2026-09-29) metinleri anahtar adlarıyla aynen alındı. Açık yer tu
 - `reset.backupNote`: Buluttaki eski kaydın {n} gün yedek olarak saklanır, sonra silinir.
 - `reset.otherDevice`: Kaydın başka bir cihazda sıfırlandı. Güncel kayıt yüklendi.
 - `reset.failed`: Kayıt şu an sıfırlanamadı. Bağlantını kontrol edip tekrar dene.
-- `email.from`: [GÖNDERİCİ]
+- `email.from`: "Fenomen: Kiralık Hayat" <fenomen@teserix.com>
 - `email.codeNew.subject`: Fenomen: Kiralık Hayat ilk giriş kodun
 - `email.codeNew.body`: Merhaba,
 

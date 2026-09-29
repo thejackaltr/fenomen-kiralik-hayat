@@ -684,7 +684,7 @@
     "failed": "Kayıt şu an sıfırlanamadı. Bağlantını kontrol edip tekrar dene."
   },
   "email": {
-    "from": "[GÖNDERİCİ]",
+    "from": "\"Fenomen: Kiralık Hayat\" <fenomen@teserix.com>",
     "codeNew": {
       "subject": "Fenomen: Kiralık Hayat ilk giriş kodun",
       "body": "Merhaba,\n\nFenomen: Kiralık Hayat'a hoş geldin! İlk giriş kodun:\n\n{kod}\n\nBu kodu oyundaki kod ekranına yaz. Kod 10 dakika içinde geçerli. Süresi dolarsa oyundan yeni kod isteyebilirsin.\n\nBu kodu sen istemediysen bu e-postayı yok sayabilirsin.\n\nBu e-posta yalnızca giriş kodun için gönderildi.\n\nFenomen: Kiralık Hayat"
