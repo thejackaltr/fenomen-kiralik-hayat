@@ -1,0 +1,174 @@
+
+######## 0. throwaway cluster (postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)), socket /tmp/fenomen-v22-sqltest/sock only
+NOTICE:  database "fen22_main" does not exist, skipping
+PASS  base: counter table public.anon_stats_events present (origin/main v2.1 migration) with 1 row
+postgres: super=false bypassrls=true
+
+######## 1. preflight (read-only session) on a fresh Fenomen-like DB
+PASS  preflight runs in a READ ONLY session (exit 0)
+PASS  preflight: target OK, v2.2 not applied, auth.users present
+PASS  preflight section 4 (name clashes): 0 rows before the migration
+ auth_schema_exists | auth_users_exists |  auth_users_owner   | auth_users_count | postgres_can_delete_auth_users | postgres_bypassrls |               auth_tables                
+--------------------+-------------------+---------------------+------------------+--------------------------------+--------------------+------------------------------------------
+ t                  | t                 | supabase_auth_admin |                  | t                              | t                  | identities,refresh_tokens,sessions,users
+(1 row)
+
+######## 2. wrong target (DB with public.kodhane_saves): preflight + migration refuse
+NOTICE:  database "fen22_wrong" does not exist, skipping
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:16: NOTICE:  role "authenticator" has already been granted membership in role "anon" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:16: NOTICE:  role "authenticator" has already been granted membership in role "authenticated" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:16: NOTICE:  role "authenticator" has already been granted membership in role "service_role" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:17: NOTICE:  role "postgres" has already been granted membership in role "anon" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:17: NOTICE:  role "postgres" has already been granted membership in role "authenticated" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:17: NOTICE:  role "postgres" has already been granted membership in role "service_role" by role "supabase_admin"
+PASS  preflight stops on the wrong target (exit 3) with WRONG TARGET
+PASS  migration refuses the wrong target (exit 3) and creates nothing
+
+######## 3. migration twice (idempotent), as postgres
+PASS  migration #1 (exit 0)
+PASS  migration #2 (exit 0)
+PASS  schema after 2nd run == after 1st run (pg_dump public+auth, 505 lines)
+PASS  row written between the runs survives the 2nd run
+PASS  migration scheduled nothing (no pg_cron job) and ran no cleanup
+
+######## 4. verify (read-only)
+PASS  verify passes (exit 0): VERIFY OK: 15/15
+PASS  preflight after apply still read-only OK, reports ALREADY PRESENT (exit 0)
+
+######## 5. SQL tests (RLS, anon, revision/409, size, reset + backups, 30-day cleanup, delete account, 24-month purge)
+PASS  inactive_accounts_count.sql runs in a READ ONLY session (exit 0)
+count query output: 2 years|2024-09-29 17:16:22.426403+00|7|2|2|4|100|2|2|2
+PASS  count query output has no e-mail / uuid
+PASS S01 A inserts own save (upsert, revision 1) 
+PASS S02 B inserts own save 
+PASS S03 A sees exactly one row: its own 
+PASS S04 A cannot read B's save 
+PASS S05 A update of B's row affects 0 rows  -- 0
+PASS S06 A cannot insert a row for C  -- 42501: new row violates row-level security policy for table "fenomen_saves"
+PASS S07 A upsert onto B's existing row is rejected  -- 42501: new row violates row-level security policy for table "fenomen_saves"
+PASS S08 A cannot DELETE its own row (no DELETE grant)  -- 42501: permission denied for table fenomen_saves
+PASS S09 A cannot TRUNCATE  -- 42501: permission denied for table fenomen_saves
+PASS S10 A cannot write updated_at (server-owned)  -- 42501: permission denied for table fenomen_saves
+PASS S11 A cannot write created_at  -- 42501: permission denied for table fenomen_saves
+PASS S12 write with revision = server + 1 accepted (-> 2) 
+PASS S13 same revision again -> PT409 stale_revision (409)  -- PT409: stale_revision
+PASS S14 lower revision -> PT409  -- PT409: stale_revision
+PASS S15 skipped revision -> PT409  -- PT409: stale_revision
+PASS S16 upsert without revision onto an existing row -> PT409  -- PT409: stale_revision
+PASS S17 PATCH without revision -> PT409  -- PT409: stale_revision
+PASS S18 PATCH cannot move the row to another user_id (server keeps it) 
+PASS S19 server set updated_at; data stored 
+PASS S20 data > 256 KiB rejected (23514 check)  -- 23514: new row for relation "fenomen_saves" violates check constraint "fenomen_saves_data_size"
+PASS S21 rejected write changed nothing (revision still 3) 
+PASS S22 non-object data rejected  -- 23514: new row for relation "fenomen_saves" violates check constraint "fenomen_saves_data_object"
+PASS S23 data just under 256 KiB accepted 
+PASS S24 device must be mobil|masaustu|null  -- 23514: new row for relation "fenomen_saves" violates check constraint "fenomen_saves_device_chk"
+PASS S25 back to a normal save (revision 5) 
+PASS N01 anon cannot select saves  -- 42501: permission denied for table fenomen_saves
+PASS N02 anon cannot insert  -- 42501: permission denied for table fenomen_saves
+PASS N03 anon cannot update  -- 42501: permission denied for table fenomen_saves
+PASS N04 anon cannot delete  -- 42501: permission denied for table fenomen_saves
+PASS N05 anon cannot select backups  -- 42501: permission denied for table fenomen_save_backups
+PASS N06 anon cannot call fenomen_reset_save  -- 42501: permission denied for function fenomen_reset_save
+PASS N07 anon cannot call fenomen_list_save_backups  -- 42501: permission denied for function fenomen_list_save_backups
+PASS N08 anon cannot call fenomen_delete_my_account  -- 42501: permission denied for function fenomen_delete_my_account
+PASS N09 anon cannot call the 24-month purge  -- 42501: permission denied for function fenomen_purge_inactive_accounts
+PASS N10 anon cannot call backup cleanup  -- 42501: permission denied for function fenomen_cleanup_save_backups
+PASS N11 anon cannot call _fenomen_delete_user  -- 42501: permission denied for function _fenomen_delete_user
+PASS N12 anon cannot call config functions  -- 42501: permission denied for function fenomen_cfg_inactive_interval
+PASS R01 reset with an old expected revision -> PT409 (other device progressed)  -- PT409: stale_revision
+PASS R02 reset with non-object data -> 22023 invalid_data  -- 22023: invalid_data
+PASS R03 reset: revision 5 -> 6, backup id returned  -- {"revision": 6, "backup_id": "94e58427-1431-44aa-9020-21fb98cacdea", "updated_at": "2026-09-29T17:16:22.373002+00:00"}
+PASS R04 save replaced by the new game state 
+PASS R05 old device (knew revision 5, sends 6) cannot overwrite the reset -> PT409  -- PT409: stale_revision
+PASS R06 A lists exactly 1 backup: the pre-reset save (revision 5, 40 followers, expires in 30 days) 
+PASS R07 A cannot read the backup table directly (RPC only)  -- 42501: permission denied for table fenomen_save_backups
+PASS R08 B resets its own save 
+PASS R09 B lists only its own backup (not A's) 
+PASS R10 A still lists only its own backup 
+PASS R11 reset without a cloud save: creates it (revision 1), no backup  -- {"revision": 1, "backup_id": null, "updated_at": "2026-09-29T17:16:22.383259+00:00"}
+PASS R12 C has no backups 
+PASS R13 cap: 7 resets keep only the newest 5 backups 
+PASS R14 cap enforced in the table too (5 rows for A) 
+PASS K01 list hides the 31-day-old backup (4 of 5 visible) 
+PASS K02 authenticated cannot call cleanup  -- 42501: permission denied for function fenomen_cleanup_save_backups
+PASS K03 service_role cleanup deletes exactly 1 (the 31-day-old one) 
+PASS K04 the 29-day-old backup is kept; 4 remain 
+PASS K05 cleanup again: nothing to delete 
+PASS K06 service_role cannot delete backups directly (only via the function)  -- 42501: permission denied for table fenomen_save_backups
+PASS X01 authenticated cannot call admin restore  -- 42501: permission denied for function fenomen_admin_restore_save_backup
+PASS X02 service_role restores the newest backup: data back, revision + 1, current save kept as a restore backup  -- {"revision": 13, "backup_id": "f593fcf5-7ee2-4596-b617-29fabd2349f9", "restored_from": "fb5b9aa3-7d71-440f-9db9-4e01e121483d"}
+PASS X03 unknown backup -> PT404  -- PT404: backup_not_found
+PASS D01 authenticated cannot call _fenomen_delete_user(B)  -- 42501: permission denied for function _fenomen_delete_user
+PASS D02 service_role cannot call _fenomen_delete_user either  -- 42501: permission denied for function _fenomen_delete_user
+PASS D03 service_role cannot call fenomen_delete_my_account (authenticated only)  -- 42501: permission denied for function fenomen_delete_my_account
+PASS D04 a JWT for a non-existent user deletes nothing 
+PASS D05 authenticated without sub (auth.uid() null) -> 42501 not_authenticated  -- 42501: not_authenticated
+PASS D06 before: B has save, backup, user, identity, session, refresh token 
+PASS D07 before: A has 1 save + 5 backups 
+PASS D08 A deletes its account: returns deleted/saves/backups counts  -- {"saves": 1, "backups": 5, "deleted": true}
+PASS D09 A's auth.users row is gone 
+PASS D10 A's identities, sessions, refresh tokens are gone (cascade) 
+PASS D11 A's save and backups are gone 
+PASS D12 B untouched (save byte-identical, backup, user, identity, session, token) 
+PASS D13 still-valid JWT of the deleted user cannot recreate a save (FK -> 23503)  -- 23503: insert or update on table "fenomen_saves" violates foreign key constraint "fenomen_saves_user_id_fkey"
+PASS D14 still-valid JWT of the deleted user reads nothing 
+PASS D15 second delete call is a no-op (idempotent) 
+PASS P01 authenticated cannot call the purge  -- 42501: permission denied for function fenomen_purge_inactive_accounts
+PASS P02 purge deletes 2 accounts, 2 saves, 4 backups; 0 remaining  -- {"accounts":2,"saves":2,"backups":4,"remaining":0}
+PASS P03 read-only count query == what the purge actually deleted  -- {"accounts_to_delete":2,"saves_to_delete":2,"backups_to_delete":4,"accounts_first_run":2,"batch_max":100}
+PASS P04 last_sign_in 24 months + 1 day ago and never-signed-in created 24 months + 1 day ago: deleted 
+PASS P05 last_sign_in 24 months - 1 day ago, never-signed-in created yesterday, old account signed in yesterday: kept 
+PASS P06 deleted accounts' saves, backups, identities, sessions are gone 
+PASS P07 other accounts untouched (3 saves + 6 backups of the kept ones, B's save) 
+PASS P08 second purge run: nothing to delete 
+PASS P09 batch cap: 105 candidates, p_limit 1000 -> 100 deleted, 5 remaining 
+PASS P10 p_limit 2 -> 2 deleted, 3 remaining 
+PASS P11 default run finishes the rest 
+PASS P12 all bulk accounts gone, B still there 
+PASS  SQL assertions: 87/87
+
+######## 6. counter (sayaç) untouched by migration + tests
+PASS  anon_stats_* tables (schema+data+grants+policies) and functions byte-identical (53 lines)
+
+######## 7. rollback: guard, rollback x2, schema == before, counter unchanged
+PASS  rollback without fenomen.v22_allow_data_loss=on refuses (exit 3) and drops nothing
+PASS  rollback #1 and #2 (idempotent) succeed (exit 0/0)
+PASS  pg_dump --schema-only (public+auth) after rollback == before migration (diff empty)
+PASS  counter objects after rollback byte-identical to before
+PASS  verify fails after rollback (negative control, exit 3)
+
+######## 8. clean round trip (other counter variant: plans/fenomen-telemetry/01_stats_table.sql if present): migrate -> rollback, schema + data identical
+NOTICE:  database "fen22_rt" does not exist, skipping
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:16: NOTICE:  role "authenticator" has already been granted membership in role "anon" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:16: NOTICE:  role "authenticator" has already been granted membership in role "authenticated" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:16: NOTICE:  role "authenticator" has already been granted membership in role "service_role" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:17: NOTICE:  role "postgres" has already been granted membership in role "anon" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:17: NOTICE:  role "postgres" has already been granted membership in role "authenticated" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:17: NOTICE:  role "postgres" has already been granted membership in role "service_role" by role "supabase_admin"
+PASS  migration + verify on the 2nd counter variant (exit 0/0)
+PASS  round trip: schema identical
+PASS  round trip: all public/auth data identical
+PASS  round trip: counter objects identical
+
+######## 9. pg_cron ops files (separate approval steps) in db fen22_cron
+NOTICE:  database "fen22_cron" does not exist, skipping
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:16: NOTICE:  role "authenticator" has already been granted membership in role "anon" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:16: NOTICE:  role "authenticator" has already been granted membership in role "authenticated" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:16: NOTICE:  role "authenticator" has already been granted membership in role "service_role" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:17: NOTICE:  role "postgres" has already been granted membership in role "anon" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:17: NOTICE:  role "postgres" has already been granted membership in role "authenticated" by role "supabase_admin"
+psql:/workspace/fenomen-v2.2/supabase/tests/v2_2/00_stub_supabase.sql:17: NOTICE:  role "postgres" has already been granted membership in role "service_role" by role "supabase_admin"
+jobs: fenomen_inactive_accounts_purge|17 1 * * *|select * from public.fenomen_purge_inactive_accounts()|postgres|true;fenomen_save_backups_cleanup|47 0 * * *|select public.fenomen_cleanup_save_backups()|postgres|true
+PASS  each ops file run twice -> exactly one job each, UTC 47 0 (03:47 TSİ) / 17 1 (04:17 TSİ), as postgres
+PASS  pg_cron live run of both job commands as postgres: fenomen_live_b:succeeded,fenomen_live_p:succeeded
+PASS  live run: 31-day backup deleted, 29-day kept, 25-month-inactive account deleted, active one kept [0|1|0|1]
+PASS  backup-cleanup ops rollback (x2) removes only its job
+PASS  migration rollback with both jobs scheduled: exit 0, no fenomen job left
+PASS  purge ops rollback when the job is already gone: no-op (exit 0)
+
+######## SUMMARY
+SQL assertions (10_tests.sql + 11_purge_tests.sql): 87/87 PASS
+runner checks (incl. the SQL line): 32/32 PASS
+RESULT: ALL PASS
+EXIT 0

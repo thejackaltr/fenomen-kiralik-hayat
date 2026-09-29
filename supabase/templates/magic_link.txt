@@ -1,0 +1,13 @@
+Merhaba,
+
+Fenomen: Kiralık Hayat giriş kodun:
+
+{{ .Token }}
+
+Bu kodu oyundaki kod ekranına yaz. Kod 10 dakika içinde geçerli. Süresi dolarsa oyundan yeni kod isteyebilirsin.
+
+Bu kodu sen istemediysen bu e-postayı yok sayabilirsin.
+
+Bu e-posta yalnızca giriş kodun için gönderildi.
+
+Fenomen: Kiralık Hayat
