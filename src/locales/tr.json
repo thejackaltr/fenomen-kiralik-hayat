@@ -500,7 +500,7 @@
   },
   "telemetry": {
     "title": "İsimsiz sayaç",
-    "body": "Oyunu geliştirmek için oyuncuların hangi aşamalara geldiğini isimsiz olarak sayıyoruz. Seni tanıtan hiçbir bilgi gönderilmez. İstemezsen kapatabilirsin.",
+    "body": "Aşamaları, ziyaretleri ve bazı oyun olaylarını isimsiz sayıyoruz, Ayarlar'dan kapatabilirsin. Adın ve e-postan gönderilmez, IP adresin istatistik kayıtlarına yazılmaz.",
     "ok": "Tamam",
     "off": "Kapat",
     "detailsLink": "Ayrıntılar",

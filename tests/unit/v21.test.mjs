@@ -378,6 +378,8 @@ test('telemetry.details: approved final copy (9 items; [2] Cloudflare counting, 
   assert.equal(d[8], "Bu bilgilerin veri sorumlusu Teserix Bilişim ve Dijital Çözümler. Bilgiler Teserix'in kendi sunucusunda tutulur, bağlantı trafiğini Cloudflare taşır. KVKK'nın 11. maddesindeki haklarını kullanmak için info@teserix.com adresine yazabilirsin.");
   assert.equal(tr.telemetry.ok, 'Tamam'); assert.equal(tr.telemetry.off, 'Kapat');
   assert.equal(tr.telemetry.offToast, 'Sayaç kapatıldı. Bizim sayaçlarımız artık hiçbir şey göndermeyecek.');
+  // v2.1.3: the notice band names every counter behind "Tamam" (stages + Umami visits/events) and where to turn it off
+  assert.equal(tr.telemetry.body, "Aşamaları, ziyaretleri ve bazı oyun olaylarını isimsiz sayıyoruz, Ayarlar'dan kapatabilirsin. Adın ve e-postan gönderilmez, IP adresin istatistik kayıtlarına yazılmaz.");
   // v2.1.2: the Settings hint names every counter behind the switch (stages + Umami visits/events) and the Cloudflare exception
   assert.equal(tr.settings.telemetryHint, "Hangi aşamaya geldiğin, ziyaretler ve bazı oyun olayları isimsiz olarak sayılır. Adın ya da e-postan gönderilmez, IP adresin istatistik kayıtlarına yazılmaz. Cloudflare'in sayımı bu ayardan bağımsızdır.");
   assert.deepEqual(emptyLegalItems(tr), []);

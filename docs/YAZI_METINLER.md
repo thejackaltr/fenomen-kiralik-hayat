@@ -40,7 +40,7 @@ Yazı'nın kesin metinleri uygulandı (move, import, saveFile, telemetry, settin
 - `saveFile.sumFile`: Yüklenecek kayıt · {f} takipçi · Son oynama: {d}
 - `saveFile.backupNote`: Şimdiki kayıt silinmez, bu cihazda yedek olarak saklanır.
 - `telemetry.title`: İsimsiz sayaç
-- `telemetry.body`: Oyunu geliştirmek için oyuncuların hangi aşamalara geldiğini isimsiz olarak sayıyoruz. Seni tanıtan hiçbir bilgi gönderilmez. İstemezsen kapatabilirsin.
+- `telemetry.body`: Aşamaları, ziyaretleri ve bazı oyun olaylarını isimsiz sayıyoruz, Ayarlar'dan kapatabilirsin. Adın ve e-postan gönderilmez, IP adresin istatistik kayıtlarına yazılmaz.
 - `telemetry.ok`: Tamam
 - `telemetry.off`: Kapat
 - `telemetry.detailsLink`: Ayrıntılar
