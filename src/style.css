@@ -230,6 +230,20 @@ body:has(.notice-band) .creator::after, body:has(.notice-band) .panel::after { c
   .notice-band .nb-btn { flex: 0 0 5.5em; }                     /* "Tamam" and "Kapat" stay exactly the same size */
   body:has(.notice-band) .stage { height: 22vh; min-height: 0; }
 }
+/* short LANDSCAPE phones (e.g. 568x320): even the compact band leaves too little height under a stage strip for the
+   studio's first action ("Video çek" was 23 px under the band at 568x320). While the band is shown, put the stage and
+   the panel side by side (like desktop): the panel starts right under the HUD, so its first actions sit above the band,
+   and the rest scrolls above it via the spacer. The stage ends where the band begins (margin = --nb-space), so the
+   tutorial hint and its "Geç" button at the stage's bottom edge stay above the band too. The tab bar gets one row
+   (icon beside the label) and the band sits 6px above its measured height (--nb-tabs, ui/privacy.js) instead of a fixed
+   76px, so even the tallest panel items (Şöhret tree nodes) fit fully between the HUD and the band. */
+@media (max-height: 520px) and (orientation: landscape) and (max-width: 899px) {
+  body:has(.notice-band) .main { flex-direction: row; }
+  body:has(.notice-band) .stage { flex: 0 0 40%; height: auto; min-height: 0; margin-bottom: var(--nb-space, 0px); }
+  body:has(.notice-band) .panel { flex: 1; min-width: 0; }
+  body:has(.notice-band) .tab { flex-direction: row; justify-content: center; gap: 6px; padding: 4px 2px 5px; }
+  body:has(.tabs) .notice-band { bottom: calc(var(--nb-tabs, 70px) + 6px); }
+}
 .creator, .panel { scroll-padding-bottom: var(--nb-space, 0px); }
 .sheet-box { margin-bottom: var(--nb-space, 0px); max-height: calc(100% - var(--nb-space, 0px)); }
 body:has(.move-band) .creator { padding-top: calc(190px + var(--safe-t)); }

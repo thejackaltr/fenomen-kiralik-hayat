@@ -579,14 +579,18 @@ async function runV211() {
     ['desktop 1280x800', { viewport: { width: 1280, height: 800 } }],
     ['mobile 375x667', { viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
     ['mobile 390x844', { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
-    ['landscape 667x375', { viewport: { width: 667, height: 375 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]
+    ['landscape 667x375', { viewport: { width: 667, height: 375 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
+    ['landscape 568x320', { viewport: { width: 568, height: 320 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]
   ];
-  // centre of the element: is it the topmost element there, fully inside the viewport, and clear of the band?
+  // 5 points (centre + the 4 corners, inset just inside the rounded corner): is the element the topmost one at every
+  // point, fully inside the viewport, and clear of the band (no rectangle overlap)?
   const probe = (p, sel) => p.$eval(sel, (el) => {
-    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, hit = document.elementFromPoint(x, y);
+    const r = el.getBoundingClientRect(), rad = Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, r.width / 2, r.height / 2), i = Math.ceil(rad * 0.3) + 2;
+    const pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + i, r.top + i], [r.right - i, r.top + i], [r.left + i, r.bottom - i], [r.right - i, r.bottom - i]];
+    const hits = pts.map(([x, y]) => document.elementFromPoint(x, y));
     const band = document.querySelector('[data-test=tel-banner]'), b = band && band.getBoundingClientRect();
     const overlap = !!b && !(r.right <= b.left || r.left >= b.right || r.bottom <= b.top || r.top >= b.bottom);
-    return { top: !!hit && (hit === el || el.contains(hit)), inView: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth, overlap, hit: hit ? (hit.getAttribute('data-test') || hit.className || hit.tagName) : null, bandVisible: !!b && b.height > 0 && b.bottom <= innerHeight + 1 };
+    return { top: hits.every((hit) => !!hit && (hit === el || el.contains(hit))), inView: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth, overlap, bottom: Math.round(r.bottom * 10) / 10, bandTop: b ? Math.round(b.top * 10) / 10 : null, hit: hits.map((hit) => hit ? (hit.getAttribute('data-test') || hit.className || hit.tagName) : null), bandVisible: !!b && b.height > 0 && b.bottom <= innerHeight + 1 };
   });
   for (const [name, opts] of VIEWS) {
     const tag = '[v2.1.1 bant ' + name + '] ', touch = !!opts.hasTouch;
@@ -610,13 +614,17 @@ async function runV211() {
       ok(tag + 'banner accept button label is exactly "Tamam" (Kapat same class and size)', nb.ok === 'Tamam' && nb.ok === TR.telemetry.ok && nb.off === 'Kapat' && nb.same, JSON.stringify(nb));
       await p.fill('[data-test=channel-input]', 'Bant Testi');
       await press('[data-test=creator-next]'); await press('[data-test=path-vlog]'); await press('[data-test=creator-start]');
-      await p.waitForSelector('[data-test=shoot]'); await p.evaluate(() => { const f = window.__fenomen; f.ctrl.state.tut = 99; f.ui.updateTutorial(); });
+      await p.waitForSelector('[data-test=shoot]'); await p.waitForTimeout(300);
+      // first studio screen of a new player, NO scrolling: "Video çek" and the tutorial's "Geç" are fully clear of the band
+      const first = { shoot: await probe(p, '[data-test=shoot]'), skip: await probe(p, '[data-test=tut-skip]') };
+      ok(tag + 'first studio screen (no scrolling): "Video çek" and tutorial "Geç" fully visible, topmost at 5 points, clear of the band', ['shoot', 'skip'].every((k) => first[k].top && first[k].inView && !first[k].overlap) && first.shoot.bandVisible, JSON.stringify(first));
+      await p.evaluate(() => { const f = window.__fenomen; f.ctrl.state.tut = 99; f.ui.updateTutorial(); });
       await press('[data-test=tab-studio]'); await press('[data-test=shoot]'); await press('[data-test=shoot-go]');
       await p.waitForSelector('[data-test=edit-track]'); await p.evaluate(() => { for (let i = 0; i < 3; i++) window.__edit.cut(); });
       await p.waitForSelector('[data-test=publish-go]', { state: 'visible' }); await p.waitForTimeout(300);
       const pub = await press('[data-test=publish-go]'); await p.waitForTimeout(500);
       const st = await p.evaluate(() => ({ videos: window.__fenomen.ctrl.state.stats.videos, band: !!document.querySelector('[data-test=tel-banner]'), notice: localStorage.getItem('fenomen_tel_notice') }));
-      ok(tag + 'notice unanswered: "Yayınla" fully visible, topmost at its centre (elementFromPoint), clear of the band', pub.top && pub.inView && !pub.overlap && pub.bandVisible, JSON.stringify(pub));
+      ok(tag + 'notice unanswered: "Yayınla" fully visible, topmost at 5 points (elementFromPoint), clear of the band', pub.top && pub.inView && !pub.overlap && pub.bandVisible, JSON.stringify(pub));
       ok(tag + 'real ' + (touch ? 'tap' : 'click') + ' on "Yayınla" publishes; band still shown, notice still unanswered', st.videos === 1 && st.band && st.notice === null, JSON.stringify(st));
       ok(tag + 'no other action on the way was covered (creator, tabs, Çek, Başla)', bad.length === 0, bad.join(' | '));
     } catch (e) { ok(tag + 'flow crashed: ' + e.message.split('\n')[0], false, bad.join(' | ')); }
