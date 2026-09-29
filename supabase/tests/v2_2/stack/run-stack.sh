@@ -46,6 +46,7 @@ alter role postgres with login password :'pw';
 SQL
 python3 "$SB/templates/build_templates.py" --check || { echo "templates differ from Yazı r2: run build_templates.py"; exit 2; }
 cp "$TPL_SRC/magic_link.html" "$TPL_SRC/confirmation.html" "$WORK/tpl/" || exit 2; TPL_USED="$TPL_SRC (repo, Yazı r2)"
+SENDER_EMAIL="fenomen@teserix.com"; SENDER_NAME="Fenomen: Kiralık Hayat"; export SENDER_EMAIL SENDER_NAME   # Aryen onayı (29 Eyl); mail yalnız yerel SMTP sink'e gider
 SUBJ_NEW="$(cat "$TPL_SRC/confirmation.subject.txt")"; SUBJ_RET="$(cat "$TPL_SRC/magic_link.subject.txt")"; export SUBJ_NEW SUBJ_RET
 python3 "$HERE/smtp_sink.py" $SMTPPORT "$WORK/mail" & PIDS="$PIDS $!"
 python3 -m http.server $TPLPORT --bind 127.0.0.1 --directory "$WORK/tpl" >/dev/null 2>&1 & PIDS="$PIDS $!"
@@ -53,12 +54,12 @@ export GOTRUE_DB_DATABASE_URL="postgres://supabase_auth_admin:${POSTGRES_PASSWOR
 docker run -d --name fen22-auth --network host \
   -e GOTRUE_DB_DATABASE_URL -e GOTRUE_JWT_SECRET -e GOTRUE_DB_DRIVER=postgres \
   -e GOTRUE_API_HOST=127.0.0.1 -e GOTRUE_API_PORT=$AUTHPORT -e API_EXTERNAL_URL=http://127.0.0.1:$APIPORT \
-  -e GOTRUE_SITE_URL=https://fenomen.teserix.com -e GOTRUE_URI_ALLOW_LIST='https://fenomen.teserix.com/**' \
+  -e GOTRUE_SITE_URL=https://fenomen.teserix.com -e GOTRUE_URI_ALLOW_LIST='https://fenomen.teserix.com' \
   -e GOTRUE_DISABLE_SIGNUP=false -e GOTRUE_JWT_ADMIN_ROLES=service_role -e GOTRUE_JWT_AUD=authenticated \
   -e GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated -e GOTRUE_JWT_EXP=3600 \
   -e GOTRUE_EXTERNAL_EMAIL_ENABLED=true -e GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED=false -e GOTRUE_MAILER_AUTOCONFIRM=false \
   -e GOTRUE_EXTERNAL_PHONE_ENABLED=false -e GOTRUE_SMS_AUTOCONFIRM=false \
-  -e GOTRUE_SMTP_HOST=127.0.0.1 -e GOTRUE_SMTP_PORT=$SMTPPORT -e GOTRUE_SMTP_ADMIN_EMAIL=noreply@fenomen.invalid -e GOTRUE_SMTP_SENDER_NAME='Fenomen Kiralık Hayat' \
+  -e GOTRUE_SMTP_HOST=127.0.0.1 -e GOTRUE_SMTP_PORT=$SMTPPORT -e GOTRUE_SMTP_ADMIN_EMAIL="$SENDER_EMAIL" -e GOTRUE_SMTP_SENDER_NAME="$SENDER_NAME" \
   -e GOTRUE_SMTP_MAX_FREQUENCY=60s -e GOTRUE_RATE_LIMIT_EMAIL_SENT=1000 -e GOTRUE_RATE_LIMIT_OTP=1000 \
   -e GOTRUE_MAILER_OTP_LENGTH=6 -e GOTRUE_MAILER_OTP_EXP=600 \
   -e GOTRUE_MAILER_SUBJECTS_MAGIC_LINK="$SUBJ_RET" -e GOTRUE_MAILER_SUBJECTS_CONFIRMATION="$SUBJ_NEW" \

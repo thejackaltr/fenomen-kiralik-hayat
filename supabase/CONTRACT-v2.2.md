@@ -10,7 +10,8 @@ await supabase.auth.verifyOtp({ email, token, type: 'email' })                  
 - `shouldCreateUser: true` zorunlu. `false` verilirse bilinmeyen adres **422 `otp_disabled`** alır.
 - Yeni ya da henüz doğrulanmamış adrese "ilk giriş kodun" (confirmation), kayıtlı adrese "giriş kodun" (magic_link) e-postası gider. İkisinde de yalnız kod var, bağlantı yok (`templates/`).
 - Aynı adrese 60 sn içinde ikinci istek **429 `over_email_send_rate_limit`** alır. Geri sayım 60 sn olmalı (`auth.login` `{s}`).
-- Yanlış ya da kullanılmış kod → **403 `otp_expired`**. Kod 10 dakika geçerlidir (`GOTRUE_MAILER_OTP_EXP=600`, onaya bağlı).
+- Yanlış ya da kullanılmış kod → **403 `otp_expired`**. Kod 10 dakika geçerlidir (`GOTRUE_MAILER_OTP_EXP=600`, Aryen onayladı).
+- Kayıt: canlıda 29 Eyl 20:39 TSİ'den beri `DISABLE_SIGNUP=true`. v2.2 push'unda `false` yapılır (runbook §5.1). Kapalıyken yeni adres kod alamaz ve hata döner; bu hatanın kodu yerelde test edilmedi. Gönderen: "Fenomen: Kiralık Hayat" <fenomen@teserix.com>.
 - `emailRedirectTo` gerekmez (bağlantı yok).
 
 ## 2. Tablo `public.fenomen_saves` (kullanıcı başına 1 satır)

@@ -1,6 +1,25 @@
-# Fenomen v2.2: Supabase Auth (GoTrue) ayar listesi (ARYEN ONAYI İÇİN)
+# Fenomen v2.2: Supabase Auth (GoTrue) ayar listesi
 
-Hedef: Dokploy `fenomen` → compose `supabase` → Environment (fenomen-api.teserix.com). **Bu dosya yalnız öneridir; hiçbir ayar değiştirilmedi, canlıya bağlanılmadı.** Secret değerleri yazılmaz, yalnız değişken adları kullanılır.
+Hedef: Dokploy `fenomen` → compose `supabase` → Environment (fenomen-api.teserix.com). Secret değerleri yazılmaz, yalnız değişken adları kullanılır. Bu çalışmada canlıya bağlanılmadı, hiçbir ayar değiştirilmedi.
+
+**Durum (2026-09-29):**
+- Aşağıdaki değerleri Aryen onayladı: gönderici `fenomen@teserix.com` / "Fenomen: Kiralık Hayat", OTP 600 sn, ayrı Resend anahtarı, github.io'nun kaldırılması.
+- **Uygulama v2.2 push'uyla birlikte ve ayrı bir Aryen onayıyla yapılır** (runbook §5, onay **O2**).
+- Canlıda 20:39 TSİ'den beri `DISABLE_SIGNUP=true` (Aryen onayladı, DevOps uyguladı). v2.2 push'unda `false` yapılır, ama yalnız runbook §5.1'deki kontrol listesi tamamsa.
+
+**Tek bakışta v2.2 değerleri** (Dokploy env → GoTrue env):
+| Dokploy env | GoTrue env | v2.2 değeri |
+|---|---|---|
+| `SMTP_ADMIN_EMAIL` | `GOTRUE_SMTP_ADMIN_EMAIL` | `fenomen@teserix.com` |
+| `SMTP_SENDER_NAME` | `GOTRUE_SMTP_SENDER_NAME` | `Fenomen: Kiralık Hayat` |
+| `SMTP_PASS` | `GOTRUE_SMTP_PASS` | Fenomen'e ayrı, yalnız gönderme yetkili Resend anahtarı. **Değer yazılmaz**; DevOps oluşturur ve Dokploy env'ine koyar |
+| `AUTH_MAILER_OTP_EXP` | `GOTRUE_MAILER_OTP_EXP` | `600` |
+| `AUTH_MAILER_OTP_LENGTH` | `GOTRUE_MAILER_OTP_LENGTH` | `6` |
+| `AUTH_SUBJECT_CONFIRMATION` / `AUTH_SUBJECT_MAGIC_LINK` | `GOTRUE_MAILER_SUBJECTS_CONFIRMATION` / `_MAGIC_LINK` | `Fenomen: Kiralık Hayat ilk giriş kodun` / `Fenomen: Kiralık Hayat giriş kodun` |
+| `AUTH_TEMPLATE_CONFIRMATION` / `AUTH_TEMPLATE_MAGIC_LINK` | `GOTRUE_MAILER_TEMPLATES_CONFIRMATION` / `_MAGIC_LINK` | `supabase/templates/confirmation.html` / `magic_link.html` dosyalarının URL'i (açık soru: `templates/README.md`) |
+| `SITE_URL` | `GOTRUE_SITE_URL` | `https://fenomen.teserix.com` |
+| `ADDITIONAL_REDIRECT_URLS` | `GOTRUE_URI_ALLOW_LIST` | `https://fenomen.teserix.com` (yalnız bu; github.io **kaldırıldı**) |
+| `DISABLE_SIGNUP` | `GOTRUE_DISABLE_SIGNUP` | `false` (bugün canlıda `true`; runbook §5.1 kontrol listesine bağlı) |
 
 Kaynaklar (2026-09-29'da okundu):
 - Resend SMTP dokümanı (resend.com/docs/send-with-smtp)
@@ -18,11 +37,11 @@ Yerel doğrulama: `supabase/tests/v2_2/stack/run-stack.sh` aynı GoTrue sürüm�
 | Host | `SMTP_HOST` → `GOTRUE_SMTP_HOST` | `smtp.resend.com` | Resend (Kodhane ile aynı) | D |
 | Port | `SMTP_PORT` → `GOTRUE_SMTP_PORT` | `465` (SMTPS) ya da `587` (STARTTLS). Resend 25/465/587/2465/2587 portlarını destekler | Kodhane ile aynı | D |
 | Kullanıcı | `SMTP_USER` → `GOTRUE_SMTP_USER` | `resend` | Kodhane ile aynı | D |
-| Parola | `SMTP_PASS` → `GOTRUE_SMTP_PASS` | Resend API anahtarı. Plan: **Fenomen'e ayrı, yalnız gönderim yetkili ve alan adıyla sınırlı** anahtar | **Kodhane'nin anahtarı kopyalanmış → plandan sapma** | D; değer yazılmaz |
-| Gönderen adres | `SMTP_ADMIN_EMAIL` → `GOTRUE_SMTP_ADMIN_EMAIL` | `[GÖNDERİCİ]`: Fenomen'e özel adres (plan). **Açık karar (Aryen)** | `noreply@teserix.com` → sapma | D |
-| Gönderen adı | `SMTP_SENDER_NAME` → `GOTRUE_SMTP_SENDER_NAME` | `Fenomen Kiralık Hayat` | aynı | D, Y |
+| Parola | `SMTP_PASS` → `GOTRUE_SMTP_PASS` | **Onaylandı:** Fenomen'e ayrı, yalnız gönderme yetkili (Resend "Sending access") ve mümkünse teserix.com alan adıyla sınırlı Resend API anahtarı. DevOps oluşturur ve Dokploy env'ine koyar; değer hiçbir dosyaya yazılmaz. Kodhane'nin anahtarı Fenomen'den çıkar | Kodhane'nin anahtarı kopyalanmış → v2.2'de değişir | D; değer yazılmaz |
+| Gönderen adres | `SMTP_ADMIN_EMAIL` → `GOTRUE_SMTP_ADMIN_EMAIL` | **`fenomen@teserix.com`** (onaylandı) | `noreply@teserix.com` → değişir | D, Y |
+| Gönderen adı | `SMTP_SENDER_NAME` → `GOTRUE_SMTP_SENDER_NAME` | **`Fenomen: Kiralık Hayat`** (onaylandı; iki nokta dahil) | `Fenomen Kiralık Hayat` → değişir | D, Y |
 
-**DNS:** Gönderen alan adı Resend panelinde "verified" durumda olmalı. Resend, alan adına özel DKIM (`resend._domainkey` TXT) ve SPF kayıtları (gönderim alt alanında MX + TXT) üretir. Kayıt değerleri panelde görülmediği için burada yazılmadı: **doğrulanmadı**. DMARC (`_dmarc` TXT, en az `p=none`) önerilir (Supabase auth-smtp rehberi). Resend'in veri bölgesi avukat listesine girmeli (yurt dışı aktarım).
+**DNS:** `fenomen@teserix.com` için teserix.com Resend panelinde "verified" durumda olmalı. Resend, alan adına özel DKIM (`resend._domainkey` TXT) ve SPF kayıtları (gönderim alt alanında MX + TXT) üretir. Kayıt değerleri panelde görülmediği için burada yazılmadı: **doğrulanmadı**. DMARC (`_dmarc` TXT, en az `p=none`) önerilir (Supabase auth-smtp rehberi). Resend'in veri bölgesi avukat listesine girmeli (yurt dışı aktarım).
 
 ## 2. OTP ve e-posta şablonları (Yazı r2)
 Şablon dosyaları: `supabase/templates/` (üretici, düz metin sürümleri, bağlantı notları: `supabase/templates/README.md`). `signInWithOtp` iki ayrı şablon kullanır: yeni ya da henüz doğrulanmamış kullanıcıya **confirmation**, doğrulanmış kullanıcıya **magic_link** gider (kaynak: `internal/api/magic_link.go` v2.189.0; yerel olarak H01b / H04c ile doğrulandı). İkisi de yalnız `{{ .Token }}` gösterir; bağlantı yoktur. Varsayılan "hesabını onayla" konusu artık hiçbir yerde kullanılmıyor.
@@ -30,12 +49,12 @@ Yerel doğrulama: `supabase/tests/v2_2/stack/run-stack.sh` aynı GoTrue sürüm�
 | Ayar | Dokploy env → GoTrue env | Değer | Canlı (bugün) | Durum |
 |---|---|---|---|---|
 | Kod uzunluğu | `AUTH_MAILER_OTP_LENGTH` → `GOTRUE_MAILER_OTP_LENGTH` | `6` (6–10 dışı → 6) | 6 | D (v2.189.0 conf), Y |
-| Kod süresi | `AUTH_MAILER_OTP_EXP` → `GOTRUE_MAILER_OTP_EXP` | **`600`** (10 dakika; e-postadaki "Kod 10 dakika içinde geçerli." ile eşleşir; 0 → 86400) | 3600 → değişmeli | D, Y (stack 600 ile) |
+| Kod süresi | `AUTH_MAILER_OTP_EXP` → `GOTRUE_MAILER_OTP_EXP` | **`600`** (onaylandı; 10 dakika; e-postadaki "Kod 10 dakika içinde geçerli." ile eşleşir; 0 → 86400) | 3600 → değişmeli | D, Y (stack 600 ile) |
 | Yeni oyuncu konusu | `AUTH_SUBJECT_CONFIRMATION` → `GOTRUE_MAILER_SUBJECTS_CONFIRMATION` | `Fenomen: Kiralık Hayat ilk giriş kodun` | "…hesabını onayla" → değişmeli | D, Y |
 | Kayıtlı oyuncu konusu | `AUTH_SUBJECT_MAGIC_LINK` → `GOTRUE_MAILER_SUBJECTS_MAGIC_LINK` | `Fenomen: Kiralık Hayat giriş kodun` | aynı | D, Y |
 | Yeni oyuncu şablonu | `AUTH_TEMPLATE_CONFIRMATION` → `GOTRUE_MAILER_TEMPLATES_CONFIRMATION` | `supabase/templates/confirmation.html` dosyasının URL'i (r2 `email.codeNew`) | `http://mail-templates/confirmation.html` (eski metin, bağlantılı) | D, Y |
 | Kayıtlı oyuncu şablonu | `AUTH_TEMPLATE_MAGIC_LINK` → `GOTRUE_MAILER_TEMPLATES_MAGIC_LINK` | `supabase/templates/magic_link.html` dosyasının URL'i (r2 `email.codeReturning`) | `http://mail-templates/magic-link.html` (eski metin, bağlantılı) | D, Y |
-| Gönderen | `SMTP_ADMIN_EMAIL` → `GOTRUE_SMTP_ADMIN_EMAIL` | **`[GÖNDERİCİ]`: açık karar (Aryen)**. r2'de `email.from` | `noreply@teserix.com` | D |
+| Gönderen | `SMTP_ADMIN_EMAIL` / `SMTP_SENDER_NAME` → `GOTRUE_SMTP_ADMIN_EMAIL` / `GOTRUE_SMTP_SENDER_NAME` | `fenomen@teserix.com`, görünen ad `Fenomen: Kiralık Hayat` (onaylandı; r2 `email.from`) | `noreply@teserix.com` | D, Y |
 
 - D: env adları GoTrue **v2.189.0** etiketindeki `internal/conf/configuration.go` dosyasından doğrulandı (`envconfig.Process("gotrue")`, `Mailer.Subjects` / `Mailer.Templates`, `Confirmation`, `MagicLink` `split_words`, `OtpExp`, `OtpLength`).
 - **Açık soru: şablon URL'i nereden servis edilecek?** Canlıda compose içindeki `mail-templates` servisi kullanılıyor; dosyaların oraya nasıl konduğu görülmedi. Seçenekler `supabase/templates/README.md` içinde.
@@ -47,13 +66,13 @@ Yerel doğrulama: `supabase/tests/v2_2/stack/run-stack.sh` aynı GoTrue sürüm�
 | Ayar | Dokploy env → GoTrue env | Öneri | Canlı | Durum |
 |---|---|---|---|---|
 | Site URL | `SITE_URL` → `GOTRUE_SITE_URL` | `https://fenomen.teserix.com` | aynı | D |
-| İzinli yönlendirmeler | `ADDITIONAL_REDIRECT_URLS` → `GOTRUE_URI_ALLOW_LIST` | yalnız `https://fenomen.teserix.com/**` | github.io adresi de var. Plan "github.io'da giriş yok" diyor → **çıkarılması önerilir** | D |
+| İzinli yönlendirmeler | `ADDITIONAL_REDIRECT_URLS` → `GOTRUE_URI_ALLOW_LIST` | yalnız `https://fenomen.teserix.com` (onaylandı). Kod akışı yönlendirme kullanmadığı için yeterli; alt yol gerekirse (`/**`) ayrı karar | eski GitHub Pages adresi vardı → **kaldırıldı** (onaylandı) | D, Y |
 | API dış adresi | `API_EXTERNAL_URL` | `https://fenomen-api.teserix.com` | aynı | D |
 
 ## 4. Kayıt, onay ve hız limitleri
 | Ayar | Dokploy env → GoTrue env | Öneri | Canlı | Durum |
 |---|---|---|---|---|
-| Kayıt | `DISABLE_SIGNUP` → `GOTRUE_DISABLE_SIGNUP` | `false`: ilk kodla hesap açılır, istemci `shouldCreateUser: true` gönderir | açık | D, Y |
+| Kayıt | `DISABLE_SIGNUP` → `GOTRUE_DISABLE_SIGNUP` | v2.2 push'unda `false`: ilk kodla hesap açılır, istemci `shouldCreateUser: true` gönderir. **Yalnız runbook §5.1 kontrol listesi tamamsa** | **`true`** (29 Eyl 20:39 TSİ'den beri) | D, Y |
 | E-posta ile giriş | `ENABLE_EMAIL_SIGNUP` → `GOTRUE_EXTERNAL_EMAIL_ENABLED` | `true` | açık | D |
 | Otomatik onay | `ENABLE_EMAIL_AUTOCONFIRM` → `GOTRUE_MAILER_AUTOCONFIRM` | `false`: kodu doğrulamak e-postayı onaylar | kapalı | D, Y |
 | Telefon / anonim | `ENABLE_PHONE_SIGNUP` / `ENABLE_ANONYMOUS_USERS` → `GOTRUE_EXTERNAL_PHONE_ENABLED` / `GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED` | `false` / `false` | kapalı | D |
@@ -72,13 +91,13 @@ Yerel doğrulama: `supabase/tests/v2_2/stack/run-stack.sh` aynı GoTrue sürüm�
 ## 6. SQL ile görülemeyen ayarlar (preflight bunları kontrol EDEMEZ)
 GoTrue ayarları DB'de değil, auth konteynerinin env'inde durur. Preflight yalnız `auth.schema_migrations` sürümünü görür. Uygulamadan önce Dokploy env'inde gözle kontrol edilmesi gerekenler:
 - `GOTRUE_SMTP_*`: host, port, user; pass dolu mu (değer açılmadan)
-- `GOTRUE_SMTP_ADMIN_EMAIL`
+- `GOTRUE_SMTP_ADMIN_EMAIL` (`fenomen@teserix.com`), `GOTRUE_SMTP_SENDER_NAME` (`Fenomen: Kiralık Hayat`)
 - `GOTRUE_MAILER_OTP_LENGTH` (6), `GOTRUE_MAILER_OTP_EXP` (600)
 - `GOTRUE_MAILER_TEMPLATES_CONFIRMATION` / `_MAGIC_LINK` (URL auth konteynerinden erişilebilir mi, içerik repo ile aynı mı) ve `GOTRUE_MAILER_SUBJECTS_CONFIRMATION` / `_MAGIC_LINK`
-- `GOTRUE_SITE_URL`, `GOTRUE_URI_ALLOW_LIST`
-- `GOTRUE_DISABLE_SIGNUP`, `GOTRUE_MAILER_AUTOCONFIRM`
+- `GOTRUE_SITE_URL` ve `GOTRUE_URI_ALLOW_LIST`: ikisi de yalnız `https://fenomen.teserix.com`
+- `GOTRUE_DISABLE_SIGNUP` (bugün `true`, v2.2'de `false`), `GOTRUE_MAILER_AUTOCONFIRM` (`false`)
 - `GOTRUE_RATE_LIMIT_*`, `GOTRUE_SMTP_MAX_FREQUENCY`
 - `GOTRUE_SECURITY_CAPTCHA_*`, `GOTRUE_JWT_EXP`
 - GoTrue imaj sürümü (canlı v2.189.0)
 
-Dışarıdan salt okunur kontrol: `GET https://fenomen-api.teserix.com/auth/v1/settings` (anon anahtarla). Yanıtta `external.email=true`, `disable_signup=false`, `mailer_autoconfirm=false` görünmeli. (Bu istek bu çalışmada yapılmadı.)
+Dışarıdan salt okunur kontrol: `GET https://fenomen-api.teserix.com/auth/v1/settings` (anon anahtarla). v2.2 sonrasında yanıtta `external.email=true`, `disable_signup=false`, `mailer_autoconfirm=false` görünmeli (bugün `disable_signup=true` beklenir). (Bu istek bu çalışmada yapılmadı.)

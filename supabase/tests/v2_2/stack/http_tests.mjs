@@ -27,6 +27,8 @@ const qp = (s) => Buffer.from(s.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/g
 const subj = (m) => { const h = ((m.match(/^Subject: (.*(?:\r?\n[ \t].*)*)/m) || [])[1] || '').replace(/\r?\n[ \t]+/g, ' ').trim();
   return h.replace(/=\?UTF-8\?([QqBb])\?([^?]*)\?=\s*/g, (_, enc, t) => enc.toUpperCase() === 'B' ? Buffer.from(t, 'base64').toString('utf8') : qp(t.replace(/_/g, ' '))).trim(); };
 const SUBJ_NEW = process.env.SUBJ_NEW, SUBJ_RET = process.env.SUBJ_RET;
+const hdr = (m, name) => { const h = ((m.match(new RegExp('^' + name + ': (.*(?:\\r?\\n[ \\t].*)*)', 'm')) || [])[1] || '').replace(/\r?\n[ \t]+/g, ' ').trim();
+  return h.replace(/=\?UTF-8\?([QqBb])\?([^?]*)\?=\s*/g, (_, enc, t) => enc.toUpperCase() === 'B' ? Buffer.from(t, 'base64').toString('utf8') : qp(t.replace(/_/g, ' '))).trim(); };
 const noLink = (m) => !/href=|\/verify\?|ConfirmationURL/.test(m);
 const noDefault = (m) => !/Confirm Your Email|Your Magic Link|hesabını onayla|Alternatively, enter the code/i.test(m);
 
@@ -47,6 +49,8 @@ const A = await login('a@v22-stack.invalid');
 ok('H01 signInWithOtp sends a mail with a 6-digit code (GOTRUE_MAILER_OTP_LENGTH=6), template {{ .Token }}', /^\d{6}$/.test(A.code), `subject: ${subj(A.raw)}`);
 ok('H02 verifyOtp({type:"email"}) returns a session; JWT role authenticated, sub = user id',
   !!A.session && JSON.parse(Buffer.from(A.session.access_token.split('.')[1], 'base64url')).role === 'authenticated' && JSON.parse(Buffer.from(A.session.access_token.split('.')[1], 'base64url')).sub === A.user.id);
+ok('H01c From = "Fenomen: Kiralık Hayat" <fenomen@teserix.com> (GOTRUE_SMTP_SENDER_NAME / GOTRUE_SMTP_ADMIN_EMAIL)',
+  hdr(A.raw, 'From').includes(process.env.SENDER_NAME) && hdr(A.raw, 'From').includes('<' + process.env.SENDER_EMAIL + '>'), `From: ${hdr(A.raw, 'From')}`);
 ok('H03 last_sign_in_at set by the OTP login', sql(`select last_sign_in_at is not null from auth.users where id = '${A.user.id}'`) === 't');
 ok('H01b new user -> "confirmation" template (Yazı r2 email.codeNew): subject, welcome line, 10 min, no link, no default text',
   subj(A.raw) === SUBJ_NEW && A.mail.includes('hoş geldin! İlk giriş kodun:') && A.mail.includes('Kod 10 dakika içinde geçerli.') && noLink(A.mail) && noDefault(A.mail), `subject: ${subj(A.raw)}`);

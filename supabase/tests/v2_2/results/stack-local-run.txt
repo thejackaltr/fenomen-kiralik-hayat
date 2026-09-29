@@ -45,6 +45,7 @@ PASS  verify on the real image: VERIFY OK: 15/15
 ⚠️  Node.js 20 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 22 or later. For more information, visit: https://github.com/orgs/supabase/discussions/45715
 PASS  H01 signInWithOtp sends a mail with a 6-digit code (GOTRUE_MAILER_OTP_LENGTH=6), template {{ .Token }}  -- subject: Fenomen: Kiralık Hayat ilk giriş kodun
 PASS  H02 verifyOtp({type:"email"}) returns a session; JWT role authenticated, sub = user id
+PASS  H01c From = "Fenomen: Kiralık Hayat" <fenomen@teserix.com> (GOTRUE_SMTP_SENDER_NAME / GOTRUE_SMTP_ADMIN_EMAIL)  -- From: Fenomen: Kiralık Hayat<fenomen@teserix.com>
 PASS  H03 last_sign_in_at set by the OTP login
 PASS  H01b new user -> "confirmation" template (Yazı r2 email.codeNew): subject, welcome line, 10 min, no link, no default text  -- subject: Fenomen: Kiralık Hayat ilk giriş kodun
 PASS  H04 existing user: new code ok, 2nd code within GOTRUE_SMTP_MAX_FREQUENCY (60s here) -> 429  -- 429 over_email_send_rate_limit For security purposes, you can only request this after 59 seconds.
@@ -75,9 +76,9 @@ PASS  H33 anon rpc/fenomen_purge_inactive_accounts -> 401  -- HTTP 401 42501
 PASS  H33 anon rpc/fenomen_cleanup_save_backups -> 401  -- HTTP 401 42501
 PASS  H33 anon rpc/_fenomen_delete_user -> 401  -- HTTP 401 42501
 PASS  H40 reset with an old expected revision -> 409 PT409
-PASS  H41 reset -> 200 {revision 3, backup_id}  -- {"revision":3,"backup_id":"ff5f6633-1f97-4f2d-81e7-5e492d374328","updated_at":"2026-09-29T17:23:55.88092+00:00"}
+PASS  H41 reset -> 200 {revision 3, backup_id}  -- {"revision":3,"backup_id":"4486c23a-f022-4c31-a451-a962b98db2de","updated_at":"2026-09-29T18:21:10.853378+00:00"}
 PASS  H42 old device (knew revision 2) cannot overwrite the reset -> 409
-PASS  H43 list: A sees only its own backup (revision 2, 40 followers), B only its own  -- {"id":"ff5f6633-1f97-4f2d-81e7-5e492d374328","revision":2,"save_version":2,"device":"mobil","reason":"reset","created_at":"2026-09-29T17:23:55.88092+00:00","expires_at":"2026-10-29T17:23:55.88092+00:00","size_bytes":70,"summary":{"fame":3,"money":7,"sales":1,"followers":40}}
+PASS  H43 list: A sees only its own backup (revision 2, 40 followers), B only its own  -- {"id":"4486c23a-f022-4c31-a451-a962b98db2de","revision":2,"save_version":2,"device":"mobil","reason":"reset","created_at":"2026-09-29T18:21:10.853378+00:00","expires_at":"2026-10-29T18:21:10.853378+00:00","size_bytes":70,"summary":{"fame":3,"money":7,"sales":1,"followers":40}}
 PASS  H44 authenticated cannot read the backup table directly -> 403
 PASS  H45 authenticated rpc cleanup -> 403
 PASS  H46 service_role rpc cleanup -> 200 (0 deleted: nothing is 30 days old)  -- {"success":true,"error":null,"data":0,"count":null,"status":200,"statusText":"OK"}
@@ -123,12 +124,12 @@ HTTP status map observed:
   signOut() (global) after delete -> ok
   deleted user's refresh token -> HTTP 400 code 400
 
-HTTP/supabase-js checks: 53/53 PASS
-PASS  HTTP/supabase-js checks 53/53 (exit 0)
+HTTP/supabase-js checks: 54/54 PASS
+PASS  HTTP/supabase-js checks 54/54 (exit 0)
 PASS  SMTP sink received the OTP mails (5); none left the box
 
 ######## 4. 24-month purge on the real image: count (read-only) == purge; GoTrue admin API no longer knows the users
-count: 2 years|2024-09-29 17:23:58.477673+00|5|2|2|2|100|2|0|2
+count: 2 years|2024-09-29 18:21:13.088457+00|5|2|2|2|100|2|0|2
 purge (service_role over REST): [{"accounts":2,"saves":2,"backups":2,"remaining":0}]
 PASS  count (read-only, exit 0) == purge result: accounts 2, saves 2, backups 2
 PASS  GoTrue admin API: purged user -> 404, 24 months - 1 day user -> 200 (got 404/200)
@@ -145,6 +146,6 @@ head: cannot open '/tmp/fenomen-v22-stack/counter.diff' for reading: No such fil
 PASS  counter (anon_stats_*) tables + functions byte-identical before/after (migration, HTTP tests, purge, rollback)
 
 ######## SUMMARY
-stack runner checks: 13/13 PASS (includes the HTTP line: 53/53)
+stack runner checks: 13/13 PASS (includes the HTTP line: 54/54)
 RESULT: ALL PASS
 EXIT 0

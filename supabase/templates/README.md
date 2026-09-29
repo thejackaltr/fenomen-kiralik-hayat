@@ -9,7 +9,7 @@ Metin kaynağı: **Yazı r2** (`/workspace/plans/fenomen-v2.2-metinler-yazi-r2.j
 
 - `*.subject.txt`: konu satırları (env değerine birebir kopyalanır).
 - `*.txt`: düz metin sürüm. **Yalnız başvuru ve önizleme için.** GoTrue v2.189.0 e-postayı yalnız `text/html` olarak gönderir (`internal/mailer/mailmeclient/mailmeclient.go`: `mail.SetBody("text/html", body)`); düz metin şablonu için bir env yok.
-- Gönderen: `[GÖNDERİCİ]`. **Açık karar (Aryen).** Şablonda yer almaz; `SMTP_ADMIN_EMAIL` (→ `GOTRUE_SMTP_ADMIN_EMAIL`) ile verilir. Görünen ad `SMTP_SENDER_NAME` ile verilir.
+- Gönderen (r2 `email.from`, Aryen onayladı): **`fenomen@teserix.com`**, görünen ad **`Fenomen: Kiralık Hayat`**. Şablonda yer almaz; `SMTP_ADMIN_EMAIL` (→ `GOTRUE_SMTP_ADMIN_EMAIL`) ve `SMTP_SENDER_NAME` (→ `GOTRUE_SMTP_SENDER_NAME`) ile verilir.
 - Üretim: `python3 supabase/templates/build_templates.py`. Kontrol: `python3 supabase/templates/build_templates.py --check` (r2 ile birebir aynı değilse exit 1; stack testi de bunu çalıştırır). HTML dosyalarını elle düzenlemeyin.
 - "10 dakika" metni `GOTRUE_MAILER_OTP_EXP=600` ile eşleşir. OTP süresi değişirse metin Yazı'da değişmeli ve dosyalar yeniden üretilmeli.
 

@@ -8,3 +8,5 @@
 | `stack-local-run-136.txt` | **supabase/postgres:17.6.1.136** + GoTrue v2.189.0 + PostgREST v14.12 | `PG_IMG=supabase/postgres:17.6.1.136 bash supabase/tests/v2_2/stack/run-stack.sh` |
 
 Tarih: 2026-09-29 (TSİ). .136 ile .171 arasında imaj adı dışında fark yok: aynı test sayıları, aynı hata kodları ve mesajları; postgres auth.users DELETE = true; pg_cron 1.6.4, `cron.timezone=GMT`.
+
+Stack dosyaları 2026-09-29 ~21:25 TSİ'de iki imajla yeniden koşuldu. Nedeni: onaylanan gönderici (`fenomen@teserix.com`, "Fenomen: Kiralık Hayat") ve allow list (yalnız `https://fenomen.teserix.com`). Yeni test H01c (From başlığı) eklendi. Sonuç: HTTP 54/54 + runner 13/13, iki imajda da ALL PASS. SQL dosyaları değişmedi (auth ayarlarından etkilenmez).
