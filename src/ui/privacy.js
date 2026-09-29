@@ -14,18 +14,12 @@ export function showDetails(ui) {
   });
 }
 // Keeps --nb-space (px from the band's top edge to the viewport bottom + 8) on <html> while the band is shown, so the
-// layout can keep every action above it (src/style.css). Also keeps --nb-tabs (measured tab bar height, safe-area
-// included) so short landscape screens can place the band right above the tab bar. Returns a cleanup function.
-export const NB_SPACE = '--nb-space', NB_TABS = '--nb-tabs';
+// layout can keep every action above it (src/style.css). Returns a cleanup function.
+export const NB_SPACE = '--nb-space';
 function reserveSpace(band, doc = document, win = window) {
   const root = doc.documentElement;
-  let last = '', lastTabs = '', raf = 0;
-  const fit = () => {
-    if (!band.isConnected) return;
-    const tabs = doc.querySelector('.tabs'), th = tabs ? Math.ceil(tabs.getBoundingClientRect().height) + 'px' : '';
-    if (th !== lastTabs) { lastTabs = th; if (th) root.style.setProperty(NB_TABS, th); else root.style.removeProperty(NB_TABS); }
-    const r = band.getBoundingClientRect(); const v = Math.ceil(Math.max(0, win.innerHeight - r.top) + 8) + 'px'; if (v !== last) { last = v; root.style.setProperty(NB_SPACE, v); }
-  };
+  let last = '', raf = 0;
+  const fit = () => { if (!band.isConnected) return; const r = band.getBoundingClientRect(); const v = Math.ceil(Math.max(0, win.innerHeight - r.top) + 8) + 'px'; if (v !== last) { last = v; root.style.setProperty(NB_SPACE, v); } };
   const soon = () => { if (!raf) raf = win.requestAnimationFrame(() => { raf = 0; fit(); }); };   // at most once per frame
   const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fit) : null;
   if (ro) ro.observe(band);
@@ -33,7 +27,7 @@ function reserveSpace(band, doc = document, win = window) {
   const mo = typeof MutationObserver === 'function' ? new MutationObserver(soon) : null;
   if (mo) mo.observe(doc.body, { childList: true, subtree: true });
   win.addEventListener('resize', fit); fit();
-  return () => { if (ro) ro.disconnect(); if (mo) mo.disconnect(); if (raf) win.cancelAnimationFrame(raf); win.removeEventListener('resize', fit); root.style.removeProperty(NB_SPACE); root.style.removeProperty(NB_TABS); };
+  return () => { if (ro) ro.disconnect(); if (mo) mo.disconnect(); if (raf) win.cancelAnimationFrame(raf); win.removeEventListener('resize', fit); root.style.removeProperty(NB_SPACE); };
 }
 // remove the band (answered here, in Settings, or by an imported save that carries the answer)
 export function dismissNoticeBand(doc = document) {

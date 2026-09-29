@@ -571,6 +571,16 @@ async function runV21() {
   }
 }
 
+// 5 points (centre + the 4 corners, inset just inside the rounded corner): is the element the topmost one at every
+// point, fully inside the viewport, and clear of the band (no rectangle overlap)?
+const probe = (p, sel) => p.$eval(sel, (el) => {
+  const r = el.getBoundingClientRect(), rad = Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, r.width / 2, r.height / 2), i = Math.ceil(rad * 0.3) + 2;
+  const pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + i, r.top + i], [r.right - i, r.top + i], [r.left + i, r.bottom - i], [r.right - i, r.bottom - i]];
+  const hits = pts.map(([x, y]) => document.elementFromPoint(x, y));
+  const band = document.querySelector('[data-test=tel-banner]'), b = band && band.getBoundingClientRect();
+  const overlap = !!b && !(r.right <= b.left || r.left >= b.right || r.bottom <= b.top || r.top >= b.bottom);
+  return { top: hits.every((hit) => !!hit && (hit === el || el.contains(hit))), inView: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth, overlap, bottom: Math.round(r.bottom * 10) / 10, bandTop: b ? Math.round(b.top * 10) / 10 : null, hit: hits.map((hit) => hit ? (hit.getAttribute('data-test') || hit.className || hit.tagName) : null), bandVisible: !!b && b.height > 0 && b.bottom <= innerHeight + 1 };
+});
 // ---- v2.1.1: (a) the unanswered notice band never covers Yayınla or another action; (b) milestones reached before the
 // notice wait locally (fenomen_tel_pending) and are sent once on "Tamam", never on "Kapat" (counter -> local mock server)
 async function runV211() {
@@ -582,16 +592,6 @@ async function runV211() {
     ['landscape 667x375', { viewport: { width: 667, height: 375 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
     ['landscape 568x320', { viewport: { width: 568, height: 320 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]
   ];
-  // 5 points (centre + the 4 corners, inset just inside the rounded corner): is the element the topmost one at every
-  // point, fully inside the viewport, and clear of the band (no rectangle overlap)?
-  const probe = (p, sel) => p.$eval(sel, (el) => {
-    const r = el.getBoundingClientRect(), rad = Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, r.width / 2, r.height / 2), i = Math.ceil(rad * 0.3) + 2;
-    const pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + i, r.top + i], [r.right - i, r.top + i], [r.left + i, r.bottom - i], [r.right - i, r.bottom - i]];
-    const hits = pts.map(([x, y]) => document.elementFromPoint(x, y));
-    const band = document.querySelector('[data-test=tel-banner]'), b = band && band.getBoundingClientRect();
-    const overlap = !!b && !(r.right <= b.left || r.left >= b.right || r.bottom <= b.top || r.top >= b.bottom);
-    return { top: hits.every((hit) => !!hit && (hit === el || el.contains(hit))), inView: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth, overlap, bottom: Math.round(r.bottom * 10) / 10, bandTop: b ? Math.round(b.top * 10) / 10 : null, hit: hits.map((hit) => hit ? (hit.getAttribute('data-test') || hit.className || hit.tagName) : null), bandVisible: !!b && b.height > 0 && b.bottom <= innerHeight + 1 };
-  });
   for (const [name, opts] of VIEWS) {
     const tag = '[v2.1.1 bant ' + name + '] ', touch = !!opts.hasTouch;
     const ctx = await browser.newContext({ ...opts, locale: 'tr-TR' });
@@ -680,6 +680,100 @@ async function runV211() {
   } finally { srv.close(); }
 }
 
+// ---- v2.1.4: short landscape screens (height <= 360px) use the side-by-side layout, band open AND closed (no jump).
+// Nothing may be covered: first studio screen (Video çek, tutorial "Geç", every tab), Yayınla, and every control on the
+// creator / studio / shop / closet / channel screens once a player scrolls it into the free area.
+// Page side: centre the element between its scroll area's top (+ a sticky header in it) and the band's top edge.
+const placeClear = (el) => {
+  let sc = el.parentElement; while (sc && !(/(auto|scroll)/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight > sc.clientHeight)) sc = sc.parentElement;
+  if (!sc) return;
+  const band = document.querySelector('[data-test=tel-banner]'), b = band && band.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+  const sticky = [...sc.children].find((c) => getComputedStyle(c).position === 'sticky' && !c.contains(el)); const top = sr.top + (sticky ? sticky.getBoundingClientRect().height : 0);
+  const bottom = b && b.top < sr.bottom && b.bottom > sr.top ? b.top : sr.bottom;
+  const r = el.getBoundingClientRect(); sc.scrollTop += (r.top + r.height / 2) - (top + bottom) / 2;
+};
+const clear = (pr) => pr.top && pr.inView && !pr.overlap;
+async function runV214() {
+  const cfg = { oldOrigin: 'http://old.invalid', baseUrl: BASE, moveMode: 'none' };
+  const SHORT = [[568, 320], [640, 360], [740, 360]], MODES = ['band open', 'after Tamam', 'after Kapat'];
+  const rects = {};
+  for (const [w, hgt] of SHORT) for (const mode of MODES) {
+    const tag = '[v2.1.4 yatay ' + w + 'x' + hgt + ' ' + mode + '] ', open = mode === 'band open';
+    const ctx = await browser.newContext({ viewport: { width: w, height: hgt }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'tr-TR' });
+    await ctx.addInitScript((c) => { window.__FENOMEN_CFG__ = c; }, cfg);
+    const p = await ctx.newPage(); const errors = [];
+    p.on('pageerror', (e) => errors.push(e.message)); p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+    const tap = async (sel) => { const el = await p.waitForSelector(sel, { state: 'visible', timeout: 8000 }); const bb = await el.boundingBox(); await p.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2); };
+    const bad = [];
+    const press = async (sel) => { const el = await p.waitForSelector(sel, { state: 'visible', timeout: 8000 }); await el.scrollIntoViewIfNeeded(); await p.waitForTimeout(100); const pr = await probe(p, sel); if (!clear(pr)) bad.push(sel + ' ' + JSON.stringify(pr)); await tap(sel); return pr; };
+    const sweep = async (scope) => {
+      const n = await p.$$eval(scope + ' button, ' + scope + ' input, ' + scope + ' a[href]', (els) => els.map((e, k) => e.setAttribute('data-sweep', k)).length);
+      const miss = [];
+      for (let k = 0; k < n; k++) {
+        const sel = '[data-sweep="' + k + '"]', el = await p.$(sel); if (!el || !(await el.isVisible())) continue;
+        await el.scrollIntoViewIfNeeded(); await p.$eval(sel, placeClear); await p.waitForTimeout(30);
+        const pr = await probe(p, sel); if (!clear(pr)) miss.push((await el.evaluate((e) => e.getAttribute('data-test') || e.textContent.trim().slice(0, 20))) + ' ' + JSON.stringify(pr));
+      }
+      await p.$$eval('[data-sweep]', (els) => els.forEach((e) => e.removeAttribute('data-sweep')));
+      await p.$eval(scope, (e) => { e.scrollTop = 0; });
+      return { n, miss };
+    };
+    const layout = () => p.evaluate(() => { const R = (s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.top, r.bottom, r.left, r.right].map((v) => Math.round(v * 10) / 10); }; return { main: getComputedStyle(document.querySelector('.main')).flexDirection, tabsPos: getComputedStyle(document.querySelector('.tabs')).position, stage: R('.stage'), panel: R('.panel'), shoot: R('[data-test=shoot]'), tabs: R('.tabs') }; });
+    try {
+      await p.goto(BASE, { waitUntil: 'load' }); await p.waitForSelector('[data-test=tel-banner]');
+      const btns = {}; for (const s of ['tel-ok', 'tel-off', 'tel-details']) btns[s] = await probe(p, '[data-test=' + s + ']');
+      const cut = await p.$eval('[data-test=tel-banner] .nb-text', (t) => t.scrollHeight > t.clientHeight + 1 || t.getBoundingClientRect().bottom > t.closest('[data-test=tel-banner]').getBoundingClientRect().bottom + 0.5);
+      ok(tag + 'band: Tamam / Kapat / Ayrıntılar fully visible and topmost at 5 points, text not cut', Object.values(btns).every((b) => b.top && b.inView) && !cut, JSON.stringify({ btns, cut }));
+      if (!open) { await tap('[data-test=' + (mode === 'after Tamam' ? 'tel-ok' : 'tel-off') + ']'); await p.waitForTimeout(300); ok(tag + 'real tap answers the notice, band gone', !(await p.$('[data-test=tel-banner]'))); }
+      const cr = await sweep('.creator');
+      ok(tag + 'creator: every control (' + cr.n + ') reachable and clear (5 points)', cr.miss.length === 0, cr.miss.slice(0, 3).join(' | '));
+      await p.fill('[data-test=channel-input]', 'Yatay Test');
+      await press('[data-test=creator-next]'); await press('[data-test=path-vlog]'); await press('[data-test=creator-start]');
+      await p.waitForSelector('[data-test=shoot]'); await p.waitForTimeout(300);
+      const first = { shoot: await probe(p, '[data-test=shoot]'), skip: await probe(p, '[data-test=tut-skip]') };
+      for (const t of ['studio', 'shop', 'closet', 'channel']) first['tab-' + t] = await probe(p, '[data-test=tab-' + t + ']');
+      ok(tag + 'first studio screen (no scrolling): Video çek, tutorial "Geç" and every tab fully visible, topmost at 5 points', Object.values(first).every(clear), JSON.stringify(first));
+      const lay = await layout(); rects[w + 'x' + hgt] = rects[w + 'x' + hgt] || {}; rects[w + 'x' + hgt][mode] = lay;
+      ok(tag + 'side-by-side layout, tab bar in the flow (not floating over the content)', lay.main === 'row' && lay.tabsPos === 'static' && lay.shoot[1] <= lay.tabs[0], JSON.stringify(lay));
+      // every tab is clickable with a real tap and every control on its screen is reachable and clear
+      const sw = { studio: await sweep('.panel') };
+      for (const t of ['shop', 'closet', 'channel', 'studio']) {
+        await tap('[data-test=tab-' + t + ']'); await p.waitForTimeout(250);
+        const on = await p.$eval('.tab.on', (e) => e.getAttribute('data-tab')); if (on !== t) bad.push('tab-' + t + ' tap -> ' + on);
+        if (t !== 'studio') sw[t] = await sweep('.panel');
+      }
+      ok(tag + 'every tab opens with a real tap; every control on studio/shop/closet/channel reachable and clear', !bad.some((b) => b.startsWith('tab-')) && Object.values(sw).every((x) => x.miss.length === 0), JSON.stringify(Object.fromEntries(Object.entries(sw).map(([k, v]) => [k, v.n + (v.miss.length ? ' MISS ' + v.miss.slice(0, 2).join(' | ') : '')]))));
+      await p.evaluate(() => { const f = window.__fenomen; f.ctrl.state.tut = 99; f.ui.updateTutorial(); });
+      await press('[data-test=shoot]'); await press('[data-test=shoot-go]');
+      await p.waitForSelector('[data-test=edit-track]'); await p.evaluate(() => { for (let i = 0; i < 3; i++) window.__edit.cut(); });
+      await p.waitForSelector('[data-test=publish-go]', { state: 'visible' }); await p.waitForTimeout(300);
+      const pub = await press('[data-test=publish-go]'); await p.waitForTimeout(500);
+      const st = await p.evaluate(() => ({ videos: window.__fenomen.ctrl.state.stats.videos, band: !!document.querySelector('[data-test=tel-banner]') }));
+      ok(tag + '"Yayınla" fully visible, topmost at 5 points, clear of the band; real tap publishes', clear(pub) && st.videos === 1 && st.band === open, JSON.stringify({ pub, st }));
+      ok(tag + 'no action on the way was covered (creator, Başla, Video çek, Çek)', bad.length === 0, bad.join(' | '));
+      if (open) {   // answering the band moves nothing: same stage, panel, Video çek and tab bar
+        await p.evaluate(() => { document.querySelector('.panel').scrollTop = 0; }); await p.waitForTimeout(100);
+        const before = await layout(); await tap('[data-test=tel-ok]'); await p.waitForTimeout(400); const after = await layout();
+        ok(tag + '"Tamam" moves nothing (stage, panel, Video çek, tab bar identical)', !(await p.$('[data-test=tel-banner]')) && JSON.stringify(before) === JSON.stringify(after), JSON.stringify({ before, after }));
+      }
+    } catch (e) { ok(tag + 'flow crashed: ' + e.message.split('\n')[0], false, bad.join(' | ')); }
+    ok(tag + 'no page/console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+  for (const [size, m] of Object.entries(rects)) ok('[v2.1.4 yatay ' + size + '] same layout with the band open, after Tamam and after Kapat', MODES.every((k) => m[k]) && MODES.every((k) => JSON.stringify(m[k]) === JSON.stringify(m['band open'])), JSON.stringify(m));
+  // portrait screens and landscape screens taller than 360px keep the v2.1.3 layout (floating tab bar, icon above label)
+  const KEEP = [[390, 844], [375, 667], [360, 640], [1280, 800], [740, 400], [900, 420], [667, 375], [640, 361]];
+  for (const [w, hgt] of KEEP) {
+    const mobile = w < 900, ctx = await browser.newContext({ viewport: { width: w, height: hgt }, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile, locale: 'tr-TR' });
+    await ctx.addInitScript((c) => { window.__FENOMEN_CFG__ = c; }, cfg); await ctx.addInitScript(NOTICE_SEEN);
+    const p = await ctx.newPage(); await p.goto(BASE, { waitUntil: 'load' });
+    await p.fill('[data-test=channel-input]', 'Dikey'); await p.click('[data-test=creator-next]'); await p.click('[data-test=path-vlog]'); await p.click('[data-test=creator-start]'); await p.waitForSelector('[data-test=shoot]');
+    const k = await p.evaluate(() => ({ main: getComputedStyle(document.querySelector('.main')).flexDirection, tabs: getComputedStyle(document.querySelector('.tabs')).position, tab: getComputedStyle(document.querySelector('.tab')).flexDirection }));
+    ok('[v2.1.4 değişmeyen ' + w + 'x' + hgt + '] v2.1.3 layout kept (main ' + (w >= 900 ? 'row' : 'column') + ', floating tab bar, icon above label)', k.main === (w >= 900 ? 'row' : 'column') && k.tabs === 'fixed' && k.tab === 'column', JSON.stringify(k));
+    await ctx.close();
+  }
+}
+
 async function installability() {
   const dir = fs.mkdtempSync('/tmp/fen-prof-');
   const ctx = await chromium.launchPersistentContext(dir, { executablePath: exe, args: ['--no-sandbox'], viewport: { width: 1280, height: 800 } });
@@ -695,7 +789,8 @@ async function installability() {
 try {
   if (process.env.ONLY === 'v21') { await runV21(); await runV211(); }      // quick loop while working on the v2.1 flows
   else if (process.env.ONLY === 'v211') await runV211();                    // notice band + pending milestones only
-  else { await run('mobile'); await run('desktop'); await runV2('mobile'); await runV2('desktop'); await runV21(); await runV211(); await installability(); }
+  else if (process.env.ONLY === 'v214') await runV214();                    // short landscape layout only
+  else { await run('mobile'); await run('desktop'); await runV2('mobile'); await runV2('desktop'); await runV21(); await runV211(); await runV214(); await installability(); }
 }
 catch (e) { ok('smoke crashed: ' + e.message, false); }
 await browser.close();
