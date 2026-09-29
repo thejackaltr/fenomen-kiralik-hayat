@@ -12,7 +12,7 @@ Hedef: Dokploy `fenomen` → compose `supabase` → Environment (fenomen-api.tes
 |---|---|---|
 | `SMTP_ADMIN_EMAIL` | `GOTRUE_SMTP_ADMIN_EMAIL` | `fenomen@teserix.com` |
 | `SMTP_SENDER_NAME` | `GOTRUE_SMTP_SENDER_NAME` | `Fenomen: Kiralık Hayat` |
-| `SMTP_PASS` | `GOTRUE_SMTP_PASS` | Fenomen'e ayrı, yalnız gönderme yetkili Resend anahtarı. **Değer yazılmaz**; DevOps oluşturur ve Dokploy env'ine koyar |
+| `SMTP_PASS` | `GOTRUE_SMTP_PASS` | Fenomen'e ayrı, yalnız gönderme yetkili Resend anahtarı. **Değer yazılmaz.** Anahtarı **Aryen ya da General Manager** oluşturur ve doğrudan Dokploy env'ine (`SMTP_PASS` → `GOTRUE_SMTP_PASS`) girer; ekibin (DevOps dahil) Resend erişimi yok |
 | `AUTH_MAILER_OTP_EXP` | `GOTRUE_MAILER_OTP_EXP` | `600` |
 | `AUTH_MAILER_OTP_LENGTH` | `GOTRUE_MAILER_OTP_LENGTH` | `6` |
 | `AUTH_SUBJECT_CONFIRMATION` / `AUTH_SUBJECT_MAGIC_LINK` | `GOTRUE_MAILER_SUBJECTS_CONFIRMATION` / `_MAGIC_LINK` | `Fenomen: Kiralık Hayat ilk giriş kodun` / `Fenomen: Kiralık Hayat giriş kodun` |
@@ -37,7 +37,7 @@ Yerel doğrulama: `supabase/tests/v2_2/stack/run-stack.sh` aynı GoTrue sürüm�
 | Host | `SMTP_HOST` → `GOTRUE_SMTP_HOST` | `smtp.resend.com` | Resend (Kodhane ile aynı) | D |
 | Port | `SMTP_PORT` → `GOTRUE_SMTP_PORT` | `465` (SMTPS) ya da `587` (STARTTLS). Resend 25/465/587/2465/2587 portlarını destekler | Kodhane ile aynı | D |
 | Kullanıcı | `SMTP_USER` → `GOTRUE_SMTP_USER` | `resend` | Kodhane ile aynı | D |
-| Parola | `SMTP_PASS` → `GOTRUE_SMTP_PASS` | **Onaylandı:** Fenomen'e ayrı, yalnız gönderme yetkili (Resend "Sending access") ve mümkünse teserix.com alan adıyla sınırlı Resend API anahtarı. DevOps oluşturur ve Dokploy env'ine koyar; değer hiçbir dosyaya yazılmaz. Kodhane'nin anahtarı Fenomen'den çıkar | Kodhane'nin anahtarı kopyalanmış → v2.2'de değişir | D; değer yazılmaz |
+| Parola | `SMTP_PASS` → `GOTRUE_SMTP_PASS` | **Onaylandı:** Fenomen'e ayrı, yalnız gönderme yetkili (Resend "Sending access") ve mümkünse teserix.com alan adıyla sınırlı Resend API anahtarı. Anahtarı Aryen ya da General Manager oluşturur ve doğrudan Dokploy env'ine girer (ekibin Resend erişimi yok); değer hiçbir dosyaya, loga ya da mesaja yazılmaz ve ekiple paylaşılmaz. Kodhane'nin anahtarı Fenomen'den çıkar | Kodhane'nin anahtarı kopyalanmış → v2.2'de değişir | D; değer yazılmaz |
 | Gönderen adres | `SMTP_ADMIN_EMAIL` → `GOTRUE_SMTP_ADMIN_EMAIL` | **`fenomen@teserix.com`** (onaylandı) | `noreply@teserix.com` → değişir | D, Y |
 | Gönderen adı | `SMTP_SENDER_NAME` → `GOTRUE_SMTP_SENDER_NAME` | **`Fenomen: Kiralık Hayat`** (onaylandı; iki nokta dahil) | `Fenomen Kiralık Hayat` → değişir | D, Y |
 
