@@ -5,6 +5,7 @@
 //   origins through window.__FENOMEN_CFG__ (see src/config.js), injected with an init script.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
+import { runV22, shotsV22 } from './v22.mjs';
 const TR = JSON.parse(fs.readFileSync(new URL('../../src/locales/tr.json', import.meta.url), 'utf8'));
 const BASE = process.env.BASE || 'http://localhost:4180/';
 const SHOTS = process.env.SHOTS === '1';
@@ -790,7 +791,9 @@ try {
   if (process.env.ONLY === 'v21') { await runV21(); await runV211(); }      // quick loop while working on the v2.1 flows
   else if (process.env.ONLY === 'v211') await runV211();                    // notice band + pending milestones only
   else if (process.env.ONLY === 'v214') await runV214();                    // short landscape layout only
-  else { await run('mobile'); await run('desktop'); await runV2('mobile'); await runV2('desktop'); await runV21(); await runV211(); await runV214(); await installability(); }
+  else if (process.env.ONLY === 'v22') await runV22({ browser, BASE, OLD: await secondOrigin(), ok });   // login + cloud save (fake Supabase)
+  else if (process.env.ONLY === 'v22shots') { const f = await shotsV22({ browser, BASE, OLD: await secondOrigin(), dir: process.env.SHOTS22 || '/tmp' }); ok('[v2.2 shots] ' + f.length + ' screenshots', f.length > 0, f.join(' ')); }
+  else { await run('mobile'); await run('desktop'); await runV2('mobile'); await runV2('desktop'); await runV21(); await runV211(); await runV214(); await runV22({ browser, BASE, OLD: await secondOrigin(), ok }); await installability(); }
 }
 catch (e) { ok('smoke crashed: ' + e.message, false); }
 await browser.close();

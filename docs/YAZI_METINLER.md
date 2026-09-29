@@ -2,6 +2,124 @@
 
 Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir). Düzenleme doğrudan tr.json üzerinden yapılır.
 
+## v2.2 — Hesap ve bulut kayıt (Yazı r2 TASLAK; aynen uygulandı)
+
+Yazı r2 (2026-09-29) metinleri anahtar adlarıyla aynen alındı. Açık yer tutucular olduğu gibi duruyor: account.privacy.details #4 [TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek], #5 [YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek], email.from [GÖNDERİCİ]. Giriş açık (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY) bir derleme, account.privacy.details'te [yer tutucu] kaldıkça `npm run build` hata verir (ALLOW_EMPTY_LEGAL=1 yalnız geliştirme/test). email.* oyunda gösterilmez (sunucu e-posta şablonları, supabase/templates/). Kodda kullanılmayanlar: account.title (Ayarlar'da başlık account.menu), auth.code.wrongOnly ve auth.code.expired (sunucu yanlış ve süresi dolmuş kodu aynı yanıtla bildiriyor, ikisi için de wrongCode gösterilir). {email}, {s}, {t}, {f}, {v}, {n}, {k}, {c}, {d} kodla doldurulur; reset.backupNote {n} = 30 (config CLOUD.backupDays). settings.credits ("Oyun kaydın yalnızca bu cihazda tutulur") değiştirilmedi: karar bekliyor (r2 EKSİK 5).
+
+- `account.privacy.title`: Hesap ve bulut kayıt hakkında
+- `account.privacy.detailsLink`: Ayrıntılar
+- `account.privacy.details`: Giriş yaparsan iki şey tutarız: e-posta adresin ve bulut kaydın. Bulut kaydınla birlikte son kaydetme zamanı ve cihaz türü (mobil ya da masaüstü) de tutulur. / E-posta adresini yalnızca sana giriş kodu göndermek için kullanırız. Reklam ya da tanıtım e-postası göndermeyiz. Bulut kaydını, oyuna başka bir cihazda aynı kayıttan devam edebilmen için tutarız. / Bunları, senin istediğin bulut kayıt hizmetini sunabilmek için işleriz (KVKK madde 5/2-c). E-posta adresini sen yazarsın. Giriş yaptığın sürece bulut kaydın oyundan otomatik gönderilir. / Bilgiler Fenomen'in kendi sunucusunda (fenomen-api.teserix.com) tutulur. Sunucu, bağlantı sırasında IP adresini teknik kayıtlarda görebilir. Bu teknik kayıtlar [TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek] sonra silinir. / Giriş kodu e-postalarını Resend adlı e-posta gönderim hizmeti gönderir. E-posta adresin bu hizmete yalnızca kodu gönderebilmek için iletilir. Gönderim Türkiye dışında, İrlanda'daki sunuculardan (AWS eu-west-1) yapılır. Yani e-posta adresin bu iş için yurt dışına aktarılır. Aktarımın dayanağı: [YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek] / Aşama sayacı ve ziyaret sayımı hesabına bağlanmaz. Giriş yapsan da bu sayımlara e-postan ya da hesap bilgin gitmez, ikisi de isimsiz kalır. / 24 ay boyunca giriş yapılmazsa hesabın ve bulut kaydın silinir; cihazındaki kayıt yerinde kalır. Varsa baştan başlamadan önce alınan yedek de bunlarla birlikte silinir. / “Kaydı sil ve baştan başla”yı seçersen buluttaki eski kaydın 30 gün yedek olarak saklanır, sonra silinir. / Hesabını istediğin zaman “Hesabımı sil” düğmesiyle silebilirsin. Hesabın, e-posta adresin ve bulut kaydın yedekleriyle birlikte silinir. Bu en geç 30 gün içinde tamamlanır. Bu cihazdaki kaydın silinmez. / Bu bilgilerin veri sorumlusu Teserix Bilişim ve Dijital Çözümler. KVKK'nın 11. maddesindeki haklarını kullanmak için info@teserix.com adresine yazabilirsin.
+- `account.menu`: Bulut kayıt
+- `account.title`: Bulut kayıt
+- `account.guestNote`: Giriş yapmadan da oynayabilirsin. Kaydın bu cihazda tutulur.
+- `account.signedIn`: {email} ile giriş yaptın.
+- `account.signIn`: Giriş yap
+- `account.signOut`: Çıkış yap
+- `account.signedOut`: Çıkış yaptın. Kaydın bu cihazda duruyor.
+- `account.delete.button`: Hesabımı sil
+- `account.delete.title`: Hesabını silmek istiyor musun?
+- `account.delete.body`: Hesabın, e-posta adresin ve buluttaki kaydın yedekleriyle birlikte silinir. Bu en geç 30 gün içinde tamamlanır. Bu cihazdaki kaydın kalır, oynamaya buradan devam edebilirsin. Silinen hesap geri gelmez.
+- `account.delete.yes`: Evet, sil
+- `account.delete.no`: Vazgeç
+- `account.delete.deleting`: Siliniyor…
+- `account.delete.done`: Hesabın silindi. Kaydın bu cihazda duruyor.
+- `account.delete.failed`: Hesabın şu an silinemedi. Bağlantını kontrol edip tekrar dene.
+- `auth.login.title`: Kaydını buluta al
+- `auth.login.body`: İstersen e-postanla giriş yap. Böylece kaydın bulutta da durur ve başka bir cihazda kaldığın yerden devam edebilirsin.
+- `auth.login.optional`: Giriş yapmak zorunda değilsin. Giriş yapmazsan oyunda hiçbir şey değişmez, kaydın bu cihazda tutulur.
+- `auth.login.age`: 13 yaşından küçüksen bu adımı bir yetişkinle birlikte yap.
+- `auth.login.emailLabel`: E-posta adresin
+- `auth.login.emailPlaceholder`: ornek@eposta.com
+- `auth.login.privacySummary`: E-postan yalnızca giriş kodu için. Aşama sayacı ve ziyaret sayımı hesaba bağlanmaz.
+- `auth.login.send`: Kod gönder
+- `auth.login.sending`: Gönderiliyor…
+- `auth.login.later`: Şimdi değil
+- `auth.login.badEmail`: Geçerli bir e-posta adresi yaz.
+- `auth.login.sendFail`: Kod gönderilemedi. Adresi kontrol edip tekrar dene.
+- `auth.login.rateLimit`: Çok fazla deneme oldu. Birkaç dakika sonra tekrar dene.
+- `auth.login.quotaFull`: Şu an kod gönderemiyoruz. Girişsiz oynamaya devam et, kaydın bu cihazda tutulur. Girişi sonra tekrar dene.
+- `auth.login.sendError`: Kod şu an gönderilemedi. Biraz sonra tekrar dene.
+- `auth.code.title`: Kodu yaz
+- `auth.code.sent`: Kodu şu adrese gönderdik: {email}
+- `auth.code.spam`: Gelmediyse spam klasörüne de bak.
+- `auth.code.label`: 6 haneli kod
+- `auth.code.verify`: Giriş yap
+- `auth.code.verifying`: Kontrol ediliyor…
+- `auth.code.resend`: Kodu tekrar gönder
+- `auth.code.resendIn`: Kodu tekrar gönder ({s} sn)
+- `auth.code.resent`: Yeni kodu gönderdik.
+- `auth.code.changeEmail`: Başka adres kullan
+- `auth.code.badCode`: Kod 6 haneli olmalı, yalnızca rakam.
+- `auth.code.wrongCode`: Kod hatalı ya da süresi dolmuş. Yeni kod iste.
+- `auth.code.wrongOnly`: Kod hatalı. Tekrar bak ya da yeni kod iste.
+- `auth.code.expired`: Kodun süresi doldu. Yeni kod iste.
+- `auth.code.rateLimit`: Çok fazla deneme oldu. Birkaç dakika sonra tekrar dene.
+- `auth.code.offline`: İnternet yok. Bağlanınca tekrar dene.
+- `auth.code.unreachable`: Sunucuya şu an ulaşılamıyor. Biraz sonra tekrar dene.
+- `auth.moveDomain.text`: Giriş ve bulut kayıt yeni adreste. Giriş yapmak için yeni adrese geç. Burada girişsiz oynamaya devam edebilirsin.
+- `auth.moveDomain.saveHint`: Buradaki kaydın yeni adrese kendiliğinden geçmez. Taşımak için burada “Kaydı dışa aktar”ı, yeni adreste “Kaydı içe aktar”ı kullan.
+- `auth.moveDomain.linkLabel`: Yeni adrese git
+- `auth.moveDomain.url`: https://fenomen.teserix.com
+- `sync.uploaded`: Giriş yaptın. Kaydın artık bulutta da duruyor.
+- `sync.cloudLoaded`: Buluttaki kaydın yüklendi.
+- `sync.saving`: Buluta kaydediliyor…
+- `sync.saved`: Buluta kaydedildi · {t}
+- `sync.offline`: İnternet yok, oyun bu cihazda kaydediliyor. Bağlanınca buluta da kaydedilir.
+- `sync.unreachable`: Buluta şu an ulaşılamıyor, oyun bu cihazda kaydediliyor.
+- `sync.conflict.title`: İki farklı kayıt var
+- `sync.conflict.body`: Buluttaki kayıt bu cihazdakinden farklı. Hangisiyle devam edeceğini seç.
+- `sync.conflict.bodyNewer`: Başka bir cihazda ya da sekmede oynadın. Hangi kayıtla devam edeceğini seç.
+- `sync.conflict.optCloud`: Buluttaki kayıt
+- `sync.conflict.optDevice`: Bu cihazdaki kayıt
+- `sync.conflict.meta`: {f} takipçi · {v} ¤ · {n} Şöhret · {k} satış
+- `sync.conflict.metaLast`: {c} · {d}
+- `sync.conflict.deviceMobile`: Mobil
+- `sync.conflict.deviceDesktop`: Masaüstü
+- `sync.conflict.recommended`: Önerilen
+- `sync.conflict.useCloud`: Buluttakini seç
+- `sync.conflict.useDevice`: Bu cihazdakini seç
+- `sync.conflict.keepTitle`: Diğer kaydı saklamak ister misin?
+- `sync.conflict.keepBody`: Seçmediğin kayıt silinecek. İstersen önce kayıt kodunu kopyala. Bu kodla kaydı sonra Ayarlar'daki “Kaydı içe aktar” ile yükleyebilirsin.
+- `sync.conflict.keepTitleReset`: Bu cihazdaki kaydı saklamak ister misin?
+- `sync.conflict.keepBodyReset`: Kaydın başka bir cihazda sıfırlandı. Bu cihazdaki kayıt silinecek, içinde buluta gitmemiş ilerleme var. İstersen önce kayıt kodunu kopyala. Bu kodla kaydı sonra Ayarlar'daki “Kaydı içe aktar” ile yükleyebilirsin.
+- `sync.conflict.keepCopy`: Kodu kopyala
+- `sync.conflict.keepCopied`: Kod kopyalandı
+- `sync.conflict.keepContinue`: Devam et
+- `sync.conflict.dateUnknown`: bilinmiyor
+- `reset.confirmSignedIn`: Emin misin? Tüm ilerleme bu cihazdan ve buluttan silinecek.
+- `reset.backupNote`: Buluttaki eski kaydın {n} gün yedek olarak saklanır, sonra silinir.
+- `reset.otherDevice`: Kaydın başka bir cihazda sıfırlandı. Güncel kayıt yüklendi.
+- `reset.failed`: Kayıt şu an sıfırlanamadı. Bağlantını kontrol edip tekrar dene.
+- `email.from`: [GÖNDERİCİ]
+- `email.codeNew.subject`: Fenomen: Kiralık Hayat ilk giriş kodun
+- `email.codeNew.body`: Merhaba,
+
+Fenomen: Kiralık Hayat'a hoş geldin! İlk giriş kodun:
+
+{kod}
+
+Bu kodu oyundaki kod ekranına yaz. Kod 10 dakika içinde geçerli. Süresi dolarsa oyundan yeni kod isteyebilirsin.
+
+Bu kodu sen istemediysen bu e-postayı yok sayabilirsin.
+
+Bu e-posta yalnızca giriş kodun için gönderildi.
+
+Fenomen: Kiralık Hayat
+- `email.codeReturning.subject`: Fenomen: Kiralık Hayat giriş kodun
+- `email.codeReturning.body`: Merhaba,
+
+Fenomen: Kiralık Hayat giriş kodun:
+
+{kod}
+
+Bu kodu oyundaki kod ekranına yaz. Kod 10 dakika içinde geçerli. Süresi dolarsa oyundan yeni kod isteyebilirsin.
+
+Bu kodu sen istemediysen bu e-postayı yok sayabilirsin.
+
+Bu e-posta yalnızca giriş kodun için gönderildi.
+
+Fenomen: Kiralık Hayat
+
 ## v2.1 — Sayaç, kayıt dosyası ve yeni adrese taşıma (Yazı'nın kesin metinleri uygulandı; GEÇİCİ olanlar işaretli)
 
 Yazı'nın kesin metinleri uygulandı (move, import, saveFile, telemetry, settings.*). GEÇİCİ (Yazı'nın metnini bekliyor): backup.* (yedek yuvası doluyken yeni içe aktarmadan önce çıkan adım: backup.title/body/summary/download/discard/cancel/downloaded/cancelled/fileName). telemetry.details'in son maddesi (veri sorumlusu, alıcılar, haklar) Aryen onayıyla yazıldı; 5. madde (ziyaret sayımı, Umami) eklendi. 3. madde (konum: ziyaret sayımında ülke düzeyi) ve ziyaret kayıtlarının saklama süresi cümlesi eklendi. Ziyaret sayımı saklama süresi: ÇÖZÜLDÜ, Aryen onayladı, 13 ay (aşama sayacı 180 gün, değişmedi). Herhangi bir madde boşsa ekranda paragraf çıkmaz ve `npm run build` hata verir (geliştirme/test için ALLOW_EMPTY_LEGAL=1). telemetry.ok/off ("Tamam"/"Kapat") aynı görsel ağırlıkta gösterilir. "rıza" kelimesi geçmemeli (KVKK raporu §7(c)). {f}, {d}, {n}, {url} yer tutucuları kodla doldurulur.

@@ -1,0 +1,99 @@
+// v2.2 cloud save: pure decisions (no DOM, no network) so node:test covers every rule.
+// Rules (plan r2 / scope "v2.2 — Bulut kayıt" (3)):
+//   1. login, cloud empty                       -> the device save is uploaded
+//   2. login, device save has no first video yet -> the cloud save is loaded WITHOUT a backup ("Buluttaki kaydın yüklendi.")
+//   3. login, both exist and differ             -> choice screen (recommended = more progress: sales, total Şöhret, followers)
+//   4. during play the cloud moved on (revision) -> nothing new here: load it silently; new progress here: choice screen
+//   6. reset on another device                  -> no choice; unsynced progress here: its save code is offered ONCE first
+import { isEmptySave, checksumOf } from './transfer.js';
+
+const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+const num = (x) => (typeof x === 'number' && isFinite(x) ? x : 0);
+const len = (x) => (Array.isArray(x) ? x.length : isObj(x) ? Object.keys(x).length : 0);
+
+// progress order (scope rule 3): channels sold, then total Şöhret (earned, not the spendable balance), then followers
+export function progress(o) {
+  const m = isObj(o) && isObj(o.meta) ? o.meta : {};
+  return [num(m.sales), Math.max(num(m.fameEarned), num(m.fame)), Math.floor(num(isObj(o) ? o.followers : 0))];
+}
+// -> 'cloud' | 'device' | null (equal: no "Önerilen" label)
+export function recommend(cloud, device) {
+  const a = progress(cloud), b = progress(device);
+  for (let i = 0; i < a.length; i++) { if (a[i] > b[i]) return 'cloud'; if (a[i] < b[i]) return 'device'; }
+  return null;
+}
+// rule 2: the device save has not published its first video and has nothing permanent (sales, Şöhret, tree)
+export function isFresh(o) {
+  if (isEmptySave(o)) return true;
+  const st = isObj(o.stats) ? o.stats : {}, m = isObj(o.meta) ? o.meta : {};
+  return !(num(st.videos) > 0) && !(num(m.sales) > 0) && !(num(m.fameEarned) > 0) && !(num(m.fame) > 0) && !len(m.unlocks) && !len(o.history) && !len(o.videos);
+}
+// player actions only (videos, purchases, rentals, upgrades, staff, investments, Şöhret, sales, tree, achievements,
+// character). Passive income and follower growth between two writes are not "progress that did not reach the cloud".
+export function progressSig(o) {
+  if (!isObj(o)) return '';
+  const st = isObj(o.stats) ? o.stats : {}, m = isObj(o.meta) ? o.meta : {}, w = isObj(o.wear) ? o.wear : {};
+  const sum = (x) => (isObj(x) ? Object.values(x).reduce((a, b) => a + num(b), 0) : 0);
+  return JSON.stringify([!!o.created, o.path || null, isObj(o.char) ? o.char.channel || '' : '', num(st.videos), num(o.resetAt),
+    Object.keys(isObj(o.items) ? o.items : {}).sort().map((k) => k + ':' + (o.items[k] && o.items[k].status)), len(w.owned), len(w.rented),
+    sum(o.equip), sum(o.staff), sum(o.invest), !!o.fanbox, num(m.fame), num(m.fameEarned), num(m.sales), len(m.unlocks), len(m.achievements)]);
+}
+// the cloud save was reset on another device after this device's save began (rule 6)
+export const cloudWasReset = (cloudData, local) => num(isObj(cloudData) ? cloudData.resetAt : 0) > num(isObj(local) ? local.resetAt : 0);
+// change check for the cloud copy: everything except lastSeen (written on every local save, even when nothing happened)
+export const saveSum = (o) => { if (!isObj(o)) return ''; const { lastSeen, ...rest } = o; void lastSeen; return checksumOf(rest); };
+export const sameSave = (a, b) => isObj(a) && isObj(b) && saveSum(a) === saveSum(b);
+
+// right after the code was accepted. row = cloud row or null.
+// -> 'upload' | 'loadCloud' | 'adopt' (identical) | 'conflict'
+export function loginDecision(local, row) {
+  if (!row || !isObj(row.data)) return 'upload';
+  if (!isObj(local) || isFresh(local)) return 'loadCloud';
+  if (sameSave(local, row.data)) return 'adopt';
+  return 'conflict';
+}
+// later syncs (boot, a write was refused). known = what this device last wrote/read: { revision, sig }.
+// -> 'push' | 'upload' | 'loadCloud' | 'reset' (+ keep: unsynced progress here) | 'conflict'
+export function pullDecision(local, row, known) {
+  if (!row || !isObj(row.data)) return { action: 'upload' };
+  const rev = num(known && known.revision);
+  if (row.revision === rev) return { action: 'push' };
+  const unsynced = !known || progressSig(local) !== known.sig;
+  if (cloudWasReset(row.data, local)) return { action: 'reset', keep: unsynced && !isFresh(local) };
+  if (row.revision > rev && !unsynced) return { action: 'loadCloud' };
+  if (sameSave(local, row.data)) return { action: 'adopt' };
+  return { action: 'conflict' };
+}
+
+// ---------- errors -> tr.json keys ----------
+const RATE = ['over_email_send_rate_limit', 'over_request_rate_limit', 'over_sms_send_rate_limit'];
+const txt = (b) => (isObj(b) ? [b.msg, b.message, b.error_description, b.error].filter((x) => typeof x === 'string').join(' ') : '');
+const code = (b) => String(isObj(b) ? b.error_code || (typeof b.code === 'string' ? b.code : '') : '').toLowerCase();
+// res: { network: 'offline' | 'unreachable' } | { status, body }
+// "Kod gönder": sendFail ONLY for an invalid address; rateLimit (429 / rate codes); quotaFull (SMTP/Resend could not
+// send: quota, provider error); sendError for anything else the server answered; offline/unreachable = no answer.
+export function sendErrorKey(res) {
+  if (!res || res.network) return 'auth.code.' + (res && res.network === 'offline' ? 'offline' : 'unreachable');
+  const c = code(res.body), m = txt(res.body);
+  if (res.status === 429 || RATE.includes(c)) return 'auth.login.rateLimit';
+  if (c === 'email_address_invalid' || (res.status === 400 && (c === 'validation_failed' || !c) && /e-?mail/i.test(m) && /invalid|validate/i.test(m))) return 'auth.login.sendFail';
+  if (/error sending|smtp|quota|daily.*limit/i.test(m) || c === 'email_send_failed' || c === 'smtp_error') return 'auth.login.quotaFull';
+  if (res.status === 502 || res.status === 503 || res.status === 504) return 'auth.code.unreachable';
+  return 'auth.login.sendError';
+}
+// "Giriş yap" on the code screen. GoTrue answers a wrong AND an expired code with the same otp_expired
+// ("Token has expired or is invalid"), so the client cannot tell them apart -> wrongCode (covers both).
+export function verifyErrorKey(res) {
+  if (!res || res.network) return 'auth.code.' + (res && res.network === 'offline' ? 'offline' : 'unreachable');
+  const c = code(res.body);
+  if (res.status === 429 || RATE.includes(c)) return 'auth.code.rateLimit';
+  if (res.status >= 500) return 'auth.code.unreachable';
+  return 'auth.code.wrongCode';
+}
+export const validEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s || '').trim()) && String(s).trim().length <= 254;
+export const validCode = (s) => /^\d{6}$/.test(String(s || '').trim());
+// "{f} takipçi · {v} ¤ · ..." -> the best place to wrap is right after the currency: [head, tail] (tail '' = no split)
+export function splitMeta(s, mark = ' ¤ · ') {
+  const i = String(s).indexOf(mark);
+  return i < 0 ? [String(s), ''] : [s.slice(0, i + mark.length - 1), s.slice(i + mark.length)];
+}

@@ -46,6 +46,9 @@ export function deserialize(str, now = Date.now()) {
   s.meta = { fame: Math.max(0, num(m.fame) | 0), fameEarned: Math.max(0, num(m.fameEarned) | 0), unlocks: (Array.isArray(m.unlocks) ? m.unlocks : d.unlocks).filter((id) => FAME_NODES[id]),
     achievements: (Array.isArray(m.achievements) ? m.achievements : d.achievements).filter((id) => ach.has(id)), sales: Math.max(0, num(m.sales) | 0), bestFollowers: Math.max(num(m.bestFollowers), s.stats.peakFollowers), playSec: Math.max(0, num(m.playSec)) };
   if (o.lastSale && typeof o.lastSale.gain === 'number') s.lastSale = { gain: o.lastSale.gain, followers: num(o.lastSale.followers) };
+  // v2.2 cloud save: when the player last chose "Baştan başla" while signed in (ms). Travels with the save so another
+  // device can tell a reset from ordinary progress (src/logic/cloud.js cloudWasReset). Absent = never reset signed in.
+  if (num(o.resetAt) > 0) s.resetAt = num(o.resetAt);
   s.v = CFG.saveVersion;
   return s;
 }

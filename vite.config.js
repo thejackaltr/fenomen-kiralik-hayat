@@ -23,6 +23,7 @@ const swPlugin = {
   apply: 'build',
   closeBundle() {
     const dist = path.resolve('dist');
+    if (!fs.existsSync(dist)) return;              // build failed earlier (e.g. legal-guard): keep that error visible
     const files = [];
     (function walk(d) { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); if (fs.statSync(p).isDirectory()) walk(p); else files.push(path.relative(dist, p).split(path.sep).join('/')); } })(dist);
     const list = ['./', ...files.filter((f) => f !== 'sw.js' && !f.endsWith('.map')).map((f) => './' + f)];

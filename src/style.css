@@ -28,6 +28,8 @@ h1, h2, h3 { margin: 0.4em 0; line-height: 1.2; overflow-wrap: anywhere; } h3 { 
 .btn.huge { padding: 16px 22px; font-size: 19px; width: 100%; }
 .icon-btn { border: 0; background: transparent; font-size: 22px; cursor: pointer; width: 40px; height: 40px; border-radius: 10px; flex: none; }
 .link { border: 0; background: none; color: var(--gold); text-decoration: underline; cursor: pointer; padding: 4px; }
+.link:disabled { opacity: .6; cursor: default; text-decoration: none; }
+a.btn { color: inherit; text-decoration: none; }
 .pulse { animation: pulse 1.1s ease-in-out infinite; position: relative; z-index: 2; }
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 211, 90, 0.9); } 50% { box-shadow: 0 0 0 7px rgba(255, 211, 90, 0); } }
 
@@ -260,4 +262,30 @@ textarea.code { width: 100%; font: 12px/1.3 ui-monospace, monospace; resize: ver
   .tabs { position: static; width: auto; flex: none; }
   .tab { flex-direction: row; justify-content: center; gap: 6px; padding: 4px 2px 5px; }
   body:has(.tabs) .notice-band { bottom: calc(42px + var(--safe-b)); }
+}
+
+/* v2.2 account + cloud save (src/ui/account.js) */
+.form-err { margin: 0; color: #ffd0d6; background: #4a1822; border-radius: 10px; padding: 8px 10px; font-size: 14px; overflow-wrap: anywhere; }
+.code-input { font-size: 22px; letter-spacing: 6px; text-align: center; font-variant-numeric: tabular-nums; }
+.btn.done { border-color: var(--ok); }
+.modal.wide { max-width: 560px; }
+.nowrap { white-space: nowrap; } .choice-card .half { white-space: nowrap; }
+/* two saves side by side (also at 568x320); the meta line may wrap once, best after "¤" (two nowrap halves) */
+.choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.choice-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: #140b20; }
+.choice-card.is-rec { border-color: var(--ok); }
+.choice-card .meta { font-size: 12px; opacity: .9; overflow-wrap: anywhere; }
+.choice-card .btn { margin-top: auto; width: 100%; }
+/* narrow portrait columns cannot hold half a meta line: plain wrapping there */
+@media (max-width: 479px) { .choice-card .half { white-space: normal; } .choice-card { padding: 8px; } }
+@media (max-width: 300px) { .choice-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (orientation: landscape) and (max-height: 360px) {
+  .modal.wide { max-width: 640px; }
+  .modal.wide, .modal.acct { padding: 10px 12px; gap: 4px; max-height: 96vh; }
+  .modal.wide h2, .modal.acct h2 { margin: 0; font-size: 17px; }
+  .modal.wide p, .modal.acct p { margin: 0; font-size: 13px; }
+  .modal.acct .field { margin: 2px 0; gap: 2px; } .modal.acct .input { padding: 7px 10px; } .modal.acct .code-input { font-size: 18px; }
+  .modal.acct .btn { min-height: 36px; padding: 6px 12px; }
+  .choice-card { padding: 6px 8px; gap: 2px; }
+  .choice-card .btn { min-height: 34px; padding: 5px 10px; }
 }

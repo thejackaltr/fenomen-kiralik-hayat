@@ -13,6 +13,10 @@ import { showNoticeBand } from './ui/privacy.js';
 import { saveTools, showConflict, showImportFail } from './ui/savefile.js';
 import './style.css';
 import { analytics, track } from './analytics.js';
+import { CLOUD } from './config.js';
+import { createCloudApi } from './cloud/api.js';
+import { createSync } from './cloud/sync.js';
+import { loginAvailable, onOldAddress, showCloudChoice, showKeep } from './ui/account.js';
 
 // Locales: every src/locales/<code>.json is picked up automatically (tr = source + fallback).
 const LOCALE_KEY = 'fenomen_locale';
@@ -62,10 +66,22 @@ async function boot() {
   if (bootNew) tel.track('game_open_new');
   tel.sessionStart();
   const tools = saveTools({ ctrl, tel, storage });
-  window.__fenomen = Object.assign({ ctrl, ui: null, G, tel, mode: MODE, version: __APP_VERSION__ }, test);
+  // v2.2 optional account + cloud save: only on the login address with the cloud configured. Separate from the
+  // counter and Umami (no shared state, headers or events): signing in changes nothing there.
+  const account = { available: loginAvailable(location, CLOUD, MODE), old: onOldAddress(location), cfg: CLOUD, api: null, sync: null };
+  if (account.available) {
+    const dev = deviceClass(window);
+    account.api = createCloudApi({ storage });
+    account.sync = createSync({ api: account.api, ctrl, storage, tel, device: dev, hooks: {
+      toast: (key, kind) => ui && ui.toast(t(key), kind),
+      conflict: (o) => showCloudChoice(ui, Object.assign({ thisDevice: dev }, o)),
+      keep: (o) => showKeep(ui, o)
+    } });
+  }
+  window.__fenomen = Object.assign({ ctrl, ui: null, G, tel, mode: MODE, version: __APP_VERSION__, account: { available: account.available, old: account.old, sync: account.sync } }, test);
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { ctrl.save(); ctrl.stop(); }
+    if (document.hidden) { ctrl.save(); ctrl.stop(); if (account.sync && account.sync.signedIn()) account.sync.push({ keepalive: true }); }
     else { ctrl.resume(Date.now()); ctrl.start(); tel.sessionStart(); }
   });
   window.addEventListener('pagehide', () => ctrl.save());
@@ -75,7 +91,7 @@ async function boot() {
   ctrl.on('wiped', () => track('reset_or_prestige'));
 
   await loadAll();
-  ui = new UI(document.getElementById('ui'), ctrl, { install, changeLocale, version: __APP_VERSION__, tel, tools });
+  ui = new UI(document.getElementById('ui'), ctrl, { install, changeLocale, version: __APP_VERSION__, tel, tools, account });
   window.__fenomen.ui = ui;
   document.getElementById('boot').remove();
   document.body.classList.add('ready');
@@ -91,6 +107,8 @@ async function boot() {
   if (importDone) ui.toast(t('import.done'), 'ok');
   if (imported && !imported.ok) showImportFail(ui);
   if (conflict) showConflict(ui, tools, conflict.env, conflict.cur);
+  // signed in from an earlier visit: compare with the cloud once, then keep it updated
+  if (account.sync && account.sync.signedIn()) { account.sync.reconcile(); account.sync.start(); }
 }
 function changeLocale(code) { try { localStorage.setItem(LOCALE_KEY, code); } catch (e) { /* ignore */ } if (ctrl) ctrl.save(); location.reload(); }
 

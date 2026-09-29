@@ -1,0 +1,241 @@
+// v2.2: optional e-mail login + cloud save (pure rules, error mapping, API client, sync flows with fakes)
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as G from '../../src/logic/game.js';
+import { serialize, deserialize, SAVE_KEY } from '../../src/logic/save.js';
+import { progress, recommend, isFresh, progressSig, cloudWasReset, loginDecision, pullDecision, sendErrorKey, verifyErrorKey, validEmail, validCode, splitMeta, saveSum, sameSave } from '../../src/logic/cloud.js';
+import { createCloudApi, SESSION_KEY } from '../../src/cloud/api.js';
+import { createSync, KNOWN_KEY } from '../../src/cloud/sync.js';
+import { checkAccountLegal, openAccountItems } from '../../tools/legal-guard.mjs';
+import { CLOUD, NEW_ORIGIN, OLD_ORIGIN } from '../../src/config.js';
+import { loginAvailable } from '../../src/ui/account.js';
+import { fmtStamp } from '../../src/logic/format.js';
+import { registerLocales, setLocale, t } from '../../src/logic/i18n.js';
+import tr from '../../src/locales/tr.json' with { type: 'json' };
+
+registerLocales({ tr }); setLocale('tr');
+class Mem { constructor(o = {}) { this.m = new Map(Object.entries(o)); } getItem(k) { return this.m.has(k) ? this.m.get(k) : null; } setItem(k, v) { this.m.set(k, String(v)); } removeItem(k) { this.m.delete(k); } }
+const game = (o = {}) => { const s = G.newGame(1000, 7); if (o.created !== false) { G.createCharacter(s, { body: 'f', skin: 1, hair: 0, channel: o.channel || 'K' }); G.choosePath(s, 'vlog'); } if (o.videos) s.stats.videos = o.videos; if (o.sales) s.meta.sales = o.sales; if (o.fame) { s.meta.fame = o.fame; s.meta.fameEarned = o.fame; } if (o.followers) s.followers = o.followers; if (o.resetAt) s.resetAt = o.resetAt; return JSON.parse(serialize(s)); };
+
+test('texts: r2 keys in tr.json (account, auth, sync, reset, email), placeholders kept', () => {
+  for (const k of ['account', 'auth', 'sync', 'reset', 'email']) assert.ok(tr[k] && typeof tr[k] === 'object', k);
+  for (const k of ['auth.login.privacySummary', 'auth.login.quotaFull', 'auth.login.sendError', 'auth.code.resend', 'auth.code.resendIn', 'sync.conflict.metaLast', 'sync.conflict.keepTitleReset', 'sync.conflict.keepBodyReset', 'reset.otherDevice', 'account.delete.button', 'auth.moveDomain.text']) assert.notEqual(t(k), k, k);
+  const all = JSON.stringify(tr);
+  for (const ph of ['[GÖNDERİCİ]', '[TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek]', '[YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]']) assert.ok(all.includes(ph), ph);
+  assert.equal(tr.auth.moveDomain.url, NEW_ORIGIN);
+  assert.equal(t('sync.conflict.meta', { f: 1, v: 2, n: 3, k: 4 }), '1 takipçi · 2 ¤ · 3 Şöhret · 4 satış');
+  assert.equal(t('reset.backupNote', { n: CLOUD.backupDays }), 'Buluttaki eski kaydın 30 gün yedek olarak saklanır, sonra silinir.');
+  // no code validity in the UI (10 min is a server setting)
+  for (const k of ['auth', 'account', 'sync']) assert.ok(!/\d+ dakika/.test(JSON.stringify(tr[k])), k + ' gives a code validity');
+  assert.ok(tr.auth.login.privacySummary.length <= 90);
+});
+test('progress order: sales, then total Şöhret, then followers; equal -> no recommendation', () => {
+  assert.equal(recommend(game({ sales: 2 }), game({ sales: 1, fame: 999, followers: 1e6 })), 'cloud');
+  assert.equal(recommend(game({ fame: 10 }), game({ fame: 11 })), 'device');
+  assert.equal(recommend(game({ followers: 5 }), game({ followers: 4 })), 'cloud');
+  assert.equal(recommend(game({ followers: 5 }), game({ followers: 5 })), null);
+  const a = game({ fame: 3 }); a.meta.fame = 0; a.meta.fameEarned = 50;          // spent Şöhret still counts as earned
+  assert.deepEqual(progress(a).slice(0, 2), [0, 50]);
+});
+test('first-video rule: fresh = empty or no video published yet (and nothing permanent)', () => {
+  assert.ok(isFresh(null)); assert.ok(isFresh(game({ created: false }))); assert.ok(isFresh(game()));
+  assert.ok(!isFresh(game({ videos: 1 }))); assert.ok(!isFresh(game({ sales: 1 }))); assert.ok(!isFresh(game({ fame: 1 })));
+});
+test('login decision: rule 1 upload, rule 2 load cloud (no backup), identical adopt, else conflict', () => {
+  const row = { revision: 4, data: game({ videos: 3, channel: 'Bulut' }) };
+  assert.equal(loginDecision(game({ videos: 2 }), null), 'upload');
+  assert.equal(loginDecision(game(), row), 'loadCloud');
+  assert.equal(loginDecision(null, row), 'loadCloud');
+  assert.equal(loginDecision(JSON.parse(JSON.stringify(row.data)), row), 'adopt');
+  const same = JSON.parse(JSON.stringify(row.data)); same.lastSeen = 99999999; assert.equal(loginDecision(same, row), 'adopt');   // lastSeen alone is no difference
+  assert.equal(loginDecision(game({ videos: 1 }), row), 'conflict');
+});
+test('pull decision: push / load / reset (+keep once) / conflict', () => {
+  const mine = game({ videos: 2 }), known = { revision: 3, sig: progressSig(mine) };
+  assert.equal(pullDecision(mine, null, known).action, 'upload');
+  assert.equal(pullDecision(mine, { revision: 3, data: mine }, known).action, 'push');
+  const idle = JSON.parse(JSON.stringify(mine)); idle.money += 500; idle.followers += 40; idle.lastSeen += 60000;     // passive only
+  assert.equal(pullDecision(idle, { revision: 5, data: game({ videos: 4 }) }, known).action, 'loadCloud');
+  const played = game({ videos: 3 });
+  assert.equal(pullDecision(played, { revision: 5, data: game({ videos: 4 }) }, known).action, 'conflict');
+  const resetRow = { revision: 4, data: game({ created: false, resetAt: 5000 }) };
+  assert.deepEqual(pullDecision(idle, resetRow, known), { action: 'reset', keep: false });
+  assert.deepEqual(pullDecision(played, resetRow, known), { action: 'reset', keep: true });
+  assert.ok(cloudWasReset({ resetAt: 2 }, { resetAt: 1 }) && !cloudWasReset({ resetAt: 1 }, { resetAt: 1 }) && !cloudWasReset({}, {}));
+});
+test('resetAt survives save/load and a channel sale', () => {
+  const s = G.newGame(1000, 1); s.resetAt = 123456; const back = deserialize(serialize(s), 2000);
+  assert.equal(back.resetAt, 123456);
+  assert.equal(deserialize(serialize(G.newGame(1000, 1)), 2000).resetAt, undefined);
+});
+test('"Kod gönder" errors: rateLimit / quotaFull / sendFail (invalid address only) / sendError / offline / unreachable', () => {
+  const r = (status, body) => sendErrorKey({ status, body });
+  assert.equal(r(429, { error_code: 'over_email_send_rate_limit', msg: 'For security purposes, you can only request this after 30 seconds.' }), 'auth.login.rateLimit');
+  assert.equal(r(429, { error_code: 'over_request_rate_limit' }), 'auth.login.rateLimit');
+  assert.equal(r(400, { error_code: 'over_email_send_rate_limit' }), 'auth.login.rateLimit');
+  assert.equal(r(500, { code: 500, error_code: 'unexpected_failure', msg: 'Error sending magic link email' }), 'auth.login.quotaFull');
+  assert.equal(r(500, { msg: 'Error sending confirmation email' }), 'auth.login.quotaFull');
+  assert.equal(r(400, { error_code: 'email_address_invalid', msg: 'Email address "x@y.zz" is invalid' }), 'auth.login.sendFail');
+  assert.equal(r(400, { error_code: 'validation_failed', msg: 'Unable to validate email address: invalid format' }), 'auth.login.sendFail');
+  assert.equal(r(400, { error_code: 'validation_failed', msg: 'Unsupported otp type' }), 'auth.login.sendError');
+  assert.equal(r(422, { error_code: 'otp_disabled', msg: 'Signups not allowed for otp' }), 'auth.login.sendError');
+  assert.equal(r(500, { msg: 'Database error saving new user' }), 'auth.login.sendError');
+  assert.equal(r(503, 'Service Unavailable'), 'auth.code.unreachable');
+  assert.equal(sendErrorKey({ network: 'offline' }), 'auth.code.offline');
+  assert.equal(sendErrorKey({ network: 'unreachable' }), 'auth.code.unreachable');
+  for (const k of ['auth.login.rateLimit', 'auth.login.quotaFull', 'auth.login.sendFail', 'auth.login.sendError', 'auth.code.offline', 'auth.code.unreachable']) assert.notEqual(t(k), k);
+});
+test('code errors: wrong/expired (same answer from the server) -> wrongCode; 429 -> rateLimit; formats', () => {
+  assert.equal(verifyErrorKey({ status: 403, body: { error_code: 'otp_expired', msg: 'Token has expired or is invalid' } }), 'auth.code.wrongCode');
+  assert.equal(verifyErrorKey({ status: 429, body: {} }), 'auth.code.rateLimit');
+  assert.equal(verifyErrorKey({ status: 502 }), 'auth.code.unreachable');
+  assert.equal(verifyErrorKey({ network: 'offline' }), 'auth.code.offline');
+  assert.ok(validEmail('a@b.co') && !validEmail('a@b') && !validEmail('a b@c.de') && !validEmail(''));
+  assert.ok(validCode('012345') && validCode(' 123456 ') && !validCode('12345') && !validCode('1234567') && !validCode('12a456'));
+});
+test('meta line splits right after "¤"; short date/time for {d}', () => {
+  assert.deepEqual(splitMeta('12,3 B takipçi · 4,5 B ¤ · 120 Şöhret · 3 satış'), ['12,3 B takipçi · 4,5 B ¤ ·', '120 Şöhret · 3 satış']);
+  assert.deepEqual(splitMeta('no mark'), ['no mark', '']);
+  assert.match(fmtStamp(Date.UTC(2026, 8, 28, 16, 40)), /^28 Eyl \d\d:40$/);
+  assert.equal(fmtStamp(null), tr.sync.conflict.dateUnknown);
+});
+test('login only on the login address with the cloud configured, never on the old address', () => {
+  const cfg = { url: 'https://api.test', key: 'k', loginOrigin: NEW_ORIGIN };
+  assert.ok(loginAvailable({ origin: NEW_ORIGIN }, cfg, 'none'));
+  assert.ok(!loginAvailable({ origin: OLD_ORIGIN }, Object.assign({}, cfg, { loginOrigin: OLD_ORIGIN }), 'none'));
+  assert.ok(!loginAvailable({ origin: NEW_ORIGIN }, Object.assign({}, cfg, { url: null }), 'none'));
+  assert.ok(!loginAvailable({ origin: 'http://localhost:4180' }, cfg, 'none'));
+  assert.ok(!loginAvailable({ origin: NEW_ORIGIN }, cfg, 'redirect'));
+  assert.equal(CLOUD.url, null, 'no cloud env in the default build');
+});
+test('legal guard: a login build fails while account.privacy.details has a [placeholder]', () => {
+  assert.deepEqual(openAccountItems(tr), [3, 4]);
+  assert.ok(checkAccountLegal(tr, {}).ok);                                          // no cloud env (Pages, default)
+  assert.throws(() => checkAccountLegal(tr, { VITE_SUPABASE_URL: 'https://x', VITE_SUPABASE_ANON_KEY: 'k' }), /account\.privacy\.details: madde #4, #5/);
+  assert.ok(checkAccountLegal(tr, { VITE_SUPABASE_URL: 'https://x', VITE_SUPABASE_ANON_KEY: 'k', ALLOW_EMPTY_LEGAL: '1' }).skipped);
+  const done = JSON.parse(JSON.stringify(tr)); done.account.privacy.details = done.account.privacy.details.map((p) => p.replace(/\[[^\]]*\]/g, 'X'));
+  assert.ok(checkAccountLegal(done, { VITE_SUPABASE_URL: 'https://x', VITE_SUPABASE_ANON_KEY: 'k' }).ok);
+});
+
+// ---------- API client against a scripted fetch
+function scripted(answers) {
+  const calls = [];
+  const fetchFn = async (url, init) => { calls.push({ url, init, body: init.body ? JSON.parse(init.body) : null }); const a = answers.shift(); if (!a) throw new Error('unexpected ' + url); if (a === 'net') throw new TypeError('Failed to fetch'); return { ok: a[0] >= 200 && a[0] < 300, status: a[0], text: async () => (a[1] === undefined ? '' : JSON.stringify(a[1])) }; };
+  return { calls, fetchFn };
+}
+const cfg = { url: 'https://api.test/', key: 'anon', table: 'fenomen_saves', timeoutMs: 1000 };
+const sess = (exp = 9999999999) => JSON.stringify({ access_token: 'A1', refresh_token: 'R1', expires_at: exp, user: { id: 'u1', email: 'a@b.co' } });
+test('api: code request has no Authorization; verify stores the session', async () => {
+  const st = new Mem(), f = scripted([[200, {}], [200, { access_token: 'A', refresh_token: 'R', expires_in: 3600, user: { id: 'u', email: 'a@b.co' } }]]);
+  const api = createCloudApi({ cfg, storage: st, fetchFn: f.fetchFn, online: () => true });
+  assert.ok((await api.sendCode(' a@b.co ')).ok);
+  assert.equal(f.calls[0].url, 'https://api.test/auth/v1/otp'); assert.deepEqual(f.calls[0].body, { email: 'a@b.co', create_user: true });
+  assert.equal(f.calls[0].init.headers.Authorization, undefined); assert.equal(f.calls[0].init.headers.apikey, 'anon'); assert.equal(f.calls[0].init.credentials, 'omit');
+  const v = await api.verify('a@b.co', '123456');
+  assert.ok(v.ok && api.signedIn() && api.email() === 'a@b.co'); assert.deepEqual(f.calls[1].body, { type: 'email', email: 'a@b.co', token: '123456' });
+});
+test('api: offline / unreachable never throw', async () => {
+  const api = createCloudApi({ cfg, storage: new Mem(), fetchFn: scripted(['net']).fetchFn, online: () => true });
+  assert.deepEqual(await api.sendCode('a@b.co'), { ok: false, network: 'unreachable' });
+  const off = createCloudApi({ cfg, storage: new Mem(), fetchFn: () => { throw new Error('no'); }, online: () => false });
+  assert.deepEqual(await off.sendCode('a@b.co'), { ok: false, network: 'offline' });
+});
+test('api: upsert per CONTRACT §2 -> stale on 409 PT409 / 23505; 23503 (account gone) signs out; 401 refreshes once', async () => {
+  const st = new Mem({ [SESSION_KEY]: sess() });
+  const f = scripted([[201, [{ data: { v: 3 }, revision: 5 }]], [409, { code: 'PT409', message: 'stale_revision' }], [409, { code: '23505' }], [409, { code: '23503' }]]);
+  const api = createCloudApi({ cfg, storage: st, fetchFn: f.fetchFn, online: () => true });
+  const w = await api.update({ v: 3 }, 4, 'mobil'); assert.ok(w.ok && w.row.revision === 5);
+  const c0 = f.calls[0];
+  assert.ok(c0.url === 'https://api.test/rest/v1/fenomen_saves?on_conflict=user_id&select=data,save_version,revision,device,updated_at' && c0.init.method === 'POST' && c0.init.headers.Prefer === 'resolution=merge-duplicates,return=representation' && c0.init.headers.Authorization === 'Bearer A1');
+  assert.deepEqual(c0.body, { user_id: 'u1', data: { v: 3 }, save_version: 3, revision: 5, device: 'mobil' });
+  assert.equal((await api.update({ v: 3 }, 4, 'mobil')).stale, true);
+  assert.equal((await api.insert({ v: 3 }, 'mobil')).stale, true); assert.equal(f.calls[2].body.revision, 1);
+  const gone = await api.update({ v: 3 }, 4, 'mobil'); assert.ok(gone.signedOut && !api.signedIn());
+  const st2 = new Mem({ [SESSION_KEY]: sess() });
+  const f2 = scripted([[401, { message: 'JWT expired' }], [200, { access_token: 'A2', refresh_token: 'R2', expires_in: 3600, user: { id: 'u1', email: 'a@b.co' } }], [200, [{ data: { v: 3 }, revision: 2 }]]]);
+  const api2 = createCloudApi({ cfg, storage: st2, fetchFn: f2.fetchFn, online: () => true });
+  const p = await api2.pull(); assert.ok(p.ok && p.row.revision === 2); assert.equal(f2.calls[2].init.headers.Authorization, 'Bearer A2');
+  const st3 = new Mem({ [SESSION_KEY]: sess(1) });                                    // expired: refresh first; refused -> signed out
+  const api3 = createCloudApi({ cfg, storage: st3, fetchFn: scripted([[400, { error_code: 'refresh_token_not_found' }]]).fetchFn, online: () => true });
+  assert.ok((await api3.pull()).signedOut && !api3.signedIn());
+});
+test('api: reset RPC sends the expected revision; delete RPC has no parameters and signs out', async () => {
+  const st = new Mem({ [SESSION_KEY]: sess() });
+  const f = scripted([[200, { revision: 7, backup_id: 'b', updated_at: 'x' }], [200, { deleted: true, saves: 1, backups: 1 }]]);
+  const api = createCloudApi({ cfg, storage: st, fetchFn: f.fetchFn, online: () => true });
+  assert.deepEqual(await api.reset({ v: 3 }, 6, 'masaustu'), { ok: true, revision: 7 });
+  assert.ok(f.calls[0].url.endsWith('/rest/v1/rpc/fenomen_reset_save')); assert.deepEqual(f.calls[0].body, { p_data: { v: 3 }, p_save_version: 3, p_expected_revision: 6, p_device: 'masaustu' });
+  assert.ok((await api.deleteAccount()).ok); assert.ok(f.calls[1].url.endsWith('/rest/v1/rpc/fenomen_delete_my_account')); assert.deepEqual(f.calls[1].body, {});
+  assert.ok(!api.signedIn());
+});
+
+// ---------- sync flows with a fake api + controller
+function rig({ local, row = null, rev = 0 }) {
+  const storage = new Mem({ [SAVE_KEY]: JSON.stringify(local) });
+  let cloud = row ? { revision: row.revision, data: row.data } : null; const log = [];
+  const api = {
+    uid: () => 'u1', signedIn: () => true, email: () => 'a@b.co',
+    pull: async () => (log.push('pull'), { ok: true, row: cloud && { ...cloud } }),
+    insert: async (data) => (log.push('insert'), cloud ? { ok: false, stale: true } : (cloud = { revision: 1, data }, { ok: true, row: { ...cloud } })),
+    update: async (data, r) => (log.push('update@' + r), !cloud || cloud.revision !== r ? { ok: false, stale: true } : (cloud = { revision: r + 1, data }, { ok: true, row: { ...cloud } })),
+    reset: async (data, exp) => (log.push('reset@' + exp), cloud && cloud.revision !== exp ? { ok: false, stale: true } : (cloud = { revision: (cloud ? cloud.revision : 0) + 1, data }, { ok: true, revision: cloud.revision })),
+    deleteAccount: async () => (log.push('delete'), { ok: true }), signOut: async () => (log.push('signOut'), true)
+  };
+  const ctrl = { save: () => {}, reload: () => log.push('reload'), reset: (next) => { storage.setItem(SAVE_KEY, serialize(next)); log.push('ctrl.reset'); } };
+  const seen = { toasts: [], conflicts: [], keeps: [] }; let pick = 'device';
+  const hooks = { toast: (k) => seen.toasts.push(k), conflict: async (o) => (seen.conflicts.push(o), pick), keep: async (o) => { seen.keeps.push(o.kind); } };
+  const sync = createSync({ api, ctrl, storage, device: 'mobil', hooks, win: null });
+  if (rev) storage.setItem(KNOWN_KEY, JSON.stringify({ uid: 'u1', revision: rev, sig: progressSig(local), sum: saveSum(local) }));
+  return { sync, storage, log, seen, cloud: () => cloud, setPick: (p) => { pick = p; }, setCloud: (c) => { cloud = c; }, local: () => JSON.parse(storage.getItem(SAVE_KEY)) };
+}
+test('sync: rule 1 upload, rule 2 load without backup, rule 3 conflict -> keep once -> write revision+1', async () => {
+  let R = rig({ local: game({ videos: 2 }) });
+  assert.ok(await R.sync.afterLogin()); assert.deepEqual(R.seen.toasts, ['sync.uploaded']); assert.equal(R.cloud().revision, 1);
+  R = rig({ local: game(), row: { revision: 3, data: game({ videos: 5, channel: 'Bulut' }) } });
+  await R.sync.afterLogin(); assert.equal(R.local().char.channel, 'Bulut'); assert.deepEqual(R.seen.toasts, ['sync.cloudLoaded']); assert.equal(R.storage.getItem('fenomen_save_backup'), null); assert.equal(R.seen.keeps.length, 0);
+  R = rig({ local: game({ videos: 1, channel: 'Burada' }), row: { revision: 3, data: game({ videos: 5, sales: 1, channel: 'Bulut' }) } });
+  await R.sync.afterLogin();
+  assert.equal(R.seen.conflicts.length, 1); assert.equal(R.seen.conflicts[0].kind, 'login'); assert.equal(R.seen.conflicts[0].recommended, 'cloud');
+  assert.deepEqual(R.seen.keeps, ['conflict']); assert.equal(R.cloud().revision, 4); assert.equal(R.cloud().data.char.channel, 'Burada');
+});
+test('sync: push only on change; refused write -> newer cloud loads (nothing new here) or choice (bodyNewer)', async () => {
+  const mine = game({ videos: 2 });
+  let R = rig({ local: mine, row: { revision: 2, data: mine }, rev: 2 });
+  assert.ok(await R.sync.push()); assert.deepEqual(R.log, []);                          // unchanged: no request at all
+  const more = JSON.parse(JSON.stringify(mine)); more.money += 10; R.storage.setItem(SAVE_KEY, JSON.stringify(more));
+  await R.sync.push(); assert.deepEqual(R.log, ['update@2']); assert.equal(R.cloud().revision, 3);
+  R = rig({ local: mine, row: { revision: 5, data: game({ videos: 9, channel: 'Öteki' }) }, rev: 2 });
+  const idle = JSON.parse(JSON.stringify(mine)); idle.money += 99; R.storage.setItem(SAVE_KEY, JSON.stringify(idle));
+  await R.sync.push(); assert.equal(R.local().char.channel, 'Öteki'); assert.equal(R.seen.conflicts.length, 0); assert.deepEqual(R.seen.toasts, ['sync.cloudLoaded']);
+  R = rig({ local: mine, row: { revision: 5, data: game({ videos: 9, channel: 'Öteki' }) }, rev: 2 });
+  R.storage.setItem(SAVE_KEY, JSON.stringify(game({ videos: 3 }))); R.setPick('cloud');
+  await R.sync.push(); assert.equal(R.seen.conflicts[0].kind, 'newer'); assert.equal(R.local().char.channel, 'Öteki'); assert.equal(R.cloud().revision, 5);
+});
+test('sync: reset on another device never overwritten; keep window only with unsynced progress; signed-in reset uses the RPC', async () => {
+  const mine = game({ videos: 2 });
+  const resetRow = { revision: 4, data: game({ created: false, resetAt: 5000 }) };
+  let R = rig({ local: mine, row: resetRow, rev: 3 });
+  R.storage.setItem(SAVE_KEY, JSON.stringify(game({ videos: 3 })));
+  await R.sync.push(); assert.deepEqual(R.seen.keeps, ['reset']); assert.deepEqual(R.seen.toasts, ['reset.otherDevice']); assert.equal(R.seen.conflicts.length, 0);
+  assert.equal(R.cloud().revision, 4); assert.equal(R.local().created, false); assert.ok(!R.log.slice(R.log.indexOf('pull')).some((x) => x.startsWith('update')));   // the refused write is the only one
+  R = rig({ local: mine, row: resetRow, rev: 3 });
+  const ticked = JSON.parse(JSON.stringify(mine)); ticked.money += 5; R.storage.setItem(SAVE_KEY, JSON.stringify(ticked));   // idle income only
+  await R.sync.push(); assert.deepEqual(R.seen.keeps, []); assert.deepEqual(R.seen.toasts, ['reset.otherDevice']);
+  R = rig({ local: mine, row: { revision: 3, data: mine }, rev: 3 });
+  assert.ok(await R.sync.resetSignedIn()); assert.deepEqual(R.log, ['reset@3', 'ctrl.reset']); assert.ok(R.cloud().data.resetAt > 0 && R.cloud().data.created === false);
+  R = rig({ local: mine, row: { revision: 9, data: mine }, rev: 3 });
+  assert.equal(await R.sync.resetSignedIn(), 'stale'); assert.ok(!R.log.includes('ctrl.reset'));   // refused (409): nothing reset here
+  // CONTRACT §3: 409 on reset -> pull again -> choice screen when both sides moved on
+  R = rig({ local: mine, row: { revision: 9, data: game({ videos: 6, sales: 1, channel: 'Öteki' }) }, rev: 3 });
+  R.storage.setItem(SAVE_KEY, JSON.stringify(game({ videos: 4, channel: 'Burada' })));
+  assert.equal(await R.sync.resetSignedIn(), 'stale'); await R.sync.reconcile();
+  assert.equal(R.seen.conflicts.length, 1); assert.ok(!R.log.includes('ctrl.reset')); assert.deepEqual(R.log.slice(0, 2), ['reset@3', 'pull']);
+});
+test('sync: sign out and delete keep the device save', async () => {
+  const mine = game({ videos: 2 });
+  const R = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1 }); const before = R.storage.getItem(SAVE_KEY);
+  await R.sync.signOut(); assert.equal(R.storage.getItem(SAVE_KEY), before); assert.equal(R.storage.getItem(KNOWN_KEY), null);
+  const D = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1 }); const b2 = D.storage.getItem(SAVE_KEY);
+  assert.ok(await D.sync.deleteAccount()); assert.equal(D.storage.getItem(SAVE_KEY), b2); assert.equal(D.storage.getItem(KNOWN_KEY), null);
+  assert.ok(sameSave(mine, JSON.parse(b2)));
+});
