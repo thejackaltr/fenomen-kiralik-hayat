@@ -19,4 +19,13 @@ Stack dosyaları 2026-09-29 ~21:25 TSİ'de iki imajla yeniden koşuldu. Nedeni: 
 | `sql-local-run-136.txt` | **Yeniden koşuldu.** İmaj `public.ecr.aws/supabase/postgres:17.6.1.136` (ID f519727303f0). Sonuç: SQL 91/91 + runner 32/32, ALL PASS. Yeni testler: D11a, D11b, P07a, P07b. D04/D08/D15/P02/P03/P08 artık `audit_entries` da kontrol ediyor. |
 | `db-probe-136-audit.txt` | **Yeni.** Aynı imajın kendi auth şemasına (stub yok) migration + verify (16/16) uygulandı. Ardından gerçek tabloda iki silme yolu denendi: delete_my_account (authenticated) ve purge (postgres). Başka kullanıcının satırları korundu. authenticated, service_role ve anon tabloda DELETE yetkisine sahip değil. |
 | `sql-local-run.txt` | **Eski** (ef99189, 87/87). Box'ta artık host PostgreSQL yok, yeniden koşulmadı. |
-| `stack-local-run*.txt` | **Eski** (29 Eyl). Box'ta GoTrue/PostgREST imajı yok ve yeni imaj çekilmedi. Stack testleri güncellendi (run-stack.sh §4 audit sayımı, H53b, H57b) ama **koşulmadı**. |
+| `stack-local-run*.txt` | 1 Eki'de koşulmadı; .136 dosyası aşağıda yeniden koşuldu. |
+
+### 2026-10-01 ~21:00 TSİ: stack (HTTP) testi .136 ile yeniden koşuldu (`8a536a5` kodu)
+YY onayıyla yalnız `supabase/gotrue:v2.189.0` ve `postgrest/postgrest:v14.12` çekildi.
+
+| Dosya | Durum |
+|---|---|
+| `stack-local-run-136.txt` | **Yeniden koşuldu.** `PG_IMG=public.ecr.aws/supabase/postgres:17.6.1.136`. Sonuç: HTTP 56/56 (H53b, H57b dahil) + runner 14/14, ALL PASS. Verify 16/16. Temizlik gerçek GoTrue satırlarını sildi (traits yolu, 2 satır); sayım = temizlik sonucu. Host'ta psql/pg_dump yok: aynı imajın istemcisi `fen22-pgcli` yardımcı container'ından kullanıldı (`--network host`, repo salt okunur). supabase-js 2.117.2, `/tmp`'ye npm ile kuruldu. |
+| `stack-local-run.txt` | **Eski** (29 Eyl, .171). .171 imajı box'ta yok, çekilmedi. |
+| `audit-size-readonly-136.txt` | **Yeni.** `ops/audit_log_size_readonly.sql` yerel denemesi (200 000 sentetik satır, .136). Canlı ölçüm değildir. |

@@ -1,0 +1,43 @@
+# YEREL deneme, canlı DEĞİL: public.ecr.aws/supabase/postgres:17.6.1.136 (f519727303f0), container fen22-auditsize (--network none), 200 000 sentetik audit satırı (rastgele actor_id). Süreler box'a aittir, canlıya genellenemez. 2026-10-01 TSİ.
+# komut: PGOPTIONS='-c default_transaction_read_only=on' psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f supabase/ops/audit_log_size_readonly.sql
+BEGIN
+ database | current_user | server_port | server_version  | read_only 
+----------+--------------+-------------+-----------------+-----------
+ postgres | postgres     |             | PostgreSQL 17.6 | on
+(1 row)
+
+ audit_rows | total_bytes | total_pretty | heap_pretty |          oldest_utc           |          newest_utc           | planner_estimate 
+------------+-------------+--------------+-------------+-------------------------------+-------------------------------+------------------
+     200000 |    50847744 | 48 MB        | 39 MB       | 2026-05-15 20:38:31.366177+00 | 2026-10-01 17:57:31.366177+00 |               -1
+(1 row)
+
+    rolname    |                                     role_settings                                      
+---------------+----------------------------------------------------------------------------------------
+ anon          | statement_timeout=3s
+ authenticated | statement_timeout=8s
+ authenticator | session_preload_libraries=supautils, safeupdate, statement_timeout=8s, lock_timeout=8s
+ postgres      | search_path="\$user", public, extensions
+ service_role  | (rol ayarı yok)
+(5 rows)
+
+ session_statement_timeout 
+---------------------------
+ 0
+(1 row)
+
+Timing is on.
+ matched_rows_nil_user 
+-----------------------
+                     0
+(1 row)
+
+Time: 151.320 ms
+ matched_rows_nil_user_2nd_run 
+-------------------------------
+                             0
+(1 row)
+
+Time: 146.562 ms
+Timing is off.
+ROLLBACK
+rc=0
