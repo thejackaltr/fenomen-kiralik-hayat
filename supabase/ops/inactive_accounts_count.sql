@@ -20,6 +20,9 @@ select cfg.inactive_interval                                                    
        (select count(*) from cand)                                                    as accounts_to_delete,
        (select count(*) from public.fenomen_saves s where s.user_id in (select id from cand))        as saves_to_delete,
        (select count(*) from public.fenomen_save_backups b where b.user_id in (select id from cand)) as backups_to_delete,
+       -- GoTrue denetim kayıtları: _fenomen_delete_user ile aynı eşleşme (payload actor_id VEYA traits.user_id). Yalnız sayı.
+       (select count(*) from auth.audit_log_entries a where exists (select 1 from cand c
+          where lower(a.payload ->> 'actor_id') = c.id::text or lower(a.payload -> 'traits' ->> 'user_id') = c.id::text)) as audit_entries_to_delete,
        cfg.batch_max                                                                  as batch_max_per_run,
        least((select count(*) from cand), cfg.batch_max)                              as accounts_first_run,
        -- bilgi (silme ölçütünde YOK): adaylardan bu süre içinde oturumu yenilenmiş ya da kaydı güncellenmiş olanlar.

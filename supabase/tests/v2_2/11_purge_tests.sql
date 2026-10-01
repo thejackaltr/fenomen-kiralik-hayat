@@ -3,9 +3,9 @@
 select t.as_service();
 create temp table purge_out as select * from public.fenomen_purge_inactive_accounts();
 select t.logout();
-select t.ok((select accounts = 2 and saves = 2 and backups = 4 and remaining = 0 from purge_out), 'P02 purge deletes 2 accounts, 2 saves, 4 backups; 0 remaining',
+select t.ok((select accounts = 2 and saves = 2 and backups = 4 and audit_entries = 3 and remaining = 0 from purge_out), 'P02 purge deletes 2 accounts, 2 saves, 4 backups, 3 audit rows; 0 remaining',
             (select row_to_json(p)::text from purge_out p));
-select t.ok((select c.accounts_to_delete = p.accounts and c.saves_to_delete = p.saves and c.backups_to_delete = p.backups and c.accounts_first_run = p.accounts
+select t.ok((select c.accounts_to_delete = p.accounts and c.saves_to_delete = p.saves and c.backups_to_delete = p.backups and c.audit_entries_to_delete = p.audit_entries and c.accounts_first_run = p.accounts
                from t.count_before c, purge_out p), 'P03 read-only count query == what the purge actually deleted',
             (select row_to_json(c)::text from t.count_before c));
 select t.ok((select count(*) from auth.users where id in ('11111111-0000-4000-8000-000000000002', '11111111-0000-4000-8000-000000000003')) = 0,
@@ -21,8 +21,12 @@ select t.ok((select count(*) from public.fenomen_saves where user_id in ('111111
         and (select count(*) from public.fenomen_save_backups where user_id in ('11111111-0000-4000-8000-000000000001', '11111111-0000-4000-8000-000000000004', '11111111-0000-4000-8000-000000000005')) = 6
         and (select count(*) from public.fenomen_saves where user_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') = 1,
             'P07 other accounts untouched (3 saves + 6 backups of the kept ones, B''s save)');
+select t.ok((select count(*) from auth.audit_log_entries where id::text like 'c0000000-%') = 0,
+            'P07a purged users'' audit rows gone: P2 by actor_id, P3 by traits.user_id, P1''s row about P2 by traits.user_id');
+select t.ok((select count(*) from auth.audit_log_entries where id::text like 'd0000000-%') = 2 and (select count(*) from auth.audit_log_entries where id::text like 'b0000000-%') = 6,
+            'P07b kept users'' audit rows untouched (P1 own row, admin row about P5, B/C/odd rows from the D block)');
 select t.as_service();
-select t.ok((select accounts = 0 and remaining = 0 from public.fenomen_purge_inactive_accounts()), 'P08 second purge run: nothing to delete');
+select t.ok((select accounts = 0 and audit_entries = 0 and remaining = 0 from public.fenomen_purge_inactive_accounts()), 'P08 second purge run: nothing to delete');
 select t.logout();
 -- batch cap: 105 inactive accounts -> one run deletes 100 (fenomen_cfg_purge_batch_max), p_limit 1000 is capped too
 insert into auth.users (id, email, created_at, last_sign_in_at)

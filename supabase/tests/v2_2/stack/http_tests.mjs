@@ -147,12 +147,20 @@ const TA = A.session.access_token, TB = B.session.access_token;
   const residue = (uid) => sql(`select coalesce(string_agg(t || '=' || n, ','), '') from (${authTables.replaceAll(':uid', `'${uid}'`)}) x where n > 0`);
   const bBefore = sql(`select md5(string_agg(x::text, '')) from (select (select row(data, revision) from public.fenomen_saves where user_id = '${B.user.id}'), (select count(*) from public.fenomen_save_backups where user_id = '${B.user.id}'), (select count(*) from auth.users where id = '${B.user.id}'), (select count(*) from auth.identities where user_id = '${B.user.id}'), (select count(*) from auth.sessions where user_id = '${B.user.id}')) x`);
   ok('H53 before: A has rows in auth tables (identities, sessions, ...)', residue(A.user.id).includes('identities='), residue(A.user.id));
+  const audA = () => sql(`select count(*) from auth.audit_log_entries a where lower(a.payload->>'actor_id') = '${A.user.id}' or lower(a.payload->'traits'->>'user_id') = '${A.user.id}'`);
+  const audB = () => sql(`select count(*) from auth.audit_log_entries a where lower(a.payload->>'actor_id') = '${B.user.id}' or lower(a.payload->'traits'->>'user_id') = '${B.user.id}'`);
+  const audAll = () => sql('select count(*) from auth.audit_log_entries');
+  const aA0 = audA(), aB0 = audB(), aAll0 = audAll();
+  const aActorA = sql(`select count(*) from auth.audit_log_entries a where lower(a.payload->>'actor_id') = '${A.user.id}'`);
+  ok('H53b before: real GoTrue audit rows exist for A (actor_id = A: login/verify) and for B', +aActorA >= 1 && +aB0 >= 1, `A=${aA0} (actor ${aActorA}) B=${aB0} total=${aAll0}`);
   const d = await A.c.rpc('fenomen_delete_my_account');
   ok('H54 A rpc fenomen_delete_my_account -> 200 {deleted:true, saves:1, backups:1}', d.status === 200 && d.data.deleted === true && d.data.saves === 1 && d.data.backups === 1, JSON.stringify(d.data));
   ok('H55 A gone from auth.users; NO row with A\'s user_id left in any auth table (identities, sessions, refresh_tokens, one_time_tokens, mfa_*, ...)',
     sql(`select count(*) from auth.users where id = '${A.user.id}'`) === '0' && residue(A.user.id) === '' && sql(`select count(*) from auth.refresh_tokens where user_id = '${A.user.id}'`) === '0', residue(A.user.id));
   ok('H56 A\'s save + backups gone', sql(`select (select count(*) from public.fenomen_saves where user_id = '${A.user.id}') + (select count(*) from public.fenomen_save_backups where user_id = '${A.user.id}')`) === '0');
   ok('H57 B untouched', bBefore === sql(`select md5(string_agg(x::text, '')) from (select (select row(data, revision) from public.fenomen_saves where user_id = '${B.user.id}'), (select count(*) from public.fenomen_save_backups where user_id = '${B.user.id}'), (select count(*) from auth.users where id = '${B.user.id}'), (select count(*) from auth.identities where user_id = '${B.user.id}'), (select count(*) from auth.sessions where user_id = '${B.user.id}')) x`));
+  ok('H57b A\'s audit rows gone (actor_id OR traits.user_id); B\'s audit rows and all others untouched; returned audit_entries = deleted rows',
+    audA() === '0' && audB() === aB0 && +audAll() === +aAll0 - +aA0 && d.data.audit_entries === +aA0, `A ${aA0}->${audA()} B ${aB0}->${audB()} total ${aAll0}->${audAll()} returned ${d.data.audit_entries}`);
   // the risk: the access token stays valid until it expires (PostgREST only checks the signature/exp)
   const after = await raw('GET', '/rest/v1/fenomen_saves?select=user_id', TA); seen('deleted user\'s old JWT: GET fenomen_saves', after);
   ok('H58 RISK documented: deleted user\'s old access token still accepted by PostgREST until exp (200 [])', after.status === 200 && after.body.length === 0);

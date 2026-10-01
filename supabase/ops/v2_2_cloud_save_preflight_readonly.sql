@@ -55,6 +55,8 @@ select to_regnamespace('auth') is not null                                      
        case when to_regclass('auth.users') is not null and has_table_privilege(to_regclass('auth.users'), 'SELECT')
             then (xpath('/row/n/text()', query_to_xml('select count(*) as n from auth.users', false, false, '')))[1]::text::bigint end as auth_users_count,
        case when to_regclass('auth.users') is not null then has_table_privilege('postgres', to_regclass('auth.users'), 'DELETE') end as postgres_can_delete_auth_users,
+       case when to_regclass('auth.audit_log_entries') is not null then has_table_privilege('postgres', to_regclass('auth.audit_log_entries'), 'DELETE') end
+                                                                                  as postgres_can_delete_audit_log,   -- t gerekli (migration kontrol eder)
        (select rolbypassrls from pg_catalog.pg_roles where rolname = 'postgres')    as postgres_bypassrls,      -- t gerekli (migration kontrol eder)
        (select string_agg(tablename, ',' order by tablename) from pg_catalog.pg_tables where schemaname = 'auth') as auth_tables;
 select c.conrelid::regclass as referencing_table, c.conname, c.confdeltype = 'c' as on_delete_cascade

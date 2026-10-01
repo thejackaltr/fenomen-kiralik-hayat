@@ -96,7 +96,7 @@ db -v ON_ERROR_STOP=1 -f "$MIG" > "$WORK/mig1.out" 2>&1; rc1=$?; dump_schema > "
 db -v ON_ERROR_STOP=1 -f "$MIG" > "$WORK/mig2.out" 2>&1; rc2=$?; dump_schema > "$WORK/schema.twice"
 chk "migration x2 as postgres (exit $rc1/$rc2), schema identical after the 2nd run" '[ $rc1 = 0 ] && [ $rc2 = 0 ] && diff -q "$WORK/schema.once" "$WORK/schema.twice" >/dev/null' "$(grep -h ERROR "$WORK"/mig*.out)"
 ro -v ON_ERROR_STOP=1 -f "$VER" > "$WORK/ver.out" 2>&1; rc=$?
-chk "verify on the real image: $(grep -o 'VERIFY OK: [0-9/]*' "$WORK/ver.out")" '[ $rc = 0 ] && grep -q "VERIFY OK: 15/15" "$WORK/ver.out"' "$(cat "$WORK/ver.out")"
+chk "verify on the real image: $(grep -o 'VERIFY OK: [0-9/]*' "$WORK/ver.out")" '[ $rc = 0 ] && grep -q "VERIFY OK: 16/16" "$WORK/ver.out"' "$(cat "$WORK/ver.out")"
 db -qc "notify pgrst, 'reload schema'"; sleep 2
 
 step "3. HTTP: GoTrue OTP + PostgREST + supabase-js"
@@ -117,11 +117,18 @@ update auth.users set created_at = now() - interval '3 years', last_sign_in_at =
 insert into public.fenomen_saves (user_id, data) values (:'o1', '{"v":2}'), (:'o2', '{"v":2}'), (:'k1', '{"v":2}');
 insert into public.fenomen_save_backups (user_id, revision, save_version, data) values (:'o1', 1, 1, '{}'), (:'o2', 1, 1, '{}'), (:'k1', 1, 1, '{}');
 SQL
+# real GoTrue audit rows: admin "user_signedup" -> traits.user_id = new user (actor = admin/service). Count them before the purge.
+aud() { db -Atc "select count(*) from auth.audit_log_entries a where lower(a.payload->>'actor_id') = '$1' or lower(a.payload->'traits'->>'user_id') = '$1'"; }
+AO1=$(aud "$O1"); AO2=$(aud "$O2"); AK1=$(aud "$K1"); AALL0=$(db -Atc "select count(*) from auth.audit_log_entries")
+echo "audit rows before purge: old1=$AO1 old2=$AO2 keep=$AK1 total=$AALL0"
 ro -v ON_ERROR_STOP=1 -At -F '|' -f "$CNT" > "$WORK/count.out" 2>&1; rc=$?; echo "count: $(cat "$WORK/count.out")"
-IFS='|' read -r c_int c_cut c_tot c_acc c_sav c_bak c_bm c_first c_rs c_rsv < "$WORK/count.out"
+IFS='|' read -r c_int c_cut c_tot c_acc c_sav c_bak c_aud c_bm c_first c_rs c_rsv < "$WORK/count.out"
 P=$(curl -s -X POST "http://127.0.0.1:$APIPORT/rest/v1/rpc/fenomen_purge_inactive_accounts" -H "apikey: $ANON_KEY" -H "Authorization: Bearer $SERVICE_KEY" -H 'Content-Type: application/json' -d '{}')
 echo "purge (service_role over REST): $P"
-chk "count (read-only, exit $rc) == purge result: accounts $c_acc, saves $c_sav, backups $c_bak" '[ $rc = 0 ] && [ "$(jq -r ".[0] | \"\(.accounts)|\(.saves)|\(.backups)\"" <<<"$P")" = "$c_acc|$c_sav|$c_bak" ] && [ "$c_acc" = 2 ]'
+chk "count (read-only, exit $rc) == purge result: accounts $c_acc, saves $c_sav, backups $c_bak, audit $c_aud" '[ $rc = 0 ] && [ "$(jq -r ".[0] | \"\(.accounts)|\(.saves)|\(.backups)|\(.audit_entries)\"" <<<"$P")" = "$c_acc|$c_sav|$c_bak|$c_aud" ] && [ "$c_acc" = 2 ]'
+AALL1=$(db -Atc "select count(*) from auth.audit_log_entries")
+chk "purge removed the real GoTrue audit rows of the purged users (traits.user_id path: $AO1+$AO2 -> $(aud "$O1")+$(aud "$O2")), kept user's $AK1 rows stay, nothing else touched ($AALL0 -> $AALL1)" \
+  '[ "$AO1" -ge 1 ] && [ "$AO2" -ge 1 ] && [ "$(aud "$O1")" = 0 ] && [ "$(aud "$O2")" = 0 ] && [ "$(aud "$K1")" = "$AK1" ] && [ "$AK1" -ge 1 ] && [ $((AALL0 - AALL1)) = $((AO1 + AO2)) ] && [ "$c_aud" = $((AO1 + AO2)) ]'
 A1=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$APIPORT/auth/v1/admin/users/$O1" -H "apikey: $ANON_KEY" -H "Authorization: Bearer $SERVICE_KEY")
 A3=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$APIPORT/auth/v1/admin/users/$K1" -H "apikey: $ANON_KEY" -H "Authorization: Bearer $SERVICE_KEY")
 chk "GoTrue admin API: purged user -> 404, 24 months - 1 day user -> 200 (got $A1/$A3)" '[ "$A1" = 404 ] && [ "$A3" = 200 ]'

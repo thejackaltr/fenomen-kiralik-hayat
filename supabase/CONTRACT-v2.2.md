@@ -44,9 +44,9 @@ await supabase.from('fenomen_saves')
 |---|---|---|---|---|
 | `fenomen_reset_save` | authenticated | `p_data` jsonb (yeni oyun durumu, zorunlu), `p_save_version` int = 1, `p_expected_revision` bigint = null, `p_device` text = null | `{revision, backup_id, updated_at}`. Satır yoksa revision 1, `backup_id` null | 22023 `invalid_data` (400), PT409 `stale_revision` (409), 42501 (anon 401) |
 | `fenomen_list_save_backups` | authenticated | yok | satırlar: `id, revision, save_version, device, reason, created_at, expires_at, size_bytes, summary`. `summary` alanları: followers, money, fame, fameEarned, sales, playSec, lastSeen. Yeniden eskiye sıralı, `data` yok | — |
-| `fenomen_delete_my_account` | authenticated | **yok** (parametre gönderilirse 404 `PGRST202`) | `{deleted: true, saves, backups}` | 42501 `not_authenticated` |
+| `fenomen_delete_my_account` | authenticated | **yok** (parametre gönderilirse 404 `PGRST202`) | `{deleted: true, saves, backups, audit_entries}` (`audit_entries` = silinen GoTrue denetim kaydı sayısı; istemci kullanmak zorunda değil) | 42501 `not_authenticated` |
 | `fenomen_cleanup_save_backups` | service_role | yok | silinen yedek sayısı (int) | anon/authenticated → 401/403 |
-| `fenomen_purge_inactive_accounts` | service_role | `p_limit` int = null (üst sınır `fenomen_cfg_purge_batch_max()` = 100) | `accounts, saves, backups, remaining` | anon/authenticated → 401/403 |
+| `fenomen_purge_inactive_accounts` | service_role | `p_limit` int = null (üst sınır `fenomen_cfg_purge_batch_max()` = 100) | `accounts, saves, backups, audit_entries, remaining` | anon/authenticated → 401/403 |
 | `fenomen_admin_restore_save_backup` | service_role (destek) | `p_backup_id` uuid | `{revision, backup_id, restored_from}` | PT404 `backup_not_found` |
 
 - **"Baştan başla" yalnız `fenomen_reset_save` ile yapılır** (DELETE yetkisi yok; eski DELETE hatası tekrar edilmez). `p_expected_revision` = istemcinin bildiği sunucu revision'ı **gönderilmelidir**; böylece başka cihazın ilerlemesi habersizce sıfırlanmaz (409 → çakışma ekranı). Önceki kayıt 30 gün yedekte kalır, kullanıcı başına en fazla 5 yedek tutulur. İstemcide geri yükleme yok; destek `fenomen_admin_restore_save_backup` kullanır.
@@ -59,9 +59,10 @@ await supabase.from('fenomen_saves')
 Giriş, çıkış ve hesap silme yerel kaydı (localStorage) silmez. Bulut kaydı yüklenirken yedek alınmaz (Yazı r2, kural 2).
 
 ## 6. Hesabımı sil
-`rpc('fenomen_delete_my_account')`: yedekler, kayıt ve `auth.users` satırı silinir (identities, sessions, refresh_tokens, mfa ve one_time_tokens cascade ile gider). Ardından istemci **`await supabase.auth.signOut({ scope: 'local' })`** çağırmalı. `global` de çalışır; ikisi de hatasız gözlendi.
-- Risk: eski access token süresi dolana kadar (`JWT_EXP` ≤ 3600 sn) imza olarak geçerli kalır. Bu sürede PostgREST okuma **200 `[]`** döner. Yeniden kayıt yazılamaz (**409 `23503`**, FK). GoTrue `/user` → 403 `user_not_found`, refresh → 400.
+`rpc('fenomen_delete_my_account')`: yedekler, kayıt, kullanıcının GoTrue denetim kayıtları (`auth.audit_log_entries`, payload `actor_id` VEYA `traits.user_id` = kullanıcı; başka kullanıcının kayıtlarına dokunulmaz) ve `auth.users` satırı silinir (identities, sessions, refresh_tokens, mfa ve one_time_tokens cascade ile gider). Ardından istemci **`await supabase.auth.signOut({ scope: 'local' })`** çağırmalı. `global` de çalışır; ikisi de hatasız gözlendi.
+- Risk: eski access token, süresi dolana kadar (canlı `GOTRUE_JWT_EXP`; yerel testte 3600 sn) imza olarak geçerli kalır. Canlı değer doğrulanmadı. "En geç 1 saat" metni runbook §5.4'e bağlıdır. Bu sürede PostgREST okuma **200 `[]`** döner. Yeniden kayıt yazılamaz (**409 `23503`**, FK). GoTrue `/user` → 403 `user_not_found`, refresh → 400.
 - 24 ay hareketsiz hesap temizliği aynı iç fonksiyonu (`_fenomen_delete_user`) kullanır.
+- Denetim kayıtları: Satır silinir. Admin işlemlerinde actor = admin, `traits.user_id` = kullanıcı olur; bu satırlar da gider. Silme payload üzerinden sıralı tarama yapar. Tablonun sahibi `supabase_auth_admin` olduğu için indeks eklenemez, büyük tabloda yavaş olabilir. **Kalan risk:** GoTrue aynı olayları stdout loguna da yazar (`auth_audit_event`, e-posta ve IP içerir). Bu loglar SQL ile silinmez; saklama süresi Dokploy/Docker log ayarına bağlıdır (Y).
 
 ## 7. 24 ay kuralı ve oturum yenileme
 Ölçüt `coalesce(last_sign_in_at, created_at) < now() - 24 ay`. `last_sign_in_at` yalnız kodla girişte güncellenir; **refresh token ile yenilemede güncellenmez** (Y). Oturumu hep açık kalan bir oyuncu, oynamaya devam etse bile 24 ay sonra aday olabilir. Bu risk runbook'taki onay adımında sayım sorgusunun `candidates_with_recent_session` / `candidates_with_recent_save` kolonlarıyla kontrol edilir. Kalıcı çözüm (ör. ölçüte `fenomen_saves.updated_at` eklemek) Aryen kararıdır.

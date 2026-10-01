@@ -131,10 +131,27 @@ select t.as_service();
 select t.throws($$select * from public._fenomen_delete_user('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')$$, '42501: permission denied for function _fenomen_delete_user', 'D02 service_role cannot call _fenomen_delete_user either');
 select t.throws($$select public.fenomen_delete_my_account()$$, '42501: permission denied for function fenomen_delete_my_account', 'D03 service_role cannot call fenomen_delete_my_account (authenticated only)');
 select t.login('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
-select t.ok((select public.fenomen_delete_my_account() = '{"saves": 0, "backups": 0, "deleted": false}'::jsonb), 'D04 a JWT for a non-existent user deletes nothing');
+select t.ok((select public.fenomen_delete_my_account() = '{"saves": 0, "backups": 0, "deleted": false, "audit_entries": 0}'::jsonb), 'D04 a JWT for a non-existent user deletes nothing');
 select set_config('request.jwt.claims', '{"role":"authenticated"}', false);
 select t.throws($$select public.fenomen_delete_my_account()$$, '42501: not_authenticated', 'D05 authenticated without sub (auth.uid() null) -> 42501 not_authenticated');
 select t.logout();
+-- GoTrue audit rows (payload json, as GoTrue writes them): 3 about A (actor_id; admin action with traits.user_id = A; actor_id upper-case),
+-- 6 that must survive: B's own rows, C's row that only mentions A's e-mail, odd payloads (array, null, scalar traits).
+insert into auth.audit_log_entries (id, payload, created_at) values
+  ('a0000000-0000-4000-8000-00000000000a', json_build_object('actor_id', :A, 'action', 'login', 'log_type', 'account'), now()),
+  ('a0000000-0000-4000-8000-00000000000b', json_build_object('actor_id', '00000000-0000-0000-0000-000000000000', 'action', 'user_modified',
+                                                             'traits', json_build_object('user_id', :A, 'user_email', 'a@v22-test.invalid')), now()),
+  ('a0000000-0000-4000-8000-00000000000c', json_build_object('actor_id', upper(:A), 'action', 'token_refreshed'), now()),
+  ('b0000000-0000-4000-8000-000000000001', json_build_object('actor_id', :B, 'action', 'login'), now()),
+  ('b0000000-0000-4000-8000-000000000002', json_build_object('actor_id', :B, 'action', 'user_modified', 'traits', json_build_object('user_id', :B)), now()),
+  ('b0000000-0000-4000-8000-000000000003', json_build_object('actor_id', :C, 'action', 'login', 'traits', json_build_object('user_email', :A || '@v22-test.invalid')), now()),
+  ('b0000000-0000-4000-8000-000000000004', '[]'::json, now()),
+  ('b0000000-0000-4000-8000-000000000005', null, now()),
+  ('b0000000-0000-4000-8000-000000000006', json_build_object('actor_id', :B, 'traits', 'x'), now());
+create temp table aud_before as
+  select (select count(*) from auth.audit_log_entries) n,
+         (select md5(string_agg(id::text || coalesce(payload::text, '~'), ',' order by id)) from auth.audit_log_entries where id::text like 'b0000000-%') keep_h;
+grant select on aud_before to public;
 create temp table b_before as
   select (select count(*) from public.fenomen_saves where user_id = :B) s, (select count(*) from public.fenomen_save_backups where user_id = :B) b,
          (select count(*) from auth.users where id = :B) u, (select count(*) from auth.identities where user_id = :B) i,
@@ -146,13 +163,17 @@ select t.ok((select count(*) = 1 from public.fenomen_saves where user_id = :A) a
 select t.login(:A);
 do $$ declare r jsonb; begin
   r := public.fenomen_delete_my_account();
-  perform t.ok(r = '{"saves": 1, "backups": 5, "deleted": true}'::jsonb, 'D08 A deletes its account: returns deleted/saves/backups counts', r::text);
+  perform t.ok(r = '{"saves": 1, "backups": 5, "deleted": true, "audit_entries": 3}'::jsonb, 'D08 A deletes its account: returns deleted/saves/backups/audit_entries counts', r::text);
 end $$;
 select t.logout();
 select t.ok((select count(*) from auth.users where id = :A) = 0, 'D09 A''s auth.users row is gone');
 select t.ok((select count(*) from auth.identities where user_id = :A) + (select count(*) from auth.sessions where user_id = :A)
             + (select count(*) from auth.refresh_tokens where user_id = :A::text) = 0, 'D10 A''s identities, sessions, refresh tokens are gone (cascade)');
 select t.ok((select count(*) from public.fenomen_saves where user_id = :A) + (select count(*) from public.fenomen_save_backups where user_id = :A) = 0, 'D11 A''s save and backups are gone');
+select t.ok((select count(*) from auth.audit_log_entries where id::text like 'a0000000-%') = 0, 'D11a A''s audit rows gone: actor_id = A, traits.user_id = A (admin action about A), upper-case actor_id');
+select t.ok((select n - 3 = (select count(*) from auth.audit_log_entries)
+                    and keep_h = (select md5(string_agg(id::text || coalesce(payload::text, '~'), ',' order by id)) from auth.audit_log_entries where id::text like 'b0000000-%')
+               from aud_before), 'D11b other users'' audit rows untouched (B''s, C''s row mentioning A''s e-mail, array/null/scalar payloads): exactly 3 rows removed');
 select t.ok((select s = (select count(*) from public.fenomen_saves where user_id = :B) and b = (select count(*) from public.fenomen_save_backups where user_id = :B)
                     and u = (select count(*) from auth.users where id = :B) and i = (select count(*) from auth.identities where user_id = :B)
                     and se = (select count(*) from auth.sessions where user_id = :B) and rt = (select count(*) from auth.refresh_tokens where user_id = :B)
@@ -160,7 +181,7 @@ select t.ok((select s = (select count(*) from public.fenomen_saves where user_id
 select t.login(:A);
 select t.throws($$select t.upsert('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '{"v":2}', 1)$$, '23503: %', 'D13 still-valid JWT of the deleted user cannot recreate a save (FK -> 23503)');
 select t.ok((select count(*) = 0 from public.fenomen_saves), 'D14 still-valid JWT of the deleted user reads nothing');
-select t.ok((select public.fenomen_delete_my_account() = '{"saves": 0, "backups": 0, "deleted": false}'::jsonb), 'D15 second delete call is a no-op (idempotent)');
+select t.ok((select public.fenomen_delete_my_account() = '{"saves": 0, "backups": 0, "deleted": false, "audit_entries": 0}'::jsonb), 'D15 second delete call is a no-op (idempotent)');
 select t.logout();
 
 -- ============================================================ P: 24-month inactive purge
@@ -174,6 +195,17 @@ select t.mkuser('11111111-0000-4000-8000-000000000005', now() - interval '40 mon
 insert into public.fenomen_saves (user_id, data) select id, '{"v":2}' from auth.users where id::text like '11111111-0000-4000-8000-%';
 insert into public.fenomen_save_backups (user_id, revision, save_version, data)
   select u.id, 1, 1, '{"v":2}' from auth.users u, generate_series(1, 2) where u.id::text like '11111111-0000-4000-8000-%';
+-- audit rows for the purge: P2 by actor_id, P3 only by traits.user_id, P1 (kept) as actor about P2 (-> deleted via traits = P2);
+-- kept: P1's own row, P5 by traits (admin action about P5), and B's rows from the D block.
+insert into auth.audit_log_entries (id, payload, created_at) values
+  ('c0000000-0000-4000-8000-000000000002', json_build_object('actor_id', '11111111-0000-4000-8000-000000000002', 'action', 'login'), now() - interval '25 months'),
+  ('c0000000-0000-4000-8000-000000000003', json_build_object('actor_id', '00000000-0000-0000-0000-000000000000', 'action', 'user_signedup',
+                                                              'traits', json_build_object('user_id', '11111111-0000-4000-8000-000000000003')), now() - interval '25 months'),
+  ('c0000000-0000-4000-8000-000000000012', json_build_object('actor_id', '11111111-0000-4000-8000-000000000001', 'action', 'user_modified',
+                                                              'traits', json_build_object('user_id', '11111111-0000-4000-8000-000000000002')), now()),
+  ('d0000000-0000-4000-8000-000000000001', json_build_object('actor_id', '11111111-0000-4000-8000-000000000001', 'action', 'login'), now()),
+  ('d0000000-0000-4000-8000-000000000005', json_build_object('actor_id', '00000000-0000-0000-0000-000000000000', 'action', 'user_modified',
+                                                              'traits', json_build_object('user_id', '11111111-0000-4000-8000-000000000005')), now());
 select t.login(:B);
 select t.throws($$select * from public.fenomen_purge_inactive_accounts()$$, '42501: permission denied for function fenomen_purge_inactive_accounts', 'P01 authenticated cannot call the purge');
 select t.logout();

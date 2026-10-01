@@ -5,7 +5,7 @@
 | İş | Fonksiyon | Zaman (TSİ) | pg_cron dosyası | Onay |
 |---|---|---|---|---|
 | A. 30 gün yedek temizliği | `public.fenomen_cleanup_save_backups()` → silinen yedek sayısı | her gece 03:47 | `v2_2_backup_cleanup_pg_cron.sql` (`47 0 * * *` UTC) | Onay A |
-| B. 24 ay hareketsiz hesap temizliği | `public.fenomen_purge_inactive_accounts()` → accounts / saves / backups / remaining | her gece 04:17 | `v2_2_inactive_purge_pg_cron.sql` (`17 1 * * *` UTC) | Onay B2 (ilk elle çalıştırmadan **sonra**; runbook §6) |
+| B. 24 ay hareketsiz hesap temizliği | `public.fenomen_purge_inactive_accounts()` → accounts / saves / backups / audit_entries / remaining | her gece 04:17 | `v2_2_inactive_purge_pg_cron.sql` (`17 1 * * *` UTC) | Onay B2 (ilk elle çalıştırmadan **sonra**; runbook §6) |
 
 Tercih sırası: **1) pg_cron**, **2) Dokploy'da db konteynerinde psql**, **3) service_role ile RPC**. Üç yol da aynı fonksiyonu çağırır. EXECUTE yetkisi yalnız `postgres` (sahip) ve `service_role`'de var.
 
@@ -20,7 +20,7 @@ sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -X -h localhost -U postgres -d postg
 ```
 B (24 ay temizliği; yalnız Onay B2'den sonra):
 ```sh
-sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -X -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F " " -c "select accounts, saves, backups, remaining from public.fenomen_purge_inactive_accounts()"'
+sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -X -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F " " -c "select accounts, saves, backups, audit_entries, remaining from public.fenomen_purge_inactive_accounts()"'
 ```
 - Önkoşul: iş gerçekten **Fenomen**'in db konteynerinde çalışmalı. İlk kurulumda bir kez şunu çalıştırın: `select current_database(), (select count(*) from pg_class where relname in ('kodhane_saves','acik_ofis_saves'))`. İkinci değer `0` olmalı.
 - `POSTGRES_PASSWORD`, Dokploy Supabase şablonundaki db değişkeninin adıdır. Değer kopyalanmaz.

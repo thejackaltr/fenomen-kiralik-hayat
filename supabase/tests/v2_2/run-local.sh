@@ -89,7 +89,7 @@ chk "migration scheduled nothing (no pg_cron job) and ran no cleanup" '[ "$(q fe
 
 step "4. verify (read-only)"
 ro fen22_main postgres -v ON_ERROR_STOP=1 -f "$VER" > "$OUTD/ver1.out" 2>&1; rc=$?
-chk "verify passes (exit $rc): $(grep -o 'VERIFY OK: [0-9/]*' "$OUTD/ver1.out")" '[ $rc = 0 ] && grep -q "VERIFY OK: 15/15" "$OUTD/ver1.out"' "$(cat "$OUTD/ver1.out")"
+chk "verify passes (exit $rc): $(grep -o 'VERIFY OK: [0-9/]*' "$OUTD/ver1.out")" '[ $rc = 0 ] && grep -q "VERIFY OK: 16/16" "$OUTD/ver1.out"' "$(cat "$OUTD/ver1.out")"
 ro fen22_main postgres -v ON_ERROR_STOP=1 -f "$PRE" > "$OUTD/pre3.out" 2>&1; rc=$?
 chk "preflight after apply still read-only OK, reports ALREADY PRESENT (exit $rc)" '[ $rc = 0 ] && grep -q "ALREADY PRESENT" "$OUTD/pre3.out"'
 
@@ -99,8 +99,8 @@ ro fen22_main postgres -v ON_ERROR_STOP=1 -At -F '|' -f "$CNT" > "$OUTD/count.ou
 chk "inactive_accounts_count.sql runs in a READ ONLY session (exit $rc)" '[ $rc = 0 ]' "$(cat "$OUTD/count.out")"
 echo "count query output: $(cat "$OUTD/count.out")"
 chk "count query output has no e-mail / uuid" '! grep -qE "@|[0-9a-f]{8}-[0-9a-f]{4}-" "$OUTD/count.out"'
-IFS='|' read -r c_int c_cut c_tot c_acc c_sav c_bak c_bm c_first c_rs c_rsv < "$OUTD/count.out"
-q fen22_main "create table t.count_before as select $c_acc::int as accounts_to_delete, $c_sav::int as saves_to_delete, $c_bak::int as backups_to_delete, $c_first::int as accounts_first_run, $c_bm::int as batch_max; grant select on t.count_before to public" >/dev/null
+IFS='|' read -r c_int c_cut c_tot c_acc c_sav c_bak c_aud c_bm c_first c_rs c_rsv < "$OUTD/count.out"
+q fen22_main "create table t.count_before as select $c_acc::int as accounts_to_delete, $c_sav::int as saves_to_delete, $c_bak::int as backups_to_delete, $c_aud::int as audit_entries_to_delete, $c_first::int as accounts_first_run, $c_bm::int as batch_max; grant select on t.count_before to public" >/dev/null
 psqlx fen22_main supabase_admin -f "$HERE/11_purge_tests.sql" > "$OUTD/t11.out" 2>&1
 grep -hE "(PASS|FAIL) " "$OUTD/t10.out" "$OUTD/t11.out" | sed -E 's/^psql:[^ ]* NOTICE:  //'
 grep -hE "ERROR" "$OUTD/t10.out" "$OUTD/t11.out" | grep -v "NOTICE" | head -5

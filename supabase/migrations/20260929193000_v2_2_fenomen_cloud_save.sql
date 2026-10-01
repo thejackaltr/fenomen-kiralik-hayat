@@ -43,6 +43,12 @@ begin
   if to_regclass('auth.users') is null then
     raise exception 'auth.users is missing: not a Supabase database';
   end if;
+  if to_regclass('auth.audit_log_entries') is null then
+    raise exception 'auth.audit_log_entries is missing: _fenomen_delete_user deletes the user''s GoTrue audit rows';
+  end if;
+  if not has_table_privilege('postgres', 'auth.audit_log_entries', 'DELETE') then
+    raise exception 'role postgres cannot DELETE auth.audit_log_entries: account deletion would fail';
+  end if;
   if not (select r.rolbypassrls from pg_catalog.pg_roles r where r.rolname = 'postgres') then
     raise exception 'role postgres has no BYPASSRLS: the security definer functions would not see rows under FORCE RLS';
   end if;
@@ -206,15 +212,24 @@ end $$;
 
 -- ORTAK SİLME YOLU: "Hesabımı sil" (auth.uid()) ve 24 ay temizliği bunu çağırır. Kimseye EXECUTE yok (yalnız sahibi postgres).
 -- security definer DEĞİL: yalnız postgres sahipli definer fonksiyonların içinden çalışır.
-create or replace function public._fenomen_delete_user(p_uid uuid)
-returns table (accounts integer, saves integer, backups integer)
+-- GoTrue denetim kayıtları (auth.audit_log_entries; FK yok, cascade ile gitmez): payload json içinde
+--   actor_id = kullanıcı (kendi girişi, yenileme, çıkış…) VEYA traits.user_id = kullanıcı (ör. admin işlemi o kullanıcı hakkında).
+--   Yalnız bu iki eşleşme; başka kullanıcıların kayıtlarına dokunulmaz. (GoTrue v2.189.0 internal/models/audit_log_entry.go)
+-- Dönüş tipi değişti (audit_entries): create or replace yetmez, önce drop (iç fonksiyon; bağımlılık yok, yetkiler §8'de yeniden).
+drop function if exists public._fenomen_delete_user(uuid);
+create function public._fenomen_delete_user(p_uid uuid)
+returns table (accounts integer, saves integer, backups integer, audit_entries integer)
 language plpgsql volatile set search_path = ''
 as $$
-declare n_u integer; n_s integer; n_b integer;
+declare n_u integer; n_s integer; n_b integer; n_a integer;
 begin
   if p_uid is null then
     raise exception using errcode = '22004', message = 'user_id_required';
   end if;
+  delete from auth.audit_log_entries a
+   where lower(a.payload ->> 'actor_id') = p_uid::text
+      or lower(a.payload -> 'traits' ->> 'user_id') = p_uid::text;
+  get diagnostics n_a = row_count;
   delete from public.fenomen_save_backups b where b.user_id = p_uid;
   get diagnostics n_b = row_count;
   delete from public.fenomen_saves s where s.user_id = p_uid;
@@ -222,7 +237,7 @@ begin
   -- auth.identities, auth.sessions (+ refresh_tokens), mfa_factors, one_time_tokens: FK on delete cascade (GoTrue şeması)
   delete from auth.users u where u.id = p_uid;
   get diagnostics n_u = row_count;
-  return query select n_u, n_s, n_b;
+  return query select n_u, n_s, n_b, n_a;
 end $$;
 
 -- ---------------------------------------------------------------- 6. istemci RPC'leri (authenticated)
@@ -282,7 +297,7 @@ as $$
    order by b.created_at desc, b.id desc
 $$;
 
--- "Hesabımı sil": parametre YOK; yalnız auth.uid(). Kayıt + yedekler + auth.users satırı (identities/sessions cascade).
+-- "Hesabımı sil": parametre YOK; yalnız auth.uid(). Kayıt + yedekler + GoTrue denetim kayıtları + auth.users satırı (identities/sessions cascade).
 create or replace function public.fenomen_delete_my_account()
 returns jsonb language plpgsql volatile security definer set search_path = ''
 as $$
@@ -290,7 +305,7 @@ declare uid uuid := auth.uid(); r record;
 begin
   if uid is null then raise exception using errcode = '42501', message = 'not_authenticated'; end if;
   select * into r from public._fenomen_delete_user(uid);
-  return jsonb_build_object('deleted', r.accounts = 1, 'saves', r.saves, 'backups', r.backups);
+  return jsonb_build_object('deleted', r.accounts = 1, 'saves', r.saves, 'backups', r.backups, 'audit_entries', r.audit_entries);
 end $$;
 
 -- ---------------------------------------------------------------- 7. yönetim fonksiyonları (yalnız service_role / postgres)
@@ -307,15 +322,17 @@ end $$;
 
 -- 24 ay hareketsiz hesap temizliği. Ölçüt: coalesce(last_sign_in_at, created_at) < now() - fenomen_cfg_inactive_interval().
 -- Tek çalıştırmada en fazla fenomen_cfg_purge_batch_max() hesap (p_limit daha küçükse o kadar). En eski hareketsizler önce.
--- Döner: silinen hesap / kayıt / yedek sayısı + kalan aday sayısı.
-create or replace function public.fenomen_purge_inactive_accounts(p_limit integer default null)
-returns table (accounts integer, saves integer, backups integer, remaining integer)
+-- Döner: silinen hesap / kayıt / yedek / denetim kaydı sayısı + kalan aday sayısı. Silme: _fenomen_delete_user (Hesabımı sil ile aynı yol).
+-- Dönüş tipi değişti (audit_entries): önce drop; EXECUTE yetkileri §8'de yeniden verilir.
+drop function if exists public.fenomen_purge_inactive_accounts(integer);
+create function public.fenomen_purge_inactive_accounts(p_limit integer default null)
+returns table (accounts integer, saves integer, backups integer, audit_entries integer, remaining integer)
 language plpgsql volatile security definer set search_path = ''
 as $$
 declare
   lim integer := least(public.fenomen_cfg_purge_batch_max(), greatest(1, coalesce(p_limit, public.fenomen_cfg_purge_batch_max())));
   cutoff timestamptz := public._fenomen_inactive_cutoff();
-  r record; d record; a integer := 0; s integer := 0; b integer := 0; rem integer;
+  r record; d record; a integer := 0; s integer := 0; b integer := 0; au integer := 0; rem integer;
 begin
   for r in
     select u.id from auth.users u
@@ -325,10 +342,10 @@ begin
        for update of u skip locked
   loop
     select * into d from public._fenomen_delete_user(r.id);
-    a := a + d.accounts; s := s + d.saves; b := b + d.backups;
+    a := a + d.accounts; s := s + d.saves; b := b + d.backups; au := au + d.audit_entries;
   end loop;
   select count(*) into rem from auth.users u where coalesce(u.last_sign_in_at, u.created_at) < cutoff;
-  return query select a, s, b, rem;
+  return query select a, s, b, au, rem;
 end $$;
 
 -- destek: bir yedeği geri yükler (istemci sözleşmesinde YOK; kapsam "geri alma"yı dışarıda bırakıyor).

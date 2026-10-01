@@ -105,6 +105,14 @@ checks(n, name, ok, info) as (
   select 15, 'size limit CHECK present on both tables (262144 bytes)',
          (select count(*) from pg_catalog.pg_constraint c where c.contype = 'c' and pg_catalog.pg_get_constraintdef(c.oid) like '%262144%'
             and c.conrelid in ('public.fenomen_saves'::regclass, 'public.fenomen_save_backups'::regclass)) = 2, null
+  union all
+  select 16, 'account deletion also removes GoTrue audit rows: postgres can DELETE auth.audit_log_entries; _fenomen_delete_user matches actor_id OR traits.user_id; delete_my_account + purge use it',
+         to_regclass('auth.audit_log_entries') is not null and has_table_privilege('postgres', 'auth.audit_log_entries', 'DELETE')
+         and (select p.prosrc like '%auth.audit_log_entries%' and p.prosrc like '%''actor_id''%' and p.prosrc like '%''traits''%''user_id''%'
+                from pg_catalog.pg_proc p where p.oid = to_regprocedure('public._fenomen_delete_user(uuid)'))
+         and (select bool_and(p.prosrc like '%public._fenomen_delete_user(%') from pg_catalog.pg_proc p
+               where p.oid in (to_regprocedure('public.fenomen_delete_my_account()'), to_regprocedure('public.fenomen_purge_inactive_accounts(integer)'))),
+         null
 )
 select * from (
 select n::text as n, name, coalesce(ok, false) as ok, info, n as k from checks

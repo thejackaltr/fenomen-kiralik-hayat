@@ -86,7 +86,7 @@ Yerel doğrulama: `supabase/tests/v2_2/stack/run-stack.sh` aynı GoTrue sürüm�
 | Ayar | Env | Öneri | Durum |
 |---|---|---|---|
 | Captcha | `GOTRUE_SECURITY_CAPTCHA_ENABLED`, `GOTRUE_SECURITY_CAPTCHA_PROVIDER` (`hcaptcha` / `turnstile`), `GOTRUE_SECURITY_CAPTCHA_SECRET` (compose'da yok) | v2.2'de **kapalı** önerilir (Cloudflare + GoTrue limitleri yeterli). Açılırsa Turnstile; istemci `options.captchaToken` gönderir | D (conf); Turnstile ile uçtan uca **doğrulanmadı** |
-| JWT süresi | `JWT_EXPIRY` → `GOTRUE_JWT_EXP` (+ `PGRST_APP_SETTINGS_JWT_EXP`) | `3600`. "Hesabımı sil" sonrasında eski token en fazla bu süre kadar geçerli kalır (CONTRACT §6). Canlı değer infra-status'ta yok: **doğrulanmadı** | D, Y |
+| JWT süresi | `JWT_EXPIRY` → `GOTRUE_JWT_EXP` (+ `PGRST_APP_SETTINGS_JWT_EXP`) | `3600`. "Hesabımı sil" sonrasında eski token en fazla bu süre kadar geçerli kalır (CONTRACT §6). Canlı değer infra-status'ta yok: **doğrulanmadı**. Push sırasında runbook §5.4 ile doğrulanır. 3600'den büyükse "en geç 1 saat" metni yayınlanmaz | D, Y |
 
 ## 6. SQL ile görülemeyen ayarlar (preflight bunları kontrol EDEMEZ)
 GoTrue ayarları DB'de değil, auth konteynerinin env'inde durur. Preflight yalnız `auth.schema_migrations` sürümünü görür. Uygulamadan önce Dokploy env'inde gözle kontrol edilmesi gerekenler:
