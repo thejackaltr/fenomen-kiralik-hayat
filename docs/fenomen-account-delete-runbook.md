@@ -18,12 +18,12 @@ Dosyalar (hepsi Fenomen'in kendi Supabase'inde, `postgres` rolüyle; bağlantı 
 ## Ne silinir
 Silme dosyası, "Hesabımı sil" ve 24 ay temizliğiyle **aynı iç fonksiyonu** kullanır: `public._fenomen_delete_user(uid)`. Sıra:
 1. Kullanıcının `auth.users` satırı kilitlenir (`for update`); `expect` token'ı yeniden hesaplanır. Eşleşmezse hiçbir şey silinmez.
-2. `auth.refresh_tokens` (`user_id`, oturuma bağlı olan ve olmayan) ve `auth.flow_state` (`user_id`). Bu iki tablonun kullanıcıya FK'si yok; dosya silmezse oturumsuz eski refresh token ve PKCE kayıtları kalırdı.
-3. `_fenomen_delete_user(uid)`:
+2. `_fenomen_delete_user(uid)`:
+   - `auth.refresh_tokens` (`user_id = uid::text`; oturuma bağlı olan ve olmayan) ve `auth.flow_state` (`user_id`). Bu iki tablonun kullanıcıya FK'si yok; silinmezse oturumsuz eski refresh token ve PKCE kayıtları kalırdı. Silme dosyasında ayrı bir adım yok; ön kontrol ve verify bu tabloları saymaya devam eder.
    - `auth.audit_log_entries`: payload `actor_id` **VEYA** `traits.user_id` kullanıcıya eşit olan kayıtlar (büyük/küçük harf duyarsız). Başka kullanıcının kayıtlarına dokunulmaz; yalnız kullanıcının e-postasını anan başka kullanıcı kaydı da kalır.
    - `fenomen_save_backups`, `fenomen_saves`;
    - `auth.users`. `identities`, `sessions`, `mfa_*`, `one_time_tokens`, `oauth_*` ve `webauthn_*` cascade ile gider.
-4. Kontrol: sayılan her tabloda kullanıcının 0 satırı kalmalı. Kalırsa her şey geri alınır.
+3. Kontrol: sayılan her tabloda kullanıcının 0 satırı kalmalı. Kalırsa her şey geri alınır.
 
 Fenomen dışında `auth.users`'a bağlı bir tabloda (başka şema ya da `fenomen_` ile başlamayan tablo) kullanıcının satırı varsa ön kontrol `BLOCKED` der ve silme durur. O satırlar cascade ile silinir ya da sahipsiz kalırdı. Aryen'e sorulur.
 
@@ -166,3 +166,5 @@ Gruplar:
 - **X** tek transaction / BLOCKED.
 - **D** silme ve verify; başka kullanıcılara dokunulmaz.
 - **S** ikinci verify.
+- **H** aynı seed'de "Hesabımı sil" (`fenomen_delete_my_account`, authenticated): oturumsuz refresh token ve flow_state dahil 0 satır; başka kullanıcınınki kalır.
+- **Y** aynı seed'de 24 ay temizliği (`fenomen_purge_inactive_accounts`): aynı kontroller.

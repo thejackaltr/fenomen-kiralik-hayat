@@ -3,7 +3,7 @@
 -- (run in this test suite, see stack/): postgres = nosuperuser + BYPASSRLS + CREATEROLE; service_role BYPASSRLS;
 -- auth.* owned by supabase_auth_admin with postgres granted ALL; Supabase default privileges in public
 -- (new tables/functions granted to anon/authenticated/service_role -> a missing REVOKE fails the tests).
--- auth tables: a reduced GoTrue shape (users, identities, sessions, refresh_tokens, audit_log_entries) with the same cascade FKs.
+-- auth tables: a reduced GoTrue shape (users, identities, sessions, refresh_tokens, flow_state, audit_log_entries) with the same cascade FKs.
 \set ON_ERROR_STOP 1
 do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'postgres') then create role postgres login createrole bypassrls nosuperuser; end if;
@@ -35,6 +35,10 @@ create table if not exists auth.sessions (
 create table if not exists auth.refresh_tokens (
   id bigserial primary key, token text, user_id varchar(255), session_id uuid references auth.sessions(id) on delete cascade,
   revoked boolean default false, created_at timestamptz default now());
+-- GoTrue shape (auth_schema_fixture.sql): user_id uuid, no FK to users
+create table if not exists auth.flow_state (
+  id uuid primary key, user_id uuid, auth_code text, code_challenge text, provider_type text not null default 'email',
+  authentication_method text not null default 'otp', created_at timestamptz default now());
 -- same shape as the real image (supabase/postgres 17.6.1.136 init + GoTrue ip_address column): payload is json, no FK to users
 create table if not exists auth.audit_log_entries (
   instance_id uuid, id uuid primary key, payload json, created_at timestamptz, ip_address varchar(64) not null default '');

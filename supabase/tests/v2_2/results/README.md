@@ -38,3 +38,15 @@ Box yeniden kurulmuştu: docker, dockerd ve imajların hiçbiri (.136, GoTrue, P
 | `account-delete-local-run.txt` | **Yeni.** `account_delete/run_account_delete_tests.sh`, FD_MODE=local, auth şeması `account_delete/auth_schema_fixture.sql`. Şema, .136 şema dökümünün auth kısmından alındı (23 tablo, FK'ler ve yetkiler aynı). Sonuç: 40/40 PASS (T3 P10 R6 E7 X3 D7 S4). `FD_CT=<.136 container>` modu yazıldı ama koşulmadı. |
 | `sql-local-run.txt` | **Yeniden koşuldu** (host PG17.11). 91/91 + 32/32, ALL PASS. Kod `e730b8d`; migration bu commit'te değişmedi. |
 | `sql-local-run-136.txt`, `stack-local-run-136.txt` | Değişmedi (1 Eki). Docker yok, yeniden koşulamadı. Test edilen kod bu commit'te değişmedi. |
+
+### 2026-10-03 ~02:50 TSİ: refresh_tokens / flow_state `_fenomen_delete_user` içinde (YY onayı)
+`_fenomen_delete_user` artık `auth.refresh_tokens` (`user_id = uid::text`) ve `auth.flow_state` (`user_id` uuid) satırlarını da siliyor. Bu tablolarda auth.users'a FK yok, cascade ile gitmiyorlardı. Hesabımı sil, 24 ay temizliği ve info@ betiği aynı fonksiyonu kullanıyor. info@ betiğindeki ayrı silme adımı kaldırıldı. Migration yerinde güncellendi (canlıda değil). Rollback değişmedi (`drop function`); round-trip testi geçiyor. Verify 16/16 (check 16 iki satırı da arıyor). Testler yeniden imaj çekilmeden, box'taki `public.ecr.aws/supabase/postgres:17.6.1.136` (ID f519727303f0) ile koşuldu.
+
+| Dosya | Durum |
+|---|---|
+| `sql-local-run-136.txt` | **Yeniden koşuldu** (.136, `fen22-sql136`). 95/95 + 32/32, ALL PASS. Yeni: D11c, D11d (Hesabımı sil: oturumsuz refresh token + flow_state siliniyor, B'ninki kalıyor), P07c, P07d (24 ay: aynısı, P1/B kalıyor). |
+| `sql-local-run.txt` | **Yeniden koşuldu** (host PG 17.11). 95/95 + 32/32, ALL PASS. |
+| `account-delete-run-136.txt` | **Yeni.** `FD_CT=fen22-adtest` (.136, imajın auth şeması fixture ile değiştirildi). 47/47 PASS (T3 P10 R6 E7 X3 D8 S4 H3 Y3). Yeni: D4b (info@ yolu: oturumsuz refresh token + flow_state siliniyor, B'ninki kalıyor), H (aynı seed'de Hesabımı sil), Y (aynı seed'de 24 ay temizliği). |
+| `account-delete-local-run.txt` | **Yeniden koşuldu** (host). 47/47 PASS. |
+| `account-delete-run-136-f587eb5.txt`, `sql-local-run-136-f587eb5.txt` | `f587eb5` kodunun önceki .136 koşusu (40/40; 91/91 + 32/32). Referans için `/workspace/tmp/fenomen-account-delete-136/` klasöründen alındı. |
+| `stack-local-run*.txt` | Koşulmadı: GoTrue ve PostgREST imajları box'ta yok, çekilmedi. `fenomen_delete_my_account` JSON anahtarları değişmedi. |

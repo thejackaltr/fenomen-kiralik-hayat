@@ -51,9 +51,9 @@ select current_database() as db, current_user as db_user, current_setting('trans
 select * from (
   -- <fenomen_del_counts>  (identical in preflight / delete / verify; the tests check it byte-for-byte)
   -- One row per table that can hold a row of the user (uid = setting fenomen_del.uid). act = what the delete does:
-  --   function = public._fenomen_delete_user (fenomen_saves, fenomen_save_backups, audit, auth.users),
+  --   function = public._fenomen_delete_user deletes them itself (fenomen_saves, fenomen_save_backups, audit, auth.users and
+  --              the FK-less auth.refresh_tokens.user_id / auth.flow_state.user_id rows),
   --   cascade  = goes with auth.users (FK ON DELETE CASCADE: identities, sessions, mfa_*, one_time_tokens, oauth_*, webauthn_*),
-  --   script   = FK-less auth rows the delete file removes explicitly (auth.refresh_tokens.user_id, auth.flow_state.user_id),
   --   block    = anything else (other schemas / tables, no cascade): the delete refuses while n > 0.
   select t.cat, t.rel, t.col,
          (xpath('/row/n/text()', query_to_xml(format('select count(*) as n from %s where %s', t.rel, t.cond), false, true, '')))[1]::text::bigint as n,
@@ -67,7 +67,7 @@ select * from (
              format('%I = %L', a.attname, current_setting('fenomen_del.uid')) as cond,
              case when n.nspname = 'public' and c.relname in ('fenomen_saves', 'fenomen_save_backups') and a.attname = 'user_id' then 'function'
                   when n.nspname = 'auth' and c.relname = 'users' and a.attname = 'id' then 'function'
-                  when n.nspname = 'auth' and c.relname in ('refresh_tokens', 'flow_state') and a.attname = 'user_id' then 'script'
+                  when n.nspname = 'auth' and c.relname in ('refresh_tokens', 'flow_state') and a.attname = 'user_id' then 'function'
                   when n.nspname in ('public', 'auth') and (n.nspname = 'auth' or c.relname like 'fenomen\_%')
                        and exists (select 1 from pg_catalog.pg_constraint k
                                     where k.contype = 'f' and k.conrelid = c.oid and k.confrelid = 'auth.users'::regclass
@@ -108,7 +108,7 @@ select case when current_setting('fenomen_del.matches') = '0' then 'STOP: no aut
             when not x.user_exists and x.total = 0 then 'STOP: nothing to delete (no auth user, no rows)'
             when x.blocked is not null then 'BLOCKED: rows outside Fenomen (' || x.blocked || ') would be cascaded or left; do not delete, ask Aryen'
             when not x.user_exists then 'OK (leftovers): auth user already gone; deletes ' || x.total || ' rows (' || x.listed || ')'
-            else 'OK: deletes Fenomen ' || x.fen || ' rows + audit ' || x.audit || ' rows + the auth user (cascade ' || x.casc || ', refresh_tokens / flow_state ' || x.script || ')' end as verdict,
+            else 'OK: deletes Fenomen ' || x.fen || ' rows + audit ' || x.audit || ' rows + the auth user (cascade ' || x.casc || ', refresh_tokens / flow_state ' || x.rt_fs || ')' end as verdict,
        current_setting('fenomen_del.uid') as uid,
        case when current_setting('fenomen_del.matches') in ('-', '1') and (x.user_exists or x.total > 0) and x.blocked is null then x.token else '-' end as expect
   from (select left(md5(coalesce(string_agg(x.rel || '=' || x.n, ' ' order by x.rel) filter (where x.cat in ('fenomen', 'other')), '')
@@ -124,15 +124,15 @@ select case when current_setting('fenomen_del.matches') = '0' then 'STOP: no aut
                coalesce(sum(x.n) filter (where x.cat = 'fenomen'), 0) as fen,
                coalesce(sum(x.n) filter (where x.cat = 'audit'), 0) as audit,
                coalesce(sum(x.n) filter (where x.act = 'cascade'), 0) as casc,
-               coalesce(sum(x.n) filter (where x.act = 'script'), 0) as script,
+               coalesce(sum(x.n) filter (where x.rel in ('auth.refresh_tokens', 'auth.flow_state')), 0) as rt_fs,
                coalesce(sum(x.n), 0) as total,
                coalesce(sum(x.n) filter (where x.rel = 'auth.users'), 0) = 1 as user_exists
           from (
   -- <fenomen_del_counts>  (identical in preflight / delete / verify; the tests check it byte-for-byte)
   -- One row per table that can hold a row of the user (uid = setting fenomen_del.uid). act = what the delete does:
-  --   function = public._fenomen_delete_user (fenomen_saves, fenomen_save_backups, audit, auth.users),
+  --   function = public._fenomen_delete_user deletes them itself (fenomen_saves, fenomen_save_backups, audit, auth.users and
+  --              the FK-less auth.refresh_tokens.user_id / auth.flow_state.user_id rows),
   --   cascade  = goes with auth.users (FK ON DELETE CASCADE: identities, sessions, mfa_*, one_time_tokens, oauth_*, webauthn_*),
-  --   script   = FK-less auth rows the delete file removes explicitly (auth.refresh_tokens.user_id, auth.flow_state.user_id),
   --   block    = anything else (other schemas / tables, no cascade): the delete refuses while n > 0.
   select t.cat, t.rel, t.col,
          (xpath('/row/n/text()', query_to_xml(format('select count(*) as n from %s where %s', t.rel, t.cond), false, true, '')))[1]::text::bigint as n,
@@ -146,7 +146,7 @@ select case when current_setting('fenomen_del.matches') = '0' then 'STOP: no aut
              format('%I = %L', a.attname, current_setting('fenomen_del.uid')) as cond,
              case when n.nspname = 'public' and c.relname in ('fenomen_saves', 'fenomen_save_backups') and a.attname = 'user_id' then 'function'
                   when n.nspname = 'auth' and c.relname = 'users' and a.attname = 'id' then 'function'
-                  when n.nspname = 'auth' and c.relname in ('refresh_tokens', 'flow_state') and a.attname = 'user_id' then 'script'
+                  when n.nspname = 'auth' and c.relname in ('refresh_tokens', 'flow_state') and a.attname = 'user_id' then 'function'
                   when n.nspname in ('public', 'auth') and (n.nspname = 'auth' or c.relname like 'fenomen\_%')
                        and exists (select 1 from pg_catalog.pg_constraint k
                                     where k.contype = 'f' and k.conrelid = c.oid and k.confrelid = 'auth.users'::regclass

@@ -3,9 +3,10 @@
 -- or supabase_admin, never with -1:
 --   $PSQL -v uid=<auth user id> -v confirm_uid=<same id again> -v approval_ref=<reference, no personal data> \
 --         -v expect=<token from the preflight> -f supabase/ops/fenomen_account_delete.sql
--- Order: lock auth.users row -> recompute the token (expect) -> auth.refresh_tokens + auth.flow_state of the user (no FK,
--- would stay) -> public._fenomen_delete_user(uid): audit_log_entries (actor_id OR traits.user_id), fenomen_save_backups,
--- fenomen_saves, auth.users (identities, sessions, mfa_*, one_time_tokens ... cascade) -> check: 0 rows left anywhere.
+-- Order: lock auth.users row -> recompute the token (expect) -> public._fenomen_delete_user(uid), the same path as
+-- "Hesabımı sil" and the 24-month purge: auth.refresh_tokens + auth.flow_state of the user (no FK), audit_log_entries
+-- (actor_id OR traits.user_id), fenomen_save_backups, fenomen_saves, auth.users (identities, sessions, mfa_*,
+-- one_time_tokens ... cascade) -> check: 0 rows left anywhere.
 -- Refuses (nothing deleted) when: a parameter is missing, uid is the nil uuid, confirm_uid differs, approval_ref empty,
 -- nothing to delete, rows outside Fenomen (block), or the token differs (e-mail / created_at / id of the account or the
 -- Fenomen rows changed since the preflight, or the token belongs to another user).
@@ -43,7 +44,7 @@ declare
   v_ref text := btrim(current_setting('fenomen_del.approval_ref'));
   v_expect text := btrim(current_setting('fenomen_del.expect'));
   v_token text; v_blocked text; v_casc text; v_left text; v_total bigint; v_user boolean;
-  n_rt bigint := 0; n_fs bigint := 0; r record;
+  n_rt bigint; n_fs bigint; r record;
 begin
   if v_uid = '00000000-0000-0000-0000-000000000000' then
     raise exception 'fenomen account delete: the nil uuid is not a user; nothing deleted';
@@ -68,14 +69,16 @@ begin
                  ), 12),
          string_agg(x.rel || '=' || x.n, ', ' order by x.rel) filter (where x.act = 'block' and x.n > 0),
          string_agg(x.rel || ' ' || x.n, ', ' order by x.rel) filter (where x.act = 'cascade' and x.n > 0),
-         coalesce(sum(x.n), 0)
-    into v_token, v_blocked, v_casc, v_total
+         coalesce(sum(x.n), 0),
+         coalesce(sum(x.n) filter (where x.rel = 'auth.refresh_tokens'), 0),
+         coalesce(sum(x.n) filter (where x.rel = 'auth.flow_state'), 0)
+    into v_token, v_blocked, v_casc, v_total, n_rt, n_fs
     from (
   -- <fenomen_del_counts>  (identical in preflight / delete / verify; the tests check it byte-for-byte)
   -- One row per table that can hold a row of the user (uid = setting fenomen_del.uid). act = what the delete does:
-  --   function = public._fenomen_delete_user (fenomen_saves, fenomen_save_backups, audit, auth.users),
+  --   function = public._fenomen_delete_user deletes them itself (fenomen_saves, fenomen_save_backups, audit, auth.users and
+  --              the FK-less auth.refresh_tokens.user_id / auth.flow_state.user_id rows),
   --   cascade  = goes with auth.users (FK ON DELETE CASCADE: identities, sessions, mfa_*, one_time_tokens, oauth_*, webauthn_*),
-  --   script   = FK-less auth rows the delete file removes explicitly (auth.refresh_tokens.user_id, auth.flow_state.user_id),
   --   block    = anything else (other schemas / tables, no cascade): the delete refuses while n > 0.
   select t.cat, t.rel, t.col,
          (xpath('/row/n/text()', query_to_xml(format('select count(*) as n from %s where %s', t.rel, t.cond), false, true, '')))[1]::text::bigint as n,
@@ -89,7 +92,7 @@ begin
              format('%I = %L', a.attname, current_setting('fenomen_del.uid')) as cond,
              case when n.nspname = 'public' and c.relname in ('fenomen_saves', 'fenomen_save_backups') and a.attname = 'user_id' then 'function'
                   when n.nspname = 'auth' and c.relname = 'users' and a.attname = 'id' then 'function'
-                  when n.nspname = 'auth' and c.relname in ('refresh_tokens', 'flow_state') and a.attname = 'user_id' then 'script'
+                  when n.nspname = 'auth' and c.relname in ('refresh_tokens', 'flow_state') and a.attname = 'user_id' then 'function'
                   when n.nspname in ('public', 'auth') and (n.nspname = 'auth' or c.relname like 'fenomen\_%')
                        and exists (select 1 from pg_catalog.pg_constraint k
                                     where k.contype = 'f' and k.conrelid = c.oid and k.confrelid = 'auth.users'::regclass
@@ -125,12 +128,8 @@ begin
     raise exception 'fenomen account delete: account (id / e-mail / created_at) or Fenomen rows changed since the preflight, or the token is for another user (expect %, now %); run the preflight again. Nothing deleted', v_expect, v_token;
   end if;
 
-  -- S1. FK-less auth rows of the user (would survive the auth.users delete): every refresh token (session-bound or not), PKCE flow state
-  delete from auth.refresh_tokens t where t.user_id = v_uid::text;
-  get diagnostics n_rt = row_count;
-  delete from auth.flow_state f where f.user_id = v_uid;
-  get diagnostics n_fs = row_count;
-  -- S2. the same path as "Hesabımı sil" and the 24-month purge: audit rows, backups, save, auth.users (+ cascades)
+  -- the same path as "Hesabımı sil" and the 24-month purge: refresh tokens + flow state (no FK), audit rows, backups, save,
+  -- auth.users (+ cascades). This file deletes nothing itself.
   select * into r from public._fenomen_delete_user(v_uid);
   if r.accounts <> (case when v_user then 1 else 0 end) then
     raise exception 'fenomen account delete: _fenomen_delete_user deleted % auth users, expected %; rolled back', r.accounts, case when v_user then 1 else 0 end;
@@ -142,9 +141,9 @@ begin
     from (
   -- <fenomen_del_counts>  (identical in preflight / delete / verify; the tests check it byte-for-byte)
   -- One row per table that can hold a row of the user (uid = setting fenomen_del.uid). act = what the delete does:
-  --   function = public._fenomen_delete_user (fenomen_saves, fenomen_save_backups, audit, auth.users),
+  --   function = public._fenomen_delete_user deletes them itself (fenomen_saves, fenomen_save_backups, audit, auth.users and
+  --              the FK-less auth.refresh_tokens.user_id / auth.flow_state.user_id rows),
   --   cascade  = goes with auth.users (FK ON DELETE CASCADE: identities, sessions, mfa_*, one_time_tokens, oauth_*, webauthn_*),
-  --   script   = FK-less auth rows the delete file removes explicitly (auth.refresh_tokens.user_id, auth.flow_state.user_id),
   --   block    = anything else (other schemas / tables, no cascade): the delete refuses while n > 0.
   select t.cat, t.rel, t.col,
          (xpath('/row/n/text()', query_to_xml(format('select count(*) as n from %s where %s', t.rel, t.cond), false, true, '')))[1]::text::bigint as n,
@@ -158,7 +157,7 @@ begin
              format('%I = %L', a.attname, current_setting('fenomen_del.uid')) as cond,
              case when n.nspname = 'public' and c.relname in ('fenomen_saves', 'fenomen_save_backups') and a.attname = 'user_id' then 'function'
                   when n.nspname = 'auth' and c.relname = 'users' and a.attname = 'id' then 'function'
-                  when n.nspname = 'auth' and c.relname in ('refresh_tokens', 'flow_state') and a.attname = 'user_id' then 'script'
+                  when n.nspname = 'auth' and c.relname in ('refresh_tokens', 'flow_state') and a.attname = 'user_id' then 'function'
                   when n.nspname in ('public', 'auth') and (n.nspname = 'auth' or c.relname like 'fenomen\_%')
                        and exists (select 1 from pg_catalog.pg_constraint k
                                     where k.contype = 'f' and k.conrelid = c.oid and k.confrelid = 'auth.users'::regclass
@@ -187,7 +186,7 @@ begin
   if v_left is not null then
     raise exception 'fenomen account delete: rows left after the delete (%); rolled back, run the preflight again', v_left;
   end if;
-  raise notice 'fenomen account delete OK (approval %): auth.users %, fenomen_saves %, fenomen_save_backups %, audit_log_entries %, auth.refresh_tokens %, auth.flow_state %, cascaded: %; rows left: 0',
+  raise notice 'fenomen account delete OK (approval %): auth.users %, fenomen_saves %, fenomen_save_backups %, audit_log_entries %, auth.refresh_tokens %, auth.flow_state % (counted before), cascaded: %; rows left: 0',
     v_ref, r.accounts, r.saves, r.backups, r.audit_entries, n_rt, n_fs, coalesce(v_casc, 'none');
 end $del$;
 commit;

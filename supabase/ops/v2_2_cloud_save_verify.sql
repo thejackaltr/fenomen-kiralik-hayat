@@ -106,9 +106,13 @@ checks(n, name, ok, info) as (
          (select count(*) from pg_catalog.pg_constraint c where c.contype = 'c' and pg_catalog.pg_get_constraintdef(c.oid) like '%262144%'
             and c.conrelid in ('public.fenomen_saves'::regclass, 'public.fenomen_save_backups'::regclass)) = 2, null
   union all
-  select 16, 'account deletion also removes GoTrue audit rows: postgres can DELETE auth.audit_log_entries; _fenomen_delete_user matches actor_id OR traits.user_id; delete_my_account + purge use it',
+  select 16, 'account deletion also removes GoTrue audit rows (actor_id OR traits.user_id), refresh tokens and flow state (no FK): postgres can DELETE them; delete_my_account + purge use _fenomen_delete_user',
          to_regclass('auth.audit_log_entries') is not null and has_table_privilege('postgres', 'auth.audit_log_entries', 'DELETE')
+         and to_regclass('auth.refresh_tokens') is not null and has_table_privilege('postgres', 'auth.refresh_tokens', 'DELETE')
+         and to_regclass('auth.flow_state') is not null and has_table_privilege('postgres', 'auth.flow_state', 'DELETE')
          and (select p.prosrc like '%auth.audit_log_entries%' and p.prosrc like '%''actor_id''%' and p.prosrc like '%''traits''%''user_id''%'
+                     and p.prosrc like '%delete from auth.refresh_tokens t where t.user_id = p_uid::text%'
+                     and p.prosrc like '%delete from auth.flow_state f where f.user_id = p_uid%'
                 from pg_catalog.pg_proc p where p.oid = to_regprocedure('public._fenomen_delete_user(uuid)'))
          and (select bool_and(p.prosrc like '%public._fenomen_delete_user(%') from pg_catalog.pg_proc p
                where p.oid in (to_regprocedure('public.fenomen_delete_my_account()'), to_regprocedure('public.fenomen_purge_inactive_accounts(integer)'))),

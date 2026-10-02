@@ -49,6 +49,12 @@ begin
   if not has_table_privilege('postgres', 'auth.audit_log_entries', 'DELETE') then
     raise exception 'role postgres cannot DELETE auth.audit_log_entries: account deletion would fail';
   end if;
+  if to_regclass('auth.refresh_tokens') is null or to_regclass('auth.flow_state') is null then
+    raise exception 'auth.refresh_tokens / auth.flow_state missing: _fenomen_delete_user deletes the user''s rows there (no FK to auth.users)';
+  end if;
+  if not (has_table_privilege('postgres', 'auth.refresh_tokens', 'DELETE') and has_table_privilege('postgres', 'auth.flow_state', 'DELETE')) then
+    raise exception 'role postgres cannot DELETE auth.refresh_tokens / auth.flow_state: account deletion would fail';
+  end if;
   if not (select r.rolbypassrls from pg_catalog.pg_roles r where r.rolname = 'postgres') then
     raise exception 'role postgres has no BYPASSRLS: the security definer functions would not see rows under FORCE RLS';
   end if;
@@ -215,6 +221,8 @@ end $$;
 -- GoTrue denetim kayıtları (auth.audit_log_entries; FK yok, cascade ile gitmez): payload json içinde
 --   actor_id = kullanıcı (kendi girişi, yenileme, çıkış…) VEYA traits.user_id = kullanıcı (ör. admin işlemi o kullanıcı hakkında).
 --   Yalnız bu iki eşleşme; başka kullanıcıların kayıtlarına dokunulmaz. (GoTrue v2.189.0 internal/models/audit_log_entry.go)
+-- auth.refresh_tokens (user_id varchar, FK yok: oturumsuz eski token'lar sessions cascade'iyle gitmez) ve auth.flow_state
+--   (user_id uuid, FK yok: PKCE akış kayıtları) açıkça silinir; yalnız bu kullanıcının satırları.
 -- Dönüş tipi değişti (audit_entries): create or replace yetmez, önce drop (iç fonksiyon; bağımlılık yok, yetkiler §8'de yeniden).
 drop function if exists public._fenomen_delete_user(uuid);
 create function public._fenomen_delete_user(p_uid uuid)
@@ -226,6 +234,8 @@ begin
   if p_uid is null then
     raise exception using errcode = '22004', message = 'user_id_required';
   end if;
+  delete from auth.refresh_tokens t where t.user_id = p_uid::text;   -- oturuma bağlı olanlar ve oturumsuz eski token'lar
+  delete from auth.flow_state f where f.user_id = p_uid;
   delete from auth.audit_log_entries a
    where lower(a.payload ->> 'actor_id') = p_uid::text
       or lower(a.payload -> 'traits' ->> 'user_id') = p_uid::text;
@@ -234,7 +244,7 @@ begin
   get diagnostics n_b = row_count;
   delete from public.fenomen_saves s where s.user_id = p_uid;
   get diagnostics n_s = row_count;
-  -- auth.identities, auth.sessions (+ refresh_tokens), mfa_factors, one_time_tokens: FK on delete cascade (GoTrue şeması)
+  -- auth.identities, auth.sessions, mfa_factors, one_time_tokens, oauth_*, webauthn_*: FK on delete cascade (GoTrue şeması)
   delete from auth.users u where u.id = p_uid;
   get diagnostics n_u = row_count;
   return query select n_u, n_s, n_b, n_a;

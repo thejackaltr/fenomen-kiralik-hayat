@@ -1,4 +1,4 @@
-# image: public.ecr.aws/supabase/postgres:17.6.1.136 (ID f519727303f0; run-local.sh inside container fen22-sql136, --network none, repo mounted read-only, PGBIN=/usr/lib/postgresql/bin) — 2026-10-01 TSİ
+# image: public.ecr.aws/supabase/postgres:17.6.1.136 (ID f519727303f0; run-local.sh inside container fen22-sql136, --network none, repo mounted read-only, PGBIN=/usr/lib/postgresql/bin) — 2026-10-03 02:32 TSİ
 
 ######## 0. throwaway cluster (postgres (PostgreSQL) 17.6), socket /tmp/fenomen-v22-sqltest/sock only
 NOTICE:  database "fen22_main" does not exist, skipping
@@ -9,9 +9,9 @@ postgres: super=false bypassrls=true
 PASS  preflight runs in a READ ONLY session (exit 0)
 PASS  preflight: target OK, v2.2 not applied, auth.users present
 PASS  preflight section 4 (name clashes): 0 rows before the migration
- auth_schema_exists | auth_users_exists |  auth_users_owner   | auth_users_count | postgres_can_delete_auth_users | postgres_can_delete_audit_log | postgres_bypassrls |                        auth_tables                         
---------------------+-------------------+---------------------+------------------+--------------------------------+-------------------------------+--------------------+------------------------------------------------------------
- t                  | t                 | supabase_auth_admin |                  | t                              | t                             | t                  | audit_log_entries,identities,refresh_tokens,sessions,users
+ auth_schema_exists | auth_users_exists |  auth_users_owner   | auth_users_count | postgres_can_delete_auth_users | postgres_can_delete_audit_log | postgres_can_delete_rt_flow | postgres_bypassrls |                              auth_tables                              
+--------------------+-------------------+---------------------+------------------+--------------------------------+-------------------------------+-----------------------------+--------------------+-----------------------------------------------------------------------
+ t                  | t                 | supabase_auth_admin |                  | t                              | t                             | t                           | t                  | audit_log_entries,flow_state,identities,refresh_tokens,sessions,users
 (1 row)
 
 ######## 2. wrong target (DB with public.kodhane_saves): preflight + migration refuse
@@ -28,7 +28,7 @@ PASS  migration refuses the wrong target (exit 3) and creates nothing
 ######## 3. migration twice (idempotent), as postgres
 PASS  migration #1 (exit 0)
 PASS  migration #2 (exit 0)
-PASS  schema after 2nd run == after 1st run (pg_dump public+auth, 520 lines)
+PASS  schema after 2nd run == after 1st run (pg_dump public+auth, 535 lines)
 PASS  row written between the runs survives the 2nd run
 PASS  migration scheduled nothing (no pg_cron job) and ran no cleanup
 
@@ -38,7 +38,7 @@ PASS  preflight after apply still read-only OK, reports ALREADY PRESENT (exit 0)
 
 ######## 5. SQL tests (RLS, anon, revision/409, size, reset + backups, 30-day cleanup, delete account, 24-month purge)
 PASS  inactive_accounts_count.sql runs in a READ ONLY session (exit 0)
-count query output: 2 years|2024-10-01 17:47:57.641988+00|7|2|2|4|3|100|2|2|2
+count query output: 2 years|2024-10-02 23:33:08.379481+00|7|2|2|4|3|100|2|2|2
 PASS  count query output has no e-mail / uuid
 PASS S01 A inserts own save (upsert, revision 1) 
 PASS S02 B inserts own save 
@@ -79,7 +79,7 @@ PASS N11 anon cannot call _fenomen_delete_user  -- 42501: permission denied for 
 PASS N12 anon cannot call config functions  -- 42501: permission denied for function fenomen_cfg_inactive_interval
 PASS R01 reset with an old expected revision -> PT409 (other device progressed)  -- PT409: stale_revision
 PASS R02 reset with non-object data -> 22023 invalid_data  -- 22023: invalid_data
-PASS R03 reset: revision 5 -> 6, backup id returned  -- {"revision": 6, "backup_id": "59cd8e49-0648-4cae-b44b-7693683056cf", "updated_at": "2026-10-01T17:47:57.606231+00:00"}
+PASS R03 reset: revision 5 -> 6, backup id returned  -- {"revision": 6, "backup_id": "bfe9da85-0b5d-486a-9195-b29e3e822856", "updated_at": "2026-10-02T23:33:08.346363+00:00"}
 PASS R04 save replaced by the new game state 
 PASS R05 old device (knew revision 5, sends 6) cannot overwrite the reset -> PT409  -- PT409: stale_revision
 PASS R06 A lists exactly 1 backup: the pre-reset save (revision 5, 40 followers, expires in 30 days) 
@@ -87,7 +87,7 @@ PASS R07 A cannot read the backup table directly (RPC only)  -- 42501: permissio
 PASS R08 B resets its own save 
 PASS R09 B lists only its own backup (not A's) 
 PASS R10 A still lists only its own backup 
-PASS R11 reset without a cloud save: creates it (revision 1), no backup  -- {"revision": 1, "backup_id": null, "updated_at": "2026-10-01T17:47:57.611771+00:00"}
+PASS R11 reset without a cloud save: creates it (revision 1), no backup  -- {"revision": 1, "backup_id": null, "updated_at": "2026-10-02T23:33:08.350963+00:00"}
 PASS R12 C has no backups 
 PASS R13 cap: 7 resets keep only the newest 5 backups 
 PASS R14 cap enforced in the table too (5 rows for A) 
@@ -98,19 +98,21 @@ PASS K04 the 29-day-old backup is kept; 4 remain
 PASS K05 cleanup again: nothing to delete 
 PASS K06 service_role cannot delete backups directly (only via the function)  -- 42501: permission denied for table fenomen_save_backups
 PASS X01 authenticated cannot call admin restore  -- 42501: permission denied for function fenomen_admin_restore_save_backup
-PASS X02 service_role restores the newest backup: data back, revision + 1, current save kept as a restore backup  -- {"revision": 13, "backup_id": "836d7f0a-f81b-4e18-b7f7-e3d67291bfb8", "restored_from": "e0ba5dd6-25ba-4d77-bcab-5c304141592b"}
+PASS X02 service_role restores the newest backup: data back, revision + 1, current save kept as a restore backup  -- {"revision": 13, "backup_id": "cb3b9062-4605-460e-afb8-fa7e1db9af93", "restored_from": "e328e059-7046-4a25-885f-d13651c9e7a5"}
 PASS X03 unknown backup -> PT404  -- PT404: backup_not_found
 PASS D01 authenticated cannot call _fenomen_delete_user(B)  -- 42501: permission denied for function _fenomen_delete_user
 PASS D02 service_role cannot call _fenomen_delete_user either  -- 42501: permission denied for function _fenomen_delete_user
 PASS D03 service_role cannot call fenomen_delete_my_account (authenticated only)  -- 42501: permission denied for function fenomen_delete_my_account
 PASS D04 a JWT for a non-existent user deletes nothing 
 PASS D05 authenticated without sub (auth.uid() null) -> 42501 not_authenticated  -- 42501: not_authenticated
-PASS D06 before: B has save, backup, user, identity, session, refresh token 
+PASS D06 before: B has save, backup, user, identity, session, 2 refresh tokens (1 without session), flow_state 
 PASS D07 before: A has 1 save + 5 backups 
 PASS D08 A deletes its account: returns deleted/saves/backups/audit_entries counts  -- {"saves": 1, "backups": 5, "deleted": true, "audit_entries": 3}
 PASS D09 A's auth.users row is gone 
 PASS D10 A's identities, sessions, refresh tokens are gone (cascade) 
 PASS D11 A's save and backups are gone 
+PASS D11c A's FK-less auth rows gone: refresh token without session, flow_state 
+PASS D11d B's refresh token without session and flow_state untouched 
 PASS D11a A's audit rows gone: actor_id = A, traits.user_id = A (admin action about A), upper-case actor_id 
 PASS D11b other users' audit rows untouched (B's, C's row mentioning A's e-mail, array/null/scalar payloads): exactly 3 rows removed 
 PASS D12 B untouched (save byte-identical, backup, user, identity, session, token) 
@@ -126,12 +128,14 @@ PASS P06 deleted accounts' saves, backups, identities, sessions are gone
 PASS P07 other accounts untouched (3 saves + 6 backups of the kept ones, B's save) 
 PASS P07a purged users' audit rows gone: P2 by actor_id, P3 by traits.user_id, P1's row about P2 by traits.user_id 
 PASS P07b kept users' audit rows untouched (P1 own row, admin row about P5, B/C/odd rows from the D block) 
+PASS P07c purged user's FK-less auth rows gone: refresh token without session, flow_state 
+PASS P07d kept users' refresh tokens without session and flow_state untouched (P1, B) 
 PASS P08 second purge run: nothing to delete 
 PASS P09 batch cap: 105 candidates, p_limit 1000 -> 100 deleted, 5 remaining 
 PASS P10 p_limit 2 -> 2 deleted, 3 remaining 
 PASS P11 default run finishes the rest 
 PASS P12 all bulk accounts gone, B still there 
-PASS  SQL assertions: 91/91
+PASS  SQL assertions: 95/95
 
 ######## 6. counter (sayaç) untouched by migration + tests
 PASS  anon_stats_* tables (schema+data+grants+policies) and functions byte-identical (53 lines)
@@ -173,6 +177,6 @@ PASS  migration rollback with both jobs scheduled: exit 0, no fenomen job left
 PASS  purge ops rollback when the job is already gone: no-op (exit 0)
 
 ######## SUMMARY
-SQL assertions (10_tests.sql + 11_purge_tests.sql): 91/91 PASS
+SQL assertions (10_tests.sql + 11_purge_tests.sql): 95/95 PASS
 runner checks (incl. the SQL line): 32/32 PASS
 RESULT: ALL PASS

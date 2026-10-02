@@ -148,6 +148,10 @@ insert into auth.audit_log_entries (id, payload, created_at) values
   ('b0000000-0000-4000-8000-000000000004', '[]'::json, now()),
   ('b0000000-0000-4000-8000-000000000005', null, now()),
   ('b0000000-0000-4000-8000-000000000006', json_build_object('actor_id', :B, 'traits', 'x'), now());
+-- FK-less auth rows (GoTrue): a refresh token without session (legacy) and a PKCE flow_state row, for A (must go) and B (must stay)
+insert into auth.refresh_tokens (token, user_id, session_id, revoked) values ('fd-nosess-a', :A, null, true), ('fd-nosess-b', :B, null, true);
+insert into auth.flow_state (id, user_id, auth_code, code_challenge) values
+  ('f0000000-0000-4000-8000-00000000000a', :A, 'code-a', 'ch-a'), ('f0000000-0000-4000-8000-00000000000b', :B, 'code-b', 'ch-b');
 create temp table aud_before as
   select (select count(*) from auth.audit_log_entries) n,
          (select md5(string_agg(id::text || coalesce(payload::text, '~'), ',' order by id)) from auth.audit_log_entries where id::text like 'b0000000-%') keep_h;
@@ -156,9 +160,10 @@ create temp table b_before as
   select (select count(*) from public.fenomen_saves where user_id = :B) s, (select count(*) from public.fenomen_save_backups where user_id = :B) b,
          (select count(*) from auth.users where id = :B) u, (select count(*) from auth.identities where user_id = :B) i,
          (select count(*) from auth.sessions where user_id = :B) se, (select count(*) from auth.refresh_tokens where user_id = :B) rt,
+         (select count(*) from auth.flow_state where user_id = :B) fs,
          (select md5(string_agg(data::text || revision, ',')) from public.fenomen_saves where user_id = :B) h;
 grant select on b_before to public;
-select t.ok((select s = 1 and b = 1 and u = 1 and i = 1 and se = 1 and rt = 1 from b_before), 'D06 before: B has save, backup, user, identity, session, refresh token');
+select t.ok((select s = 1 and b = 1 and u = 1 and i = 1 and se = 1 and rt = 2 and fs = 1 from b_before), 'D06 before: B has save, backup, user, identity, session, 2 refresh tokens (1 without session), flow_state');
 select t.ok((select count(*) = 1 from public.fenomen_saves where user_id = :A) and (select count(*) = 5 from public.fenomen_save_backups where user_id = :A), 'D07 before: A has 1 save + 5 backups');
 select t.login(:A);
 do $$ declare r jsonb; begin
@@ -170,6 +175,11 @@ select t.ok((select count(*) from auth.users where id = :A) = 0, 'D09 A''s auth.
 select t.ok((select count(*) from auth.identities where user_id = :A) + (select count(*) from auth.sessions where user_id = :A)
             + (select count(*) from auth.refresh_tokens where user_id = :A::text) = 0, 'D10 A''s identities, sessions, refresh tokens are gone (cascade)');
 select t.ok((select count(*) from public.fenomen_saves where user_id = :A) + (select count(*) from public.fenomen_save_backups where user_id = :A) = 0, 'D11 A''s save and backups are gone');
+select t.ok((select count(*) from auth.refresh_tokens where token = 'fd-nosess-a') = 0 and (select count(*) from auth.flow_state where user_id = :A) = 0,
+            'D11c A''s FK-less auth rows gone: refresh token without session, flow_state');
+select t.ok((select count(*) from auth.refresh_tokens where token = 'fd-nosess-b' and user_id = :B) = 1
+            and (select count(*) from auth.flow_state where id = 'f0000000-0000-4000-8000-00000000000b' and user_id = :B) = 1,
+            'D11d B''s refresh token without session and flow_state untouched');
 select t.ok((select count(*) from auth.audit_log_entries where id::text like 'a0000000-%') = 0, 'D11a A''s audit rows gone: actor_id = A, traits.user_id = A (admin action about A), upper-case actor_id');
 select t.ok((select n - 3 = (select count(*) from auth.audit_log_entries)
                     and keep_h = (select md5(string_agg(id::text || coalesce(payload::text, '~'), ',' order by id)) from auth.audit_log_entries where id::text like 'b0000000-%')
@@ -177,6 +187,7 @@ select t.ok((select n - 3 = (select count(*) from auth.audit_log_entries)
 select t.ok((select s = (select count(*) from public.fenomen_saves where user_id = :B) and b = (select count(*) from public.fenomen_save_backups where user_id = :B)
                     and u = (select count(*) from auth.users where id = :B) and i = (select count(*) from auth.identities where user_id = :B)
                     and se = (select count(*) from auth.sessions where user_id = :B) and rt = (select count(*) from auth.refresh_tokens where user_id = :B)
+                    and fs = (select count(*) from auth.flow_state where user_id = :B)
                     and h = (select md5(string_agg(data::text || revision, ',')) from public.fenomen_saves where user_id = :B) from b_before), 'D12 B untouched (save byte-identical, backup, user, identity, session, token)');
 select t.login(:A);
 select t.throws($$select t.upsert('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '{"v":2}', 1)$$, '23503: %', 'D13 still-valid JWT of the deleted user cannot recreate a save (FK -> 23503)');
@@ -206,6 +217,12 @@ insert into auth.audit_log_entries (id, payload, created_at) values
   ('d0000000-0000-4000-8000-000000000001', json_build_object('actor_id', '11111111-0000-4000-8000-000000000001', 'action', 'login'), now()),
   ('d0000000-0000-4000-8000-000000000005', json_build_object('actor_id', '00000000-0000-0000-0000-000000000000', 'action', 'user_modified',
                                                               'traits', json_build_object('user_id', '11111111-0000-4000-8000-000000000005')), now());
+-- FK-less auth rows: P2 (purged) and P1 (kept) each get a refresh token without session and a flow_state row
+insert into auth.refresh_tokens (token, user_id, session_id, revoked) values
+  ('fd-nosess-p2', '11111111-0000-4000-8000-000000000002', null, true), ('fd-nosess-p1', '11111111-0000-4000-8000-000000000001', null, true);
+insert into auth.flow_state (id, user_id, auth_code, code_challenge) values
+  ('f0000000-0000-4000-8000-000000000002', '11111111-0000-4000-8000-000000000002', 'code-p2', 'ch-p2'),
+  ('f0000000-0000-4000-8000-000000000001', '11111111-0000-4000-8000-000000000001', 'code-p1', 'ch-p1');
 select t.login(:B);
 select t.throws($$select * from public.fenomen_purge_inactive_accounts()$$, '42501: permission denied for function fenomen_purge_inactive_accounts', 'P01 authenticated cannot call the purge');
 select t.logout();

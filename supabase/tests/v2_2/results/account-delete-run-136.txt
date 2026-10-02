@@ -1,5 +1,5 @@
-# 2026-10-03 02:34 TSİ — code f587eb5 + this commit. FD_MODE=local: throwaway PostgreSQL 17.11 (Debian, box) + auth_schema_fixture.sql (GoTrue auth schema, 23 tables, from a .136 schema dump)
-== mode: local cluster (postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)), auth schema from auth_schema_fixture.sql
+# image: public.ecr.aws/supabase/postgres:17.6.1.136 (ID f519727303f0), container fen22-adtest (--network none): the image's own pre-GoTrue auth schema replaced by account_delete/auth_schema_fixture.sql (GoTrue auth schema, 23 tables); FD_CT=fen22-adtest — 2026-10-03 02:33 TSİ
+== mode: container fen22-adtest (public.ecr.aws/supabase/postgres:17.6.1.136)
 == auth tables: 23 (audit_log_entries,custom_oauth_providers,flow_state,identities,instances,mfa_amr_claims,mfa_challenges,mfa_factors,oauth_authorizations,oauth_client_states,oauth_clients,oauth_consents,one_time_tokens,refresh_tokens,saml_providers,saml_relay_states,schema_migrations,sessions,sso_domains,sso_providers,users,webauthn_challenges,webauthn_credentials)
 
 ######## T. files
@@ -71,3 +71,4 @@ PASS  Y3 info@ verify OK for A after the purge; every other row unchanged
 T=3 P=10 R=6 E=7 X=3 D=8 S=4 H=3 Y=3 
 account delete checks: 47/47 PASS
 RESULT: ALL PASS
+EXIT 0

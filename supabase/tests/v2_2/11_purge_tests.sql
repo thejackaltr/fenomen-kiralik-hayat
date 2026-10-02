@@ -25,6 +25,11 @@ select t.ok((select count(*) from auth.audit_log_entries where id::text like 'c0
             'P07a purged users'' audit rows gone: P2 by actor_id, P3 by traits.user_id, P1''s row about P2 by traits.user_id');
 select t.ok((select count(*) from auth.audit_log_entries where id::text like 'd0000000-%') = 2 and (select count(*) from auth.audit_log_entries where id::text like 'b0000000-%') = 6,
             'P07b kept users'' audit rows untouched (P1 own row, admin row about P5, B/C/odd rows from the D block)');
+select t.ok((select count(*) from auth.refresh_tokens where token = 'fd-nosess-p2') = 0 and (select count(*) from auth.flow_state where id = 'f0000000-0000-4000-8000-000000000002') = 0,
+            'P07c purged user''s FK-less auth rows gone: refresh token without session, flow_state');
+select t.ok((select count(*) from auth.refresh_tokens where token = 'fd-nosess-p1') = 1 and (select count(*) from auth.flow_state where id = 'f0000000-0000-4000-8000-000000000001') = 1
+            and (select count(*) from auth.refresh_tokens where token = 'fd-nosess-b') = 1,
+            'P07d kept users'' refresh tokens without session and flow_state untouched (P1, B)');
 select t.as_service();
 select t.ok((select accounts = 0 and audit_entries = 0 and remaining = 0 from public.fenomen_purge_inactive_accounts()), 'P08 second purge run: nothing to delete');
 select t.logout();

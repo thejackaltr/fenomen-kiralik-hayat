@@ -6,7 +6,8 @@
 \set B 'bbbbbbbb-0000-4000-8000-00000000000b'
 \set C 'cccccccc-0000-4000-8000-00000000000c'
 \set ADMIN 'dddddddd-0000-4000-8000-00000000000d'
-delete from auth.audit_log_entries where payload::text like '%fd-test.invalid%' or payload ->> 'fd_test' = 'yes';
+delete from auth.audit_log_entries where payload::text like '%fd-test.invalid%' or payload ->> 'fd_test' = 'yes'
+   or id::text like any (array['aaaaaaaa-a0d1-%', 'bbbbbbbb-a0d1-%', 'dddddddd-a0d1-%']);
 delete from auth.refresh_tokens where user_id in (:'A', :'B', :'C');
 delete from auth.flow_state where user_id in (:'A'::uuid, :'B'::uuid, :'C'::uuid);
 delete from public.fenomen_save_backups where user_id in (:'A', :'B', :'C');
@@ -29,9 +30,11 @@ insert into auth.refresh_tokens (instance_id, token, user_id, revoked, created_a
  ('00000000-0000-0000-0000-000000000000', 'fdtA1', :'A', false, now(), now(), 'aaaaaaaa-5e55-4000-8000-000000000001'),
  ('00000000-0000-0000-0000-000000000000', 'fdtA2', :'A', false, now(), now(), 'aaaaaaaa-5e55-4000-8000-000000000002'),
  ('00000000-0000-0000-0000-000000000000', 'fdtA3', :'A', true,  now(), now(), null),   -- legacy, no session: no FK, only the delete file removes it
- ('00000000-0000-0000-0000-000000000000', 'fdtB1', :'B', false, now(), now(), 'bbbbbbbb-5e55-4000-8000-000000000001');
+ ('00000000-0000-0000-0000-000000000000', 'fdtB1', :'B', false, now(), now(), 'bbbbbbbb-5e55-4000-8000-000000000001'),
+ ('00000000-0000-0000-0000-000000000000', 'fdtB2', :'B', true,  now(), now(), null);   -- B's legacy token without session: must stay
 insert into auth.flow_state (id, user_id, auth_code, code_challenge_method, code_challenge, provider_type, created_at, updated_at, authentication_method) values
- ('aaaaaaaa-f10e-4000-8000-000000000001', :'A', 'fd-code', 's256', 'fd-challenge', 'email', now(), now(), 'otp');
+ ('aaaaaaaa-f10e-4000-8000-000000000001', :'A', 'fd-code', 's256', 'fd-challenge', 'email', now(), now(), 'otp'),
+ ('bbbbbbbb-f10e-4000-8000-000000000001', :'B', 'fd-code-b', 's256', 'fd-challenge-b', 'email', now(), now(), 'otp');   -- must stay
 insert into auth.one_time_tokens (id, user_id, token_type, token_hash, relates_to) values
  ('aaaaaaaa-0770-4000-8000-000000000001', :'A', 'confirmation_token', 'fd-hash-a', 'alice@fd-test.invalid');
 insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, created_at, updated_at) values

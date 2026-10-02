@@ -1,16 +1,16 @@
-# 2026-10-03 02:34 TSİ — code f587eb5 + this commit. FD_MODE=local: throwaway PostgreSQL 17.11 (Debian, box) + auth_schema_fixture.sql (GoTrue auth schema, 23 tables, from a .136 schema dump)
-== mode: local cluster (postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)), auth schema from auth_schema_fixture.sql
+# f587eb5 code (before this commit; refresh_tokens / flow_state still deleted by the info@ script itself) — earlier .136 run, file from /workspace/tmp/fenomen-account-delete-136/account-delete-run-136.txt (2026-10-03 02:16 TSİ), kept for reference
+== mode: container fen22-adtest (public.ecr.aws/supabase/postgres:17.6.1.136)
 == auth tables: 23 (audit_log_entries,custom_oauth_providers,flow_state,identities,instances,mfa_amr_claims,mfa_challenges,mfa_factors,oauth_authorizations,oauth_client_states,oauth_clients,oauth_consents,one_time_tokens,refresh_tokens,saml_providers,saml_relay_states,schema_migrations,sessions,sso_domains,sso_providers,users,webauthn_challenges,webauthn_credentials)
 
 ######## T. files
 PASS  T1 counts query byte-identical in preflight (2) / delete (2) / verify (2); identity block identical in preflight / delete
 PASS  T2 preflight / verify: begin transaction read only ... rollback, no write statement
-PASS  T3 delete: one transaction (single begin / commit), deletes only through public._fenomen_delete_user (no DELETE of its own)
+PASS  T3 delete: one transaction (single begin / commit), deletes through public._fenomen_delete_user
 
 ######## P. preflight (read only)
 PASS  P1 found by e-mail (case / spaces ignored): exactly 1 match, uid, masked e-mail, read only
 PASS  P2 rows per table  -- fenomen: saves=1 backups=2; auth: users=1 identities=1 sessions=2 refresh_tokens=3 flow_state=1 one_time_tokens=1 mfa_factors=1; audit=3
-PASS  P3 what the delete does per table (function incl. refresh_tokens + flow_state / cascade)
+PASS  P3 what the delete does per table (function / cascade / script)
 PASS  P4 save and backups summary (no save content)
 PASS  P5 verdict OK + uid + expect token (f4ec24b0d644)
 PASS  P6 output has no clear-text e-mail
@@ -42,12 +42,11 @@ PASS  X2 preflight: a non-Fenomen table referencing auth.users -> BLOCKED, no to
 PASS  X3 delete BLOCKED by rows outside Fenomen (would be cascaded)  -- ERROR:  fenomen account delete BLOCKED: rows outside Fenomen (public.zz_fd_test_other=1) would be cascaded or left. Nothing deleted; nothing changed
 
 ######## D. delete with the right token, verify, other users untouched
-PASS  D1 delete with the right token (exit 0)  -- fenomen account delete OK (approval FN-SIL-TEST-01): auth.users 1, fenomen_saves 1, fenomen_save_backups 2, audit_log_entries 4, auth.refresh_tokens 4, auth.flow_state 1 (counted before), cascaded: auth.identities 1, auth.mfa_factors 1, auth.one_time_tokens 1, auth.sessions 3; rows left: 0
+PASS  D1 delete with the right token (exit 0)  -- fenomen account delete OK (approval FN-SIL-TEST-01): auth.users 1, fenomen_saves 1, fenomen_save_backups 2, audit_log_entries 4, auth.refresh_tokens 4, auth.flow_state 1, cascaded: auth.identities 1, auth.mfa_factors 1, auth.one_time_tokens 1, auth.sessions 3; rows left: 0
 PASS  D2 verify: 0 rows of A in auth.users, identities, sessions, refresh_tokens, flow_state, mfa, one_time_tokens, audit, fenomen_saves, fenomen_save_backups
 PASS  D3 every other row unchanged (B, C, B's audit row with A's e-mail, admin / null rows); exactly A's 4 audit rows gone
-PASS  D4 B and C still there (B: 2 refresh tokens incl. one without session, flow_state, cloud save)
-PASS  D4b A's refresh tokens (incl. the one without session) and flow_state gone via _fenomen_delete_user; B's (incl. without session) stay  -- A: rt_nosess=0 rt=0 flow=0; B: rt_nosess=1 rt=2 flow=1
-PASS  D5 verify on a user that still exists fails (exit 3)  -- ERROR:  fenomen account delete verify: rows left for bbbbbbbb-0000-4000-8000-00000000000b: auth.audit_log_entries=2, auth.flow_state=1, auth.identities=1, auth.refresh_tokens=2, auth.session
+PASS  D4 B and C still there (B: session refresh token, cloud save)
+PASS  D5 verify on a user that still exists fails (exit 3)  -- ERROR:  fenomen account delete verify: rows left for bbbbbbbb-0000-4000-8000-00000000000b: auth.audit_log_entries=2, auth.identities=1, auth.refresh_tokens=1, auth.sessions=1, auth.users=1, 
 PASS  D6 second delete with the same token: nothing to delete  -- ERROR:  fenomen account delete: nothing to delete for aaaaaaaa-0000-4000-8000-00000000000a (no auth user, no rows); run the verify; nothing changed
 PASS  D7 preflight by e-mail after the delete: no account
 
@@ -57,17 +56,7 @@ PASS  S2 new preflight by uid: OK (leftovers), new token 04ae5a634136 (old f4ec2
 PASS  S3 old token refused for the leftover delete  -- ERROR:  fenomen account delete: account (id / e-mail / created_at) or Fenomen rows changed since the preflight, or the token is for another user (expect f4ec24b0d644, now 04ae5a634136); run ; nothing changed
 PASS  S4 delete with the new token + new approval -> OK, verify OK, other users still unchanged
 
-######## H. "Hesabımı sil" (fenomen_delete_my_account as authenticated) on the same auth schema
-PASS  H1 fenomen_delete_my_account as A  -- {"saves": 1, "backups": 2, "deleted": true, "audit_entries": 3}
-PASS  H2 A's refresh tokens (incl. the one without session) and flow_state gone; B's (incl. without session) stay  -- A: rt_nosess=0 rt=0 flow=0; B: rt_nosess=1 rt=2 flow=1
-PASS  H3 info@ verify OK for A after "Hesabımı sil"; every other row unchanged
-
-######## Y. 24-month purge (fenomen_purge_inactive_accounts as postgres) on the same auth schema
-PASS  Y1 purge deletes only A (inactive 24 months + 1 day): accounts|saves|backups|audit|remaining = 1|1|2|3|0
-PASS  Y2 A's refresh tokens (incl. the one without session) and flow_state gone; B's stay  -- A: rt_nosess=0 rt=0 flow=0; B: rt_nosess=1 rt=2 flow=1
-PASS  Y3 info@ verify OK for A after the purge; every other row unchanged
-
 ######## SUMMARY
-T=3 P=10 R=6 E=7 X=3 D=8 S=4 H=3 Y=3 
-account delete checks: 47/47 PASS
+T=3 P=10 R=6 E=7 X=3 D=7 S=4 
+account delete checks: 40/40 PASS
 RESULT: ALL PASS

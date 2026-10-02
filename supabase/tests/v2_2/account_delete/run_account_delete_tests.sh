@@ -7,7 +7,8 @@
 #                            auth schema (e.g. fen22-db after KEEP=1 bash supabase/tests/v2_2/stack/run-stack.sh).
 #   bash supabase/tests/v2_2/account_delete/run_account_delete_tests.sh 2>&1 | tee supabase/tests/v2_2/results/account-delete-local-run.txt
 # Groups: T files, P preflight, R refusals (parameters), E expect token, X single transaction / blocked, D delete + verify,
-# S second verify (after GOTRUE_JWT_EXP + 5 min).
+# S second verify (after GOTRUE_JWT_EXP + 5 min), H "Hesabımı sil" (fenomen_delete_my_account) and Y 24-month purge on the same
+# auth schema (refresh tokens without session + flow_state go through _fenomen_delete_user on all three paths).
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; SB="$(cd "$HERE/../../.." && pwd)"
 PRE="$SB/ops/fenomen_account_delete_preflight.sql"; DEL="$SB/ops/fenomen_account_delete.sql"; VER="$SB/ops/fenomen_account_delete_verify.sql"
@@ -74,8 +75,8 @@ PY
 if grep -qiE '^\s*(insert|update|delete|truncate|create|alter|drop|grant|revoke)\b' "$PRE" "$VER"; then fail "T2 preflight/verify contain a write statement"
 elif grep -q '^begin transaction read only;' "$PRE" && grep -q '^begin transaction read only;' "$VER" && [ "$(tail -1 "$PRE")" = "rollback;" ] && [ "$(tail -1 "$VER")" = "rollback;" ]; then
   pass "T2 preflight / verify: begin transaction read only ... rollback, no write statement"; else fail "T2 read only wrapper"; fi
-grep -q 'public._fenomen_delete_user(v_uid)' "$DEL" && [ "$(grep -c '^begin;' "$DEL")" = 1 ] && [ "$(grep -c '^commit;' "$DEL")" = 1 ] \
-  && pass "T3 delete: one transaction (single begin / commit), deletes through public._fenomen_delete_user" || fail "T3 delete file shape"
+grep -q 'public._fenomen_delete_user(v_uid)' "$DEL" && [ "$(grep -c '^begin;' "$DEL")" = 1 ] && [ "$(grep -c '^commit;' "$DEL")" = 1 ] && ! grep -qiE '^\s*delete\s+from' "$DEL" \
+  && pass "T3 delete: one transaction (single begin / commit), deletes only through public._fenomen_delete_user (no DELETE of its own)" || fail "T3 delete file shape"
 
 echo; echo "######## P. preflight (read only)"
 pre -v email=' Alice@FD-Test.invalid ' > "$OUT/pre_a.txt"; f="$OUT/pre_a.txt"
@@ -84,8 +85,8 @@ grep -qE "^[a-z_0-9]+\|postgres\|on\|email\|1\|$A\|t\|a\*\*\*@fd-test\.invalid\|
 got="fenomen: saves=$(n_of $f public.fenomen_saves) backups=$(n_of $f public.fenomen_save_backups); auth: users=$(n_of $f auth.users) identities=$(n_of $f auth.identities) sessions=$(n_of $f auth.sessions) refresh_tokens=$(n_of $f auth.refresh_tokens) flow_state=$(n_of $f auth.flow_state) one_time_tokens=$(n_of $f auth.one_time_tokens) mfa_factors=$(n_of $f auth.mfa_factors); audit=$(n_of $f auth.audit_log_entries)"
 [ "$got" = "fenomen: saves=1 backups=2; auth: users=1 identities=1 sessions=2 refresh_tokens=3 flow_state=1 one_time_tokens=1 mfa_factors=1; audit=3" ] \
   && pass "P2 rows per table  -- $got" || fail "P2 counts: $got"
-grep -q '^auth|auth.refresh_tokens|user_id|3|script$' "$f" && grep -q '^auth|auth.sessions|user_id|2|cascade$' "$f" && grep -q '^fenomen|public.fenomen_saves|user_id|1|function$' "$f" && grep -q '^audit|auth.audit_log_entries|payload.actor_id / traits.user_id|3|function$' "$f" \
-  && pass "P3 what the delete does per table (function / cascade / script)" || fail "P3 act column"
+grep -q '^auth|auth.refresh_tokens|user_id|3|function$' "$f" && grep -q '^auth|auth.flow_state|user_id|1|function$' "$f" && grep -q '^auth|auth.sessions|user_id|2|cascade$' "$f" && grep -q '^fenomen|public.fenomen_saves|user_id|1|function$' "$f" && grep -q '^audit|auth.audit_log_entries|payload.actor_id / traits.user_id|3|function$' "$f" \
+  && pass "P3 what the delete does per table (function incl. refresh_tokens + flow_state / cascade)" || fail "P3 act column"
 grep -q '^backup|reset x1|' "$f" && grep -q '^backup|restore x1|' "$f" && grep -qE '^save\|1\|' "$f" && pass "P4 save and backups summary (no save content)" || fail "P4 summary"
 TA=$(token_of < "$f")
 grep -qE "^OK: deletes Fenomen 3 rows \+ audit 3 rows \+ the auth user \(cascade 5, refresh_tokens / flow_state 4\)\|$A\|[0-9a-f]{12}$" "$f" \
@@ -143,19 +144,22 @@ grep -qE "^BLOCKED: rows outside Fenomen \(public.zz_fd_test_other=1\).*\|$A\|-$
 refused "X3 delete BLOCKED by rows outside Fenomen (would be cascaded)" x3.log 'BLOCKED: rows outside Fenomen \(public.zz_fd_test_other=1\)' -v uid=$A -v confirm_uid=$A -v approval_ref=FN-SIL-TEST-01 -v expect=$TA
 PG -c "drop table public.zz_fd_test_other" >/dev/null
 
+fk_left() { echo "A: rt_nosess=$(PA -c "select count(*) from auth.refresh_tokens where token = 'fdtA3'") rt=$(PA -c "select count(*) from auth.refresh_tokens where user_id = '$A'") flow=$(PA -c "select count(*) from auth.flow_state where user_id = '$A'"); B: rt_nosess=$(PA -c "select count(*) from auth.refresh_tokens where token = 'fdtB2' and user_id = '$B'") rt=$(PA -c "select count(*) from auth.refresh_tokens where user_id = '$B'") flow=$(PA -c "select count(*) from auth.flow_state where user_id = '$B'")"; }
+FK_BEFORE="A: rt_nosess=1 rt=3 flow=1; B: rt_nosess=1 rt=2 flow=1"; FK_AFTER="A: rt_nosess=0 rt=0 flow=0; B: rt_nosess=1 rt=2 flow=1"
 echo; echo "######## D. delete with the right token, verify, other users untouched"
 SB0=$(snap $A); AUD0=$(PA -c "select count(*) from auth.audit_log_entries")
 del d1.log -v uid=$A -v confirm_uid=" $A" -v approval_ref=FN-SIL-TEST-01 -v expect=" $TA "; rc=$?
 grep -m1 -oE 'fenomen account delete OK.*' "$OUT/d1.log" > "$OUT/d1.ok"
-[ $rc = 0 ] && grep -qE '^fenomen account delete OK \(approval FN-SIL-TEST-01\): auth.users 1, fenomen_saves 1, fenomen_save_backups 2, audit_log_entries 4, auth.refresh_tokens 4, auth.flow_state 1, cascaded: auth.identities 1, auth.mfa_factors 1, auth.one_time_tokens 1, auth.sessions 3; rows left: 0$' "$OUT/d1.ok" \
+[ $rc = 0 ] && grep -qE '^fenomen account delete OK \(approval FN-SIL-TEST-01\): auth.users 1, fenomen_saves 1, fenomen_save_backups 2, audit_log_entries 4, auth.refresh_tokens 4, auth.flow_state 1 \(counted before\), cascaded: auth.identities 1, auth.mfa_factors 1, auth.one_time_tokens 1, auth.sessions 3; rows left: 0$' "$OUT/d1.ok" \
   && pass "D1 delete with the right token (exit 0)  -- $(cat "$OUT/d1.ok")" || fail "D1 delete (exit $rc): $(err d1.log) $(cat "$OUT/d1.ok")"
 ver v_a.log -v uid=$A; rc=$?
 [ $rc = 0 ] && grep -q "verify OK: 0 rows left for $A" "$OUT/v_a.log" && ! grep -qE '\| *[1-9][0-9]* *\|' "$OUT/v_a.log" \
   && pass "D2 verify: 0 rows of A in auth.users, identities, sessions, refresh_tokens, flow_state, mfa, one_time_tokens, audit, fenomen_saves, fenomen_save_backups" || fail "D2 verify (exit $rc): $(err v_a.log)"
 [ "$(snap $A)" = "$SB0" ] && [ $(( AUD0 - $(PA -c "select count(*) from auth.audit_log_entries") )) = 4 ] \
   && pass "D3 every other row unchanged (B, C, B's audit row with A's e-mail, admin / null rows); exactly A's 4 audit rows gone" || fail "D3 other users changed"
-[ "$(PA -c "select count(*) from auth.users where id in ('$B', '$C')")|$(PA -c "select count(*) from auth.refresh_tokens where user_id = '$B'")|$(PA -c "select count(*) from public.fenomen_saves where user_id = '$B'")" = "2|1|1" ] \
-  && pass "D4 B and C still there (B: session refresh token, cloud save)" || fail "D4 B/C rows"
+[ "$(PA -c "select count(*) from auth.users where id in ('$B', '$C')")|$(PA -c "select count(*) from auth.refresh_tokens where user_id = '$B'")|$(PA -c "select count(*) from auth.flow_state where user_id = '$B'")|$(PA -c "select count(*) from public.fenomen_saves where user_id = '$B'")" = "2|2|1|1" ] \
+  && pass "D4 B and C still there (B: 2 refresh tokens incl. one without session, flow_state, cloud save)" || fail "D4 B/C rows"
+[ "$(fk_left)" = "$FK_AFTER" ] && pass "D4b A's refresh tokens (incl. the one without session) and flow_state gone via _fenomen_delete_user; B's (incl. without session) stay  -- $(fk_left)" || fail "D4b $(fk_left)"
 ver v_b.log -v uid=$B; rc=$?
 [ $rc != 0 ] && grep -q "rows left for $B" "$OUT/v_b.log" && pass "D5 verify on a user that still exists fails (exit $rc)  -- $(err v_b.log)" || fail "D5 verify B (exit $rc)"
 refused "D6 second delete with the same token: nothing to delete" d6.log 'nothing to delete' -v uid=$A -v confirm_uid=$A -v approval_ref=FN-SIL-TEST-01 -v expect=$TA
@@ -175,8 +179,28 @@ ver v_a3.log -v uid=$A; rc2=$?
 [ $rc = 0 ] && grep -q 'fenomen account delete OK (approval FN-SIL-TEST-02): auth.users 0, fenomen_saves 0, fenomen_save_backups 0, audit_log_entries 1,' "$OUT/s4.log" && [ $rc2 = 0 ] && [ "$(snap $A)" = "$SB0" ] \
   && pass "S4 delete with the new token + new approval -> OK, verify OK, other users still unchanged" || fail "S4 (exit $rc/$rc2): $(err s4.log)"
 
+
+echo; echo "######## H. \"Hesabımı sil\" (fenomen_delete_my_account as authenticated) on the same auth schema"
+seed; [ "$(fk_left)" = "$FK_BEFORE" ] || fail "H0 seed: $(fk_left)"
+SH0=$(snap $A)
+R=$(PA -c "set role authenticated" -c "select set_config('request.jwt.claims', json_build_object('sub', '$A', 'role', 'authenticated')::text, false), set_config('request.jwt.claim.sub', '$A', false)" -c "select public.fenomen_delete_my_account()" 2>&1 | tail -1)
+[ "$R" = '{"saves": 1, "backups": 2, "deleted": true, "audit_entries": 3}' ] && pass "H1 fenomen_delete_my_account as A  -- $R" || fail "H1 delete_my_account: $R"
+[ "$(fk_left)" = "$FK_AFTER" ] && pass "H2 A's refresh tokens (incl. the one without session) and flow_state gone; B's (incl. without session) stay  -- $(fk_left)" || fail "H2 $(fk_left)"
+ver v_h.log -v uid=$A; rc=$?
+[ $rc = 0 ] && [ "$(snap $A)" = "$SH0" ] && pass "H3 info@ verify OK for A after \"Hesabımı sil\"; every other row unchanged" || fail "H3 verify (exit $rc): $(err v_h.log)"
+
+echo; echo "######## Y. 24-month purge (fenomen_purge_inactive_accounts as postgres) on the same auth schema"
+seed; [ "$(fk_left)" = "$FK_BEFORE" ] || fail "Y0 seed: $(fk_left)"
+P -c "update auth.users set created_at = now() - interval '3 years', last_sign_in_at = now() - public.fenomen_cfg_inactive_interval() - interval '1 day' where id = '$A'" >/dev/null
+SY0=$(snap $A)
+R=$(PG -At -F '|' -c "select accounts, saves, backups, audit_entries, remaining from public.fenomen_purge_inactive_accounts()" 2>&1)
+[ "$R" = "1|1|2|3|0" ] && pass "Y1 purge deletes only A (inactive 24 months + 1 day): accounts|saves|backups|audit|remaining = $R" || fail "Y1 purge: $R"
+[ "$(fk_left)" = "$FK_AFTER" ] && pass "Y2 A's refresh tokens (incl. the one without session) and flow_state gone; B's stay  -- $(fk_left)" || fail "Y2 $(fk_left)"
+ver v_y.log -v uid=$A; rc=$?
+[ $rc = 0 ] && [ "$(snap $A)" = "$SY0" ] && pass "Y3 info@ verify OK for A after the purge; every other row unchanged" || fail "Y3 verify (exit $rc): $(err v_y.log)"
+
 echo; echo "######## SUMMARY"
-for k in T P R E X D S; do printf '%s=%s ' "$k" "${NT[$k]:-0}"; done; echo
+for k in T P R E X D S H Y; do printf '%s=%s ' "$k" "${NT[$k]:-0}"; done; echo
 echo "account delete checks: $PASSN/$((PASSN+FAILS)) PASS"
 [ "$FAILS" = 0 ] && echo "RESULT: ALL PASS" || echo "RESULT: FAILURES ($FAILS)"
 exit $([ "$FAILS" = 0 ] && echo 0 || echo 1)
