@@ -4,7 +4,7 @@ Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir)
 
 ## v2.2 — Hesap ve bulut kayıt (Yazı r2 TASLAK; aynen uygulandı)
 
-Yazı r2 (2026-09-29) metinleri anahtar adlarıyla aynen alındı. Açık yer tutucular olduğu gibi duruyor: account.privacy.details #4 [TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek], #5 [YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]. email.from onaylandı (29 Eyl 2026): gönderen fenomen@teserix.com, görünen ad "Fenomen: Kiralık Hayat". Giriş açık (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY) bir derleme, account.privacy.details'te [yer tutucu] kaldıkça `npm run build` hata verir (ALLOW_EMPTY_LEGAL=1 yalnız geliştirme/test). email.* oyunda gösterilmez (sunucu e-posta şablonları, supabase/templates/). Kodda kullanılmayanlar: account.title (Ayarlar'da başlık account.menu), auth.code.wrongOnly ve auth.code.expired (sunucu yanlış ve süresi dolmuş kodu aynı yanıtla bildiriyor, ikisi için de wrongCode gösterilir). {email}, {s}, {t}, {f}, {v}, {n}, {k}, {c}, {d} kodla doldurulur; reset.backupNote {n} = 30 (config CLOUD.backupDays). settings.credits ("Oyun kaydın yalnızca bu cihazda tutulur") değiştirilmedi: karar bekliyor (r2 EKSİK 5).
+Yazı r2 (2026-09-29) metinleri anahtar adlarıyla aynen alındı. Açık yer tutucular olduğu gibi duruyor: account.privacy.details #4 [TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek], #5 [YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]. email.from onaylandı (29 Eyl 2026): gönderen fenomen@teserix.com, görünen ad "Fenomen: Kiralık Hayat". Giriş açık (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY) bir derleme, account.privacy.details'te [yer tutucu] kaldıkça `npm run build` hata verir (ALLOW_EMPTY_LEGAL=1 yalnız geliştirme/test). email.* oyunda gösterilmez (sunucu e-posta şablonları, supabase/templates/). Kodda kullanılmayan: account.title (Ayarlar'da başlık account.menu). auth.code.wrongOnly, auth.code.expired (sunucu yanlış ve süresi dolmuş kodu aynı yanıtla bildiriyor, ikisi için de wrongCode gösterilir) ve auth.moveDomain.url (bağlantı src/config.js BASE_URL) kaldırıldı. {email}, {s}, {t}, {f}, {v}, {n}, {k}, {c}, {d} kodla doldurulur; reset.backupNote {n} = 30 (config CLOUD.backupDays). settings.credits ("Oyun kaydın yalnızca bu cihazda tutulur") değiştirilmedi: karar bekliyor (r2 EKSİK 5).
 
 - `account.privacy.title`: Hesap ve bulut kayıt hakkında
 - `account.privacy.detailsLink`: Ayrıntılar
@@ -51,15 +51,12 @@ Yazı r2 (2026-09-29) metinleri anahtar adlarıyla aynen alındı. Açık yer tu
 - `auth.code.changeEmail`: Başka adres kullan
 - `auth.code.badCode`: Kod 6 haneli olmalı, yalnızca rakam.
 - `auth.code.wrongCode`: Kod hatalı ya da süresi dolmuş. Yeni kod iste.
-- `auth.code.wrongOnly`: Kod hatalı. Tekrar bak ya da yeni kod iste.
-- `auth.code.expired`: Kodun süresi doldu. Yeni kod iste.
 - `auth.code.rateLimit`: Çok fazla deneme oldu. Birkaç dakika sonra tekrar dene.
 - `auth.code.offline`: İnternet yok. Bağlanınca tekrar dene.
 - `auth.code.unreachable`: Sunucuya şu an ulaşılamıyor. Biraz sonra tekrar dene.
 - `auth.moveDomain.text`: Giriş ve bulut kayıt yeni adreste. Giriş yapmak için yeni adrese geç. Burada girişsiz oynamaya devam edebilirsin.
 - `auth.moveDomain.saveHint`: Buradaki kaydın yeni adrese kendiliğinden geçmez. Taşımak için burada “Kaydı dışa aktar”ı, yeni adreste “Kaydı içe aktar”ı kullan.
 - `auth.moveDomain.linkLabel`: Yeni adrese git
-- `auth.moveDomain.url`: https://fenomen.teserix.com
 - `sync.uploaded`: Giriş yaptın. Kaydın artık bulutta da duruyor.
 - `sync.cloudLoaded`: Buluttaki kaydın yüklendi.
 - `sync.saving`: Buluta kaydediliyor…

@@ -634,8 +634,6 @@
       "changeEmail": "Başka adres kullan",
       "badCode": "Kod 6 haneli olmalı, yalnızca rakam.",
       "wrongCode": "Kod hatalı ya da süresi dolmuş. Yeni kod iste.",
-      "wrongOnly": "Kod hatalı. Tekrar bak ya da yeni kod iste.",
-      "expired": "Kodun süresi doldu. Yeni kod iste.",
       "rateLimit": "Çok fazla deneme oldu. Birkaç dakika sonra tekrar dene.",
       "offline": "İnternet yok. Bağlanınca tekrar dene.",
       "unreachable": "Sunucuya şu an ulaşılamıyor. Biraz sonra tekrar dene."
@@ -643,8 +641,7 @@
     "moveDomain": {
       "text": "Giriş ve bulut kayıt yeni adreste. Giriş yapmak için yeni adrese geç. Burada girişsiz oynamaya devam edebilirsin.",
       "saveHint": "Buradaki kaydın yeni adrese kendiliğinden geçmez. Taşımak için burada “Kaydı dışa aktar”ı, yeni adreste “Kaydı içe aktar”ı kullan.",
-      "linkLabel": "Yeni adrese git",
-      "url": "https://fenomen.teserix.com"
+      "linkLabel": "Yeni adrese git"
     }
   },
   "sync": {

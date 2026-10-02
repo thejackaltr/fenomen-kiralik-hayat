@@ -7,7 +7,7 @@ import { progress, recommend, isFresh, progressSig, cloudWasReset, loginDecision
 import { createCloudApi, SESSION_KEY } from '../../src/cloud/api.js';
 import { createSync, KNOWN_KEY } from '../../src/cloud/sync.js';
 import { checkAccountLegal, openAccountItems } from '../../tools/legal-guard.mjs';
-import { CLOUD, NEW_ORIGIN, OLD_ORIGIN } from '../../src/config.js';
+import { CLOUD, NEW_ORIGIN, OLD_ORIGIN, BASE_URL } from '../../src/config.js';
 import { loginAvailable } from '../../src/ui/account.js';
 import { fmtStamp } from '../../src/logic/format.js';
 import { registerLocales, setLocale, t } from '../../src/logic/i18n.js';
@@ -24,7 +24,9 @@ test('texts: r2 keys in tr.json (account, auth, sync, reset, email), placeholder
   assert.equal(tr.email.from, '"Fenomen: Kiralık Hayat" <fenomen@teserix.com>');   // approved sender, placeholder gone
   assert.ok(!all.includes('[GÖNDERİCİ]'));
   for (const ph of ['[TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek]', '[YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]']) assert.ok(all.includes(ph), ph);
-  assert.equal(tr.auth.moveDomain.url, NEW_ORIGIN);
+  // unused keys removed: wrong and expired codes get the same server answer (wrongCode); the link uses BASE_URL
+  for (const k of ['auth.code.wrongOnly', 'auth.code.expired', 'auth.moveDomain.url']) assert.equal(t(k), k, k + ' removed');
+  assert.equal(new URL(BASE_URL).origin, NEW_ORIGIN);   // "Yeni adrese git" = BASE_URL (src/config.js, the one place for the address)
   assert.equal(t('sync.conflict.meta', { f: 1, v: 2, n: 3, k: 4 }), '1 takipçi · 2 ¤ · 3 Şöhret · 4 satış');
   assert.equal(t('reset.backupNote', { n: CLOUD.backupDays }), 'Buluttaki eski kaydın 30 gün yedek olarak saklanır, sonra silinir.');
   // no code validity in the UI (10 min is a server setting)
