@@ -1,6 +1,6 @@
 // v2.2 cloud sync: rules in src/logic/cloud.js, network in src/cloud/api.js, screens in src/ui/account.js (hooks).
-// The device save (fenomen_save_v1) stays the game's source of truth; the cloud gets a copy every CLOUD.syncEverySec
-// and when the page is hidden. A refused write (revision) never overwrites anything: pull, then decide.
+// The device save (fenomen_save_v1) stays the game's source of truth; the cloud gets a copy every CLOUD.syncEverySec,
+// right away when the page is hidden / closed (flush) and shortly after a video is published (soon, coalesced). A refused write (revision) never overwrites anything: pull, then decide.
 import { CLOUD } from '../config.js';
 import * as G from '../logic/game.js';
 import { SAVE_KEY, serialize } from '../logic/save.js';
@@ -11,6 +11,7 @@ export const KNOWN_KEY = 'fenomen_cloud_sync';      // { uid, revision, sig, sum
 
 export function createSync({ api, ctrl, storage, tel = null, device = 'masaustu', hooks, cfg = CLOUD, now = () => Date.now(), win = typeof window === 'undefined' ? null : window }) {
   let busy = false, timer = null, status = { kind: 'idle', at: null }, lastNet = null;
+  let lastWriteAt = 0, soonTimer = null, flushPending = false;
   const listeners = [];
   const setStatus = (kind, at = status.at) => { status = { kind, at }; for (const fn of listeners) try { fn(status); } catch (e) { /* ignore */ } };
   const readKnown = () => { try { const k = JSON.parse(storage.getItem(KNOWN_KEY)); return k && k.uid === api.uid() ? k : null; } catch (e) { return null; } };
@@ -37,7 +38,7 @@ export function createSync({ api, ctrl, storage, tel = null, device = 'masaustu'
     return true;
   }
   async function write(data, known, opts = {}) {
-    setStatus('saving');
+    setStatus('saving'); lastWriteAt = now();
     const r = known ? await api.update(data, known.revision, device, opts) : await api.insert(data, device);
     if (r.ok) return { ok: done(r.row, data) };
     if (r.stale) return { stale: true };
@@ -58,7 +59,16 @@ export function createSync({ api, ctrl, storage, tel = null, device = 'masaustu'
     hooks.toast('reset.otherDevice');
     return true;
   }
-  async function run(fn) { if (busy) return false; busy = true; try { return await fn(); } finally { busy = false; } }
+  async function run(fn) {
+    if (busy) return false; busy = true;
+    try { return await fn(); } finally { busy = false; if (flushPending) { flushPending = false; api2.flush(); } }
+  }
+  function fireSoon() {
+    soonTimer = null;
+    if (!api.signedIn()) return;
+    if (busy) { soonTimer = win.setTimeout(fireSoon, 1000); return; }   // a sync is running: try again right after it
+    api2.push();
+  }
 
   // depth: a refused write pulls again; a second refusal in a row waits for the next sync instead of looping
   async function reconcile(depth = 0) {
@@ -97,7 +107,22 @@ export function createSync({ api, ctrl, storage, tel = null, device = 'masaustu'
     }),
     // boot with a session, a refused write, the 'online' event
     reconcile: () => run(() => (api.signedIn() ? reconcile() : false)),
-    // periodic / page hidden. Nothing changed since the last write = no request.
+    // video published: one write after pushDelayMs, and not sooner than pushGapMs after the last write. While one
+    // is scheduled, further calls ride along (a burst of publishes = one request).
+    soon: () => {
+      if (!win || soonTimer || !api.signedIn()) return false;
+      soonTimer = win.setTimeout(fireSoon, Math.max(cfg.pushDelayMs, lastWriteAt + cfg.pushGapMs - now()));
+      return true;
+    },
+    // page hidden / closed: write now (keepalive), replacing a scheduled write. During a running sync: once more
+    // right after it (hidden + pagehide back to back = the second finds nothing new = no request).
+    flush: () => {
+      if (!api.signedIn()) return false;
+      if (soonTimer) { win.clearTimeout(soonTimer); soonTimer = null; }
+      if (busy) { flushPending = true; return false; }
+      return api2.push({ keepalive: true });
+    },
+    // periodic / flush / soon. Nothing changed since the last write = no request.
     push: ({ keepalive = false } = {}) => run(async () => {
       if (!api.signedIn()) return false;
       const known = readKnown(); if (!known) return reconcile();
@@ -126,10 +151,10 @@ export function createSync({ api, ctrl, storage, tel = null, device = 'masaustu'
     if (timer || !win) return;
     timer = setInterval(() => { if (api.signedIn()) api2.push(); }, Math.max(1, cfg.syncEverySec) * 1000);
   }
-  function stop() { clearInterval(timer); timer = null; }
+  function stop() { clearInterval(timer); timer = null; if (soonTimer) { win.clearTimeout(soonTimer); soonTimer = null; } }
   if (win && win.addEventListener) {
     win.addEventListener('online', () => { if (api.signedIn()) api2.reconcile(); });
-    win.addEventListener('pagehide', () => { if (api.signedIn()) api2.push({ keepalive: true }); });
+    win.addEventListener('pagehide', () => { api2.flush(); });
   }
   return api2;
 }

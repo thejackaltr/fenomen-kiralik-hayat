@@ -187,6 +187,42 @@ export async function runV22({ browser, BASE, OLD, ok }) {
     await done(T, 'giriş');
   }
 
+  // ---- B2: write right away: a published video (debounced, coalesced), page hidden / pagehide (keepalive); 60 s kept
+  {
+    const fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('anında');
+    const T = await dev(fake, { cfg: cfgFor({ cloudPushDelayMs: 400, cloudPushGapMs: 2500 }) });
+    await create(T, 'Anında Kanal'); await publishMini(T); await login(T, fake, 'aninda@example.com'); await idle(T);
+    const W = /POST \/rest\/v1\/fenomen_saves/, rev = () => fake.rowFor('aninda@example.com').revision;
+    await T.p.waitForTimeout(2600);   // out of the gap after the login write
+    const n0 = fake.calls(W).length, r0 = rev();
+    await publishMini(T);
+    await T.p.waitForFunction(() => !window.__fenomen.account.sync.busy(), null, { timeout: 8000 }).catch(() => {});
+    await T.p.waitForTimeout(1200); await idle(T);
+    ok(tag + 'video published: written shortly after without waiting for the 60 s write (one upsert, revision + 1)', fake.calls(W).length === n0 + 1 && rev() === r0 + 1 && fake.rowFor('aninda@example.com').data.stats.videos === (await state(T)).videos, (fake.calls(W).length - n0) + ' writes');
+    // five publishes back to back (as the manager can do) -> one request
+    await T.p.waitForTimeout(2600); const n1 = fake.calls(W).length;
+    await T.S(() => { const f = window.__fenomen; for (let i = 0; i < 5; i++) { f.ctrl.state.followers += 10; f.ctrl.emit('published', { auto: true }); } });
+    await T.p.waitForTimeout(1200); await idle(T);
+    ok(tag + '5 publishes in a row -> 1 write (debounced)', fake.calls(W).length === n1 + 1, (fake.calls(W).length - n1) + ' writes');
+    // inside the gap after a write: held back, then written once
+    await T.S(() => { const f = window.__fenomen; f.ctrl.state.followers += 10; f.ctrl.emit('published', { auto: true }); });
+    await T.p.waitForTimeout(800); const held = fake.calls(W).length === n1 + 1;
+    await T.p.waitForTimeout(2400); await idle(T);
+    ok(tag + 'a publish within 2.5 s (gap) of the last write waits for the gap, then 1 write', held && fake.calls(W).length === n1 + 2, (fake.calls(W).length - n1) + ' writes');
+    // page hidden: written now (no delay); pagehide right after: nothing new -> no request
+    const n2 = fake.calls(W).length;
+    await T.S(() => { window.__fenomen.ctrl.state.followers += 77; Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+    await T.p.waitForTimeout(150);
+    const afterHidden = fake.calls(W).length;
+    await T.S(() => { window.dispatchEvent(new Event('pagehide')); }); await T.p.waitForTimeout(400); await idle(T);
+    ok(tag + 'page hidden: written at once (keepalive path); pagehide right after: no second request', afterHidden === n2 + 1 && fake.calls(W).length === n2 + 1 && Math.floor(fake.rowFor('aninda@example.com').data.followers) === (await state(T)).followers, (afterHidden - n2) + '/' + (fake.calls(W).length - n2));
+    await T.S(() => { Object.defineProperty(document, 'hidden', { value: false, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+    const n3 = fake.calls(W).length;
+    await T.S(() => { window.__fenomen.ctrl.state.followers += 5; window.dispatchEvent(new Event('pagehide')); }); await T.p.waitForTimeout(300); await idle(T);
+    ok(tag + 'pagehide alone (tab closed): written at once', fake.calls(W).length === n3 + 1);
+    await done(T, 'anında');
+  }
+
   // ---- C: rule 2 (first video not published here -> cloud save loaded, no backup); D: rule 3 conflict at 568x320
   const seedCloud = async (fake, email) => {   // "device A": desktop with progress, signed in -> cloud row (rule 1)
     const A = await dev(fake);

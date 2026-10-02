@@ -172,23 +172,23 @@ test('api: reset RPC sends the expected revision; delete RPC has no parameters a
 });
 
 // ---------- sync flows with a fake api + controller
-function rig({ local, row = null, rev = 0 }) {
+function rig({ local, row = null, rev = 0, win = null, cfg = CLOUD }) {
   const storage = new Mem({ [SAVE_KEY]: JSON.stringify(local) });
-  let cloud = row ? { revision: row.revision, data: row.data } : null; const log = [];
+  let cloud = row ? { revision: row.revision, data: row.data } : null; const log = []; let hold = null;
   const api = {
     uid: () => 'u1', signedIn: () => true, email: () => 'a@b.co',
     pull: async () => (log.push('pull'), { ok: true, row: cloud && { ...cloud } }),
     insert: async (data) => (log.push('insert'), cloud ? { ok: false, stale: true } : (cloud = { revision: 1, data }, { ok: true, row: { ...cloud } })),
-    update: async (data, r) => (log.push('update@' + r), !cloud || cloud.revision !== r ? { ok: false, stale: true } : (cloud = { revision: r + 1, data }, { ok: true, row: { ...cloud } })),
+    update: async (data, r, dev, opts = {}) => (log.push('update@' + r + (opts.keepalive ? ':keepalive' : '')), hold && await hold, !cloud || cloud.revision !== r ? { ok: false, stale: true } : (cloud = { revision: r + 1, data }, { ok: true, row: { ...cloud } })),
     reset: async (data, exp) => (log.push('reset@' + exp), cloud && cloud.revision !== exp ? { ok: false, stale: true } : (cloud = { revision: (cloud ? cloud.revision : 0) + 1, data }, { ok: true, revision: cloud.revision })),
     deleteAccount: async () => (log.push('delete'), { ok: true }), signOut: async () => (log.push('signOut'), true)
   };
   const ctrl = { save: () => {}, reload: () => log.push('reload'), reset: (next) => { storage.setItem(SAVE_KEY, serialize(next)); log.push('ctrl.reset'); } };
   const seen = { toasts: [], conflicts: [], keeps: [] }; let pick = 'device';
   const hooks = { toast: (k) => seen.toasts.push(k), conflict: async (o) => (seen.conflicts.push(o), pick), keep: async (o) => { seen.keeps.push(o.kind); } };
-  const sync = createSync({ api, ctrl, storage, device: 'mobil', hooks, win: null });
+  const sync = createSync({ api, ctrl, storage, device: 'mobil', hooks, win, cfg });
   if (rev) storage.setItem(KNOWN_KEY, JSON.stringify({ uid: 'u1', revision: rev, sig: progressSig(local), sum: saveSum(local) }));
-  return { sync, storage, log, seen, cloud: () => cloud, setPick: (p) => { pick = p; }, setCloud: (c) => { cloud = c; }, local: () => JSON.parse(storage.getItem(SAVE_KEY)) };
+  return { sync, api, storage, log, seen, setHold: (p) => { hold = p; }, cloud: () => cloud, setPick: (p) => { pick = p; }, setCloud: (c) => { cloud = c; }, local: () => JSON.parse(storage.getItem(SAVE_KEY)) };
 }
 test('sync: rule 1 upload, rule 2 load without backup, rule 3 conflict -> keep once -> write revision+1', async () => {
   let R = rig({ local: game({ videos: 2 }) });
@@ -240,4 +240,48 @@ test('sync: sign out and delete keep the device save', async () => {
   const D = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1 }); const b2 = D.storage.getItem(SAVE_KEY);
   assert.ok(await D.sync.deleteAccount()); assert.equal(D.storage.getItem(SAVE_KEY), b2); assert.equal(D.storage.getItem(KNOWN_KEY), null);
   assert.ok(sameSave(mine, JSON.parse(b2)));
+});
+
+// ---------- write right away: page hidden / closed (flush), video published (soon, coalesced); 60 s kept
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function fakeWin() {
+  const ev = {};
+  return { setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (id) => clearTimeout(id), addEventListener: (e, f) => { (ev[e] = ev[e] || []).push(f); }, fire: (e) => { for (const f of ev[e] || []) f(); } };
+}
+const play = (R, n) => { const s = R.local(); s.stats.videos += n; s.money += 10 * n; R.storage.setItem(SAVE_KEY, JSON.stringify(s)); };
+test('instant push: soon() after a published video coalesces a burst into one write; at most one per pushGapMs', async () => {
+  const mine = game({ videos: 2 }), cfg = { ...CLOUD, pushDelayMs: 30, pushGapMs: 150 };
+  const R = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1, win: fakeWin(), cfg });
+  play(R, 1);
+  for (let i = 0; i < 5; i++) { R.sync.soon(); play(R, 1); }        // 5 publishes back to back
+  assert.deepEqual(R.log, []);                                       // debounced: nothing yet
+  await sleep(80);
+  assert.deepEqual(R.log, ['update@1']); assert.equal(R.cloud().data.stats.videos, R.local().stats.videos);
+  const t0 = Date.now(); play(R, 1); R.sync.soon();
+  await sleep(60); assert.deepEqual(R.log, ['update@1']);           // the gap after the last write holds it back
+  await sleep(150); assert.deepEqual(R.log, ['update@1', 'update@2']); assert.ok(Date.now() - t0 >= 60);
+  R.sync.soon(); await sleep(220); assert.deepEqual(R.log, ['update@1', 'update@2']);   // nothing new -> no request
+});
+test('instant push: flush() (hidden / pagehide) writes now with keepalive, cancels a scheduled one; back-to-back = one request', async () => {
+  const mine = game({ videos: 2 }), cfg = { ...CLOUD, pushDelayMs: 40, pushGapMs: 40 }, win = fakeWin();
+  const R = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1, win, cfg });
+  play(R, 1); R.sync.soon();
+  await R.sync.flush(); assert.deepEqual(R.log, ['update@1:keepalive']);
+  win.fire('pagehide'); await sleep(80); assert.deepEqual(R.log, ['update@1:keepalive']);   // hidden + pagehide, the soon() was cancelled
+  // a flush during a running write waits for it, then writes once more only if something changed
+  play(R, 1); let open; R.setHold(new Promise((r) => { open = r; }));
+  const first = R.sync.push(); await sleep(5);
+  play(R, 1); assert.equal(await R.sync.flush(), false); assert.equal(R.sync.busy(), true);
+  R.setHold(null); open(); await first; await sleep(10);
+  assert.deepEqual(R.log, ['update@1:keepalive', 'update@2', 'update@3:keepalive']); assert.equal(R.cloud().data.stats.videos, R.local().stats.videos);
+  win.fire('pagehide'); await sleep(10); assert.equal(R.log.length, 3);
+});
+test('instant push: signed out = nothing scheduled; the 60 s interval stays', async () => {
+  const mine = game({ videos: 2 }), R = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1, win: fakeWin(), cfg: { ...CLOUD, pushDelayMs: 10 } });
+  R.api.signedIn = () => false; play(R, 1);
+  assert.equal(R.sync.soon(), false); assert.equal(await R.sync.flush(), false); await sleep(30); assert.deepEqual(R.log, []);
+  assert.equal(CLOUD.syncEverySec, 60); assert.equal(CLOUD.pushDelayMs, 2000); assert.equal(CLOUD.pushGapMs, 15000);
+  const real = globalThis.setInterval, seenIv = []; globalThis.setInterval = (f, ms) => (seenIv.push(ms), 0);
+  try { const S = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1, win: fakeWin() }); S.sync.start(); } finally { globalThis.setInterval = real; }
+  assert.deepEqual(seenIv, [60000]);
 });

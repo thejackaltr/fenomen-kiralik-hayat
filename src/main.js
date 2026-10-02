@@ -81,10 +81,12 @@ async function boot() {
   window.__fenomen = Object.assign({ ctrl, ui: null, G, tel, mode: MODE, version: __APP_VERSION__, account: { available: account.available, old: account.old, sync: account.sync } }, test);
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { ctrl.save(); ctrl.stop(); if (account.sync && account.sync.signedIn()) account.sync.push({ keepalive: true }); }
+    if (document.hidden) { ctrl.save(); ctrl.stop(); if (account.sync) account.sync.flush(); }
     else { ctrl.resume(Date.now()); ctrl.start(); tel.sessionStart(); }
   });
-  window.addEventListener('pagehide', () => ctrl.save());
+  window.addEventListener('pagehide', () => ctrl.save());   // + cloud flush (src/cloud/sync.js)
+  // a published video (own or the manager's) goes to the cloud shortly after, not only on the next 60 s write
+  if (account.sync) ctrl.on('published', () => account.sync.soon());
   // reset_or_prestige = selling the channel (Şöhret prestige) or the full reset in Settings ('wiped'; ctrl.reload()
   // after an import also emits 'reset', which is not a reset by the player)
   ctrl.on('sold', () => track('reset_or_prestige'));

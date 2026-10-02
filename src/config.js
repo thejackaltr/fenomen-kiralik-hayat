@@ -3,7 +3,7 @@
 //
 // Test/debug override: a script that runs before the app may set `window.__FENOMEN_CFG__ = { oldOrigin, baseUrl,
 // moveMode, moveStart, redirectDelayMs, maxHashChars, telemetryUrl, telemetryKey, cloudUrl, cloudKey, loginOrigin,
-// cloudSyncSec, cloudResendSec, cloudTimeoutMs }`. The smoke test uses this to make a local
+// cloudSyncSec, cloudResendSec, cloudTimeoutMs, cloudPushDelayMs, cloudPushGapMs }`. The smoke test uses this to make a local
 // preview server act as the "old" or "new" address (see tests/smoke/smoke.mjs, runV21). Nothing else sets it.
 const O = (typeof globalThis !== 'undefined' && globalThis.__FENOMEN_CFG__) || {};
 const ENV = (typeof import.meta !== 'undefined' && import.meta.env) || {};
@@ -57,6 +57,9 @@ export const CLOUD = {
   loginOrigin: pick('loginOrigin', NEW_ORIGIN),
   table: 'fenomen_saves',
   syncEverySec: pick('cloudSyncSec', 60),     // scope rule 4: write every 60 s (config) + when the page is hidden
+  // a video was published: one write soon (bursts coalesce into one), at most one such write per pushGapMs
+  pushDelayMs: pick('cloudPushDelayMs', 2000),
+  pushGapMs: pick('cloudPushGapMs', 15000),
   resendWaitSec: pick('cloudResendSec', 60),  // GoTrue sends at most one code per address per 60 s (infra: AUTH rate limits)
   backupDays: 30,                             // "Baştan başla" backup kept 30 days (plan; server fenomen_cfg_backup_retention)
   timeoutMs: pick('cloudTimeoutMs', 10000)
