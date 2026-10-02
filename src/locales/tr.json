@@ -421,7 +421,7 @@
     "install": "Uygulamayı yükle",
     "iosInstall": "Yüklemek için Paylaş > Ana Ekrana Ekle'ye dokun.",
     "version": "Sürüm {v}",
-    "credits": "Tüm görseller kodla üretildi. Oyun kaydın yalnızca bu cihazda tutulur.",
+    "credits": "Tüm görseller kodla üretildi. Giriş yapmazsan oyun kaydın yalnızca bu cihazda tutulur. Giriş yaparsan kaydın oynarken düzenli olarak buluta gider; sekmeyi kapattığında ya da oyunu arka plana aldığında da gönderilir.",
     "close": "Kapat",
     "saveTitle": "Kayıt",
     "privacy": "Gizlilik",
@@ -579,9 +579,9 @@
         "Bilgiler Fenomen'in kendi sunucusunda (fenomen-api.teserix.com) tutulur. Sunucu, bağlantı sırasında IP adresini teknik kayıtlarda görebilir. Bu teknik kayıtlar [TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek] sonra silinir.",
         "Giriş kodu e-postalarını Resend adlı e-posta gönderim hizmeti gönderir. E-posta adresin bu hizmete yalnızca kodu gönderebilmek için iletilir. Gönderim Türkiye dışında, İrlanda'daki sunuculardan (AWS eu-west-1) yapılır. Yani e-posta adresin bu iş için yurt dışına aktarılır. Aktarımın dayanağı: [YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]",
         "Aşama sayacı ve ziyaret sayımı hesabına bağlanmaz. Giriş yapsan da bu sayımlara e-postan ya da hesap bilgin gitmez, ikisi de isimsiz kalır.",
-        "24 ay boyunca giriş yapılmazsa hesabın ve bulut kaydın silinir; cihazındaki kayıt yerinde kalır. Varsa baştan başlamadan önce alınan yedek de bunlarla birlikte silinir.",
+        "24 ay boyunca giriş yapılmazsa hesabın ve bulut kaydın silinir; cihazındaki kayıt yerinde kalır. Varsa baştan başlamadan önce alınan oyun içi yedek de bunlarla birlikte silinir. Bu veriler güvenlik yedeklerinde bir süre daha kalabilir; bu yedekler yalnızca arıza durumunda geri yükleme için kullanılır.",
         "“Kaydı sil ve baştan başla”yı seçersen buluttaki eski kaydın 30 gün yedek olarak saklanır, sonra silinir.",
-        "Hesabını istediğin zaman “Hesabımı sil” düğmesiyle silebilirsin. Hesabın, e-posta adresin ve bulut kaydın yedekleriyle birlikte silinir. Bu en geç 30 gün içinde tamamlanır. Bu cihazdaki kaydın silinmez.",
+        "Hesabını istediğin zaman Ayarlar'daki “Hesabımı sil” düğmesiyle silebilirsin. Hesabın, e-posta adresin, bulut kaydın, varsa oyun içi “Baştan başla” yedeklerin ve giriş kayıtların sunucudan hemen silinir. Bu veriler güvenlik yedeklerinde bir süre daha kalabilir; bu yedekler yalnızca arıza durumunda geri yükleme için kullanılır. Diğer cihazlarda açık olan oturumun kısa süre içinde geçersiz olur. Sunucu kayıtlarında ve e-posta gönderim kayıtlarında kalan kopyalar hemen silinemez; bunlar yukarıdaki teknik kayıtlar maddesindeki sürenin sonunda silinir. Bu cihazdaki kaydın silinmez. Aynı cihazda yeniden giriş yaparsan yeni bir hesap açılır ve bu kayıt ona yüklenir. Kaydı bu cihazdan da silmek istersen tarayıcında bu sitenin verilerini temizle.",
         "Bu bilgilerin veri sorumlusu Teserix Bilişim ve Dijital Çözümler. KVKK'nın 11. maddesindeki haklarını kullanmak için info@teserix.com adresine yazabilirsin."
       ]
     },
@@ -592,15 +592,17 @@
     "signIn": "Giriş yap",
     "signOut": "Çıkış yap",
     "signedOut": "Çıkış yaptın. Kaydın bu cihazda duruyor.",
+    "signedOutByServer": "Oturumun kapandı. Kaydın bu cihazda duruyor.",
     "delete": {
       "button": "Hesabımı sil",
-      "title": "Hesabını silmek istiyor musun?",
-      "body": "Hesabın, e-posta adresin ve buluttaki kaydın yedekleriyle birlikte silinir. Bu en geç 30 gün içinde tamamlanır. Bu cihazdaki kaydın kalır, oynamaya buradan devam edebilirsin. Silinen hesap geri gelmez.",
+      "title": "Hesabın silinsin mi?",
+      "body": "Hesabın, e-posta adresin, bulut kaydın ve varsa oyun içi “Baştan başla” yedeklerin sunucudan silinir. Bu veriler güvenlik yedeklerinde bir süre daha kalabilir; bu yedekler yalnızca arıza durumunda geri yükleme için kullanılır. Diğer cihazlardaki oturumun da kısa sürede kapanır. Bu cihazdaki kaydın kalır; yeniden giriş yaparsan yeni hesabına yüklenir.",
       "yes": "Evet, sil",
       "no": "Vazgeç",
       "deleting": "Siliniyor…",
-      "done": "Hesabın silindi. Kaydın bu cihazda duruyor.",
-      "failed": "Hesabın şu an silinemedi. Bağlantını kontrol edip tekrar dene."
+      "done": "Hesabın silindi. Kaydın bu cihazda duruyor, girişsiz devam edebilirsin.",
+      "failed": "Hesabın şu an silinemedi. Bağlantını kontrol edip tekrar dene.",
+      "signedOut": "Oturumun kapanmış. Hesabını silmek için önce yeniden giriş yap."
     }
   },
   "auth": {
@@ -676,7 +678,7 @@
   },
   "reset": {
     "confirmSignedIn": "Emin misin? Tüm ilerleme bu cihazdan ve buluttan silinecek.",
-    "backupNote": "Buluttaki eski kaydın {n} gün yedek olarak saklanır, sonra silinir.",
+    "backupNote": "Buluttaki eski kaydın 30 gün yedek olarak saklanır, sonra silinir.",
     "otherDevice": "Kaydın başka bir cihazda sıfırlandı. Güncel kayıt yüklendi.",
     "failed": "Kayıt şu an sıfırlanamadı. Bağlantını kontrol edip tekrar dene."
   },

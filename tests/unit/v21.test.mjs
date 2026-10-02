@@ -265,7 +265,8 @@ test('v2.1 texts: copy writer keys present, temporary changes applied, no "rıza
   assert.equal(tr.import.conflictMeta, '{f} takipçi · Son oynama: {d}');
   assert.equal(tr.settings.telemetry, 'İsimsiz istatistik gönder'); assert.equal(tr.telemetry.ok, 'Tamam'); assert.equal(tr.telemetry.off, 'Kapat');
   const all = JSON.stringify(tr).toLocaleLowerCase('tr');
-  assert.ok(!all.includes('rıza')); assert.ok(!all.includes('onlyfans'));
+  // "rıza" as a word (consent), not inside "arıza" (Yazı r9: "arıza durumunda geri yükleme")
+  assert.ok(!/(^|[^a-zçğıöşü])rıza/u.test(all), (all.match(/.{0,20}rıza.{0,10}/gu) || []).join(' | ')); assert.ok(!all.includes('onlyfans'));
 });
 test('no hardcoded UI text in the v2.1 files', () => {
   const bad = [];
