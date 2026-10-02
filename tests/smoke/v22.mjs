@@ -299,6 +299,28 @@ export async function runV22({ browser, BASE, OLD, ok }) {
     await done(C, 'kural 3 ' + vw + 'x' + vh);
   }
 
+  // ---- C2: end to end, new device: create a character, sign in -> the cloud save is loaded, never a choice screen
+  {
+    const tag = tagOf('yeni cihaz'), shared = createFakeSupabase({ resendSec: 0 });
+    ok(tag + 'device A (desktop) has progress in the cloud', await seedCloud(shared, 'yeni@example.com'));
+    const cloud = shared.rowFor('yeni@example.com');
+    const N = await dev(shared, { vw: 360, vh: 640, mobile: true });
+    ok(tag + 'new device: empty storage, character creation shown', !(await localSave(N)) && !!(await N.p.waitForSelector('[data-test=creator]')));
+    // watch the whole time: did a choice or keep window ever show up?
+    await N.S(() => { window.__seen = []; new MutationObserver(() => { for (const s of ['cloud-conflict', 'keep-modal', 'keep-reset']) if (document.querySelector('[data-test=' + s + ']') && !window.__seen.includes(s)) window.__seen.push(s); }).observe(document.body, { childList: true, subtree: true }); });
+    await create(N, 'Yepyeni');
+    const before = shared.log.length;
+    await login(N, shared, 'yeni@example.com'); await idle(N);
+    const st = await state(N), mine = shared.log.slice(before).filter((x) => /fenomen_saves/.test(x.path));
+    ok(tag + 'signed in: cloud save loaded (channel, videos, followers), toast "Buluttaki kaydın yüklendi."', st.channel === 'Bulut Kanalı' && st.videos === cloud.data.stats.videos && st.followers >= Math.floor(cloud.data.followers) && (await waitToast(N, tr('sync.cloudLoaded'))), JSON.stringify(st));
+    ok(tag + 'no choice screen and no keep window at any time', JSON.stringify(await N.S(() => window.__seen)) === '[]');
+    ok(tag + 'the new device only read the cloud (GET), wrote nothing; cloud unchanged', mine.length > 0 && mine.every((x) => x.method === 'GET') && JSON.stringify(shared.rowFor('yeni@example.com')) === JSON.stringify(cloud), mine.map((x) => x.method).join(','));
+    ok(tag + 'the device knows the cloud revision (next write = revision + 1)', (await N.S(() => JSON.parse(localStorage.getItem('fenomen_cloud_sync')).revision)) === cloud.revision);
+    await N.p.reload({ waitUntil: 'load' }); await idle(N); await N.p.waitForTimeout(300);
+    ok(tag + 'reload: still the cloud save, no choice screen', (await state(N)).channel === 'Bulut Kanalı' && !(await N.p.$('[data-test=cloud-conflict]')));
+    await done(N, 'yeni cihaz');
+  }
+
   // ---- E: rule 4 (a write is refused during play) + F: reset on another device + reset signed in
   {
     const fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('kural 4');
