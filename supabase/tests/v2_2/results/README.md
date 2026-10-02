@@ -29,3 +29,12 @@ YY onayıyla yalnız `supabase/gotrue:v2.189.0` ve `postgrest/postgrest:v14.12` 
 | `stack-local-run-136.txt` | **Yeniden koşuldu.** `PG_IMG=public.ecr.aws/supabase/postgres:17.6.1.136`. Sonuç: HTTP 56/56 (H53b, H57b dahil) + runner 14/14, ALL PASS. Verify 16/16. Temizlik gerçek GoTrue satırlarını sildi (traits yolu, 2 satır); sayım = temizlik sonucu. Host'ta psql/pg_dump yok: aynı imajın istemcisi `fen22-pgcli` yardımcı container'ından kullanıldı (`--network host`, repo salt okunur). supabase-js 2.117.2, `/tmp`'ye npm ile kuruldu. |
 | `stack-local-run.txt` | **Eski** (29 Eyl, .171). .171 imajı box'ta yok, çekilmedi. |
 | `audit-size-readonly-136.txt` | **Yeni.** `ops/audit_log_size_readonly.sql` yerel denemesi (200 000 sentetik satır, .136). Canlı ölçüm değildir. |
+
+### 2026-10-03 ~02:30 TSİ: e-postayla gelen hesap silme talepleri (info@)
+Box yeniden kurulmuştu: docker, dockerd ve imajların hiçbiri (.136, GoTrue, PostgREST) box'ta yoktu. Kural gereği imaj çekilmedi. Bu yüzden testler .136'da **koşulmadı**. Yerine box'a apt ile PostgreSQL 17.11 + pg_cron 1.6.5 kuruldu. Hesap silme testleri bu kümede, gerçek GoTrue auth şemasıyla koşuldu.
+
+| Dosya | Durum |
+|---|---|
+| `account-delete-local-run.txt` | **Yeni.** `account_delete/run_account_delete_tests.sh`, FD_MODE=local, auth şeması `account_delete/auth_schema_fixture.sql`. Şema, .136 şema dökümünün auth kısmından alındı (23 tablo, FK'ler ve yetkiler aynı). Sonuç: 40/40 PASS (T3 P10 R6 E7 X3 D7 S4). `FD_CT=<.136 container>` modu yazıldı ama koşulmadı. |
+| `sql-local-run.txt` | **Yeniden koşuldu** (host PG17.11). 91/91 + 32/32, ALL PASS. Kod `e730b8d`; migration bu commit'te değişmedi. |
+| `sql-local-run-136.txt`, `stack-local-run-136.txt` | Değişmedi (1 Eki). Docker yok, yeniden koşulamadı. Test edilen kod bu commit'te değişmedi. |

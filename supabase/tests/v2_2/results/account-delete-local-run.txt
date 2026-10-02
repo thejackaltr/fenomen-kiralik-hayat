@@ -1,0 +1,63 @@
+# 2026-10-03 02:14 TSİ — code e730b8d + this commit. FD_MODE=local: throwaway PostgreSQL 17.11 (Debian, box) + auth_schema_fixture.sql (GoTrue auth schema, 23 tables, from a .136 schema dump). NOT the .136 image: docker and all images are gone from the box, no image was pulled.
+== mode: local cluster (postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)), auth schema from auth_schema_fixture.sql
+== auth tables: 23 (audit_log_entries,custom_oauth_providers,flow_state,identities,instances,mfa_amr_claims,mfa_challenges,mfa_factors,oauth_authorizations,oauth_client_states,oauth_clients,oauth_consents,one_time_tokens,refresh_tokens,saml_providers,saml_relay_states,schema_migrations,sessions,sso_domains,sso_providers,users,webauthn_challenges,webauthn_credentials)
+
+######## T. files
+PASS  T1 counts query byte-identical in preflight (2) / delete (2) / verify (2); identity block identical in preflight / delete
+PASS  T2 preflight / verify: begin transaction read only ... rollback, no write statement
+PASS  T3 delete: one transaction (single begin / commit), deletes through public._fenomen_delete_user
+
+######## P. preflight (read only)
+PASS  P1 found by e-mail (case / spaces ignored): exactly 1 match, uid, masked e-mail, read only
+PASS  P2 rows per table  -- fenomen: saves=1 backups=2; auth: users=1 identities=1 sessions=2 refresh_tokens=3 flow_state=1 one_time_tokens=1 mfa_factors=1; audit=3
+PASS  P3 what the delete does per table (function / cascade / script)
+PASS  P4 save and backups summary (no save content)
+PASS  P5 verdict OK + uid + expect token (f4ec24b0d644)
+PASS  P6 output has no clear-text e-mail
+PASS  P7 unknown e-mail: STOP, no token
+PASS  P8 e-mail and uid together / neither: error (exit 3 / 3)
+PASS  P9 lookup by uid gives the same token as by e-mail; B has its own token
+PASS  P10 two accounts with the same e-mail (SSO + e-mail): STOP, no token
+
+######## R. refusals (parameters), nothing deleted
+PASS  R1 confirm_uid differs  -- ERROR:  fenomen account delete: confirm_uid does not match uid; nothing deleted; nothing changed
+PASS  R2 approval_ref empty  -- ERROR:  fenomen account delete: approval_ref (Aryen's approval reference) is required; nothing deleted; nothing changed
+PASS  R3 expect missing  -- ERROR:  expect missing; nothing changed
+PASS  R4 uid missing  -- ERROR:  uid missing; nothing changed
+PASS  R5 nil uuid  -- ERROR:  fenomen account delete: the nil uuid is not a user; nothing deleted; nothing changed
+PASS  R6 uid not a uuid  -- ERROR:  invalid input syntax for type uuid: "alice"; nothing changed
+
+######## E. expect token
+PASS  E1 wrong token  -- ERROR:  fenomen account delete: account (id / e-mail / created_at) or Fenomen rows changed since the preflight, or the token is for another user (expect 000000000000, now f4ec24b0d644); run ; nothing changed
+PASS  E2 token of another user (B's token for A)  -- ERROR:  fenomen account delete: account (id / e-mail / created_at) or Fenomen rows changed since the preflight, or the token is for another user (expect cb64bb05e7e3, now f4ec24b0d644); run ; nothing changed
+PASS  E3 e-mail changed after the preflight -> refused  -- ERROR:  fenomen account delete: account (id / e-mail / created_at) or Fenomen rows changed since the preflight, or the token is for another user (expect f4ec24b0d644, now 38e04a1a4a41); run ; nothing changed
+PASS  E4 created_at changed after the preflight -> refused  -- ERROR:  fenomen account delete: account (id / e-mail / created_at) or Fenomen rows changed since the preflight, or the token is for another user (expect f4ec24b0d644, now aff31e7d15d7); run ; nothing changed
+PASS  E5 Fenomen rows changed after the preflight (new backup) -> refused  -- ERROR:  fenomen account delete: account (id / e-mail / created_at) or Fenomen rows changed since the preflight, or the token is for another user (expect f4ec24b0d644, now 9f4a2fca272b); run ; nothing changed
+PASS  E6 restoring e-mail / created_at / rows gives the original token again (deterministic)
+PASS  E7 token stable while the player is signed in: last_sign_in_at, new session, new refresh token, new audit row do not change it (f4ec24b0d644)
+
+######## X. single transaction, blocked
+PASS  X1 failure at the last step (auth.users) rolls back everything: audit rows, refresh tokens, flow state, backups, save still there  -- ERROR:  fd test: injected failure in users; nothing changed
+PASS  X2 preflight: a non-Fenomen table referencing auth.users -> BLOCKED, no token
+PASS  X3 delete BLOCKED by rows outside Fenomen (would be cascaded)  -- ERROR:  fenomen account delete BLOCKED: rows outside Fenomen (public.zz_fd_test_other=1) would be cascaded or left. Nothing deleted; nothing changed
+
+######## D. delete with the right token, verify, other users untouched
+PASS  D1 delete with the right token (exit 0)  -- fenomen account delete OK (approval FN-SIL-TEST-01): auth.users 1, fenomen_saves 1, fenomen_save_backups 2, audit_log_entries 4, auth.refresh_tokens 4, auth.flow_state 1, cascaded: auth.identities 1, auth.mfa_factors 1, auth.one_time_tokens 1, auth.sessions 3; rows left: 0
+PASS  D2 verify: 0 rows of A in auth.users, identities, sessions, refresh_tokens, flow_state, mfa, one_time_tokens, audit, fenomen_saves, fenomen_save_backups
+PASS  D3 every other row unchanged (B, C, B's audit row with A's e-mail, admin / null rows); exactly A's 4 audit rows gone
+PASS  D4 B and C still there (B: session refresh token, cloud save)
+PASS  D5 verify on a user that still exists fails (exit 3)  -- ERROR:  fenomen account delete verify: rows left for bbbbbbbb-0000-4000-8000-00000000000b: auth.audit_log_entries=2, auth.identities=1, auth.refresh_tokens=1, auth.sessions=1, auth.users=1, 
+PASS  D6 second delete with the same token: nothing to delete  -- ERROR:  fenomen account delete: nothing to delete for aaaaaaaa-0000-4000-8000-00000000000a (no auth user, no rows); run the verify; nothing changed
+PASS  D7 preflight by e-mail after the delete: no account
+
+######## S. second verify (GOTRUE_JWT_EXP + 5 min): a late row -> new preflight, new expect, new approval
+PASS  S1 second verify finds the late row (exit 3)  -- ERROR:  fenomen account delete verify: rows left for aaaaaaaa-0000-4000-8000-00000000000a: auth.audit_log_entries=1 (new preflight with -v uid, new expect, new approval)
+PASS  S2 new preflight by uid: OK (leftovers), new token 04ae5a634136 (old f4ec24b0d644)
+PASS  S3 old token refused for the leftover delete  -- ERROR:  fenomen account delete: account (id / e-mail / created_at) or Fenomen rows changed since the preflight, or the token is for another user (expect f4ec24b0d644, now 04ae5a634136); run ; nothing changed
+PASS  S4 delete with the new token + new approval -> OK, verify OK, other users still unchanged
+
+######## SUMMARY
+T=3 P=10 R=6 E=7 X=3 D=7 S=4 
+account delete checks: 40/40 PASS
+RESULT: ALL PASS
+EXIT 0
