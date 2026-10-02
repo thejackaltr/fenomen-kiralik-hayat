@@ -285,3 +285,51 @@ test('instant push: signed out = nothing scheduled; the 60 s interval stays', as
   try { const S = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1, win: fakeWin() }); S.sync.start(); } finally { globalThis.setInterval = real; }
   assert.deepEqual(seenIv, [60000]);
 });
+
+// ---------- explicit: a write with an old revision gets 409 and shows the choice screen, never overwrites silently
+// (real api.js + sync.js; the server below applies CONTRACT §2: revision must be server + 1, else 409 PT409)
+function miniServer() {
+  let row = null; const calls = [];
+  const res = (status, b) => ({ ok: status >= 200 && status < 300, status, text: async () => JSON.stringify(b) });
+  const fetchFn = async (url, init = {}) => {
+    const u = new URL(url), body = init.body ? JSON.parse(init.body) : null, method = init.method || 'GET';
+    let out;
+    if (u.pathname === '/rest/v1/fenomen_saves' && method === 'GET') out = res(200, row ? [row] : []);
+    else if (u.pathname === '/rest/v1/fenomen_saves' && method === 'POST') {
+      if (body.revision !== (row ? row.revision : 0) + 1) out = res(409, { code: 'PT409', message: 'stale_revision' });
+      else { row = { data: body.data, save_version: body.save_version, revision: body.revision, device: body.device, updated_at: new Date().toISOString() }; out = res(201, [row]); }
+    } else out = res(404, {});
+    calls.push({ method, path: u.pathname, revision: body && body.revision, status: out.status });
+    return out;
+  };
+  return { fetchFn, calls, row: () => row };
+}
+function device(server, local, name) {
+  const storage = new Mem({ [SAVE_KEY]: JSON.stringify(local), [SESSION_KEY]: JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'a@b.co' } }) });
+  const api = createCloudApi({ cfg: { url: 'https://cloud.test', key: 'k', table: 'fenomen_saves', timeoutMs: 1000 }, storage, fetchFn: server.fetchFn, online: () => true });
+  const seen = { conflicts: [], rowDuringChoice: null, keeps: [] };
+  const hooks = { toast: () => {}, conflict: async (o) => { seen.conflicts.push(o); seen.rowDuringChoice = JSON.stringify(server.row()); return 'cloud'; }, keep: async (o) => { seen.keeps.push(o.kind); } };
+  const ctrl = { save: () => {}, reload: () => {}, reset: () => {} };
+  const sync = createSync({ api, ctrl, storage, device: name, hooks, win: null });
+  const play = (o) => { const s = JSON.parse(storage.getItem(SAVE_KEY)); Object.assign(s.stats, o.stats || {}); if (o.sales) s.meta.sales = o.sales; storage.setItem(SAVE_KEY, JSON.stringify(s)); };
+  return { sync, storage, seen, play, local: () => JSON.parse(storage.getItem(SAVE_KEY)) };
+}
+test('409 explicit: the device with the old revision is refused (PT409) and gets the choice screen; the cloud is not overwritten', async () => {
+  const srv = miniServer();
+  const A = device(srv, game({ videos: 3, channel: 'A Kanal' }), 'masaustu');
+  assert.ok(await A.sync.afterLogin()); assert.equal(srv.row().revision, 1);
+  const B = device(srv, game({ channel: 'B yeni' }), 'mobil');          // new device, no video yet -> cloud loaded (rule 2)
+  assert.ok(await B.sync.afterLogin()); assert.equal(B.local().char.channel, 'A Kanal'); assert.equal(B.seen.conflicts.length, 0);
+  A.play({ stats: { videos: 5 } }); assert.ok(await A.sync.push()); assert.equal(srv.row().revision, 2);
+  const cloudA = JSON.stringify(srv.row());
+  B.play({ stats: { videos: 4 }, sales: 2 });                               // B played too, still knows revision 1
+  await B.sync.push();
+  const posts = srv.calls.filter((c) => c.method === 'POST');
+  const bPost = posts[posts.length - 1];
+  assert.deepEqual([bPost.revision, bPost.status], [2, 409]);              // old revision + 1 = 2, server already at 2 -> 409
+  assert.equal(B.seen.conflicts.length, 1); assert.equal(B.seen.conflicts[0].kind, 'newer');
+  assert.equal(B.seen.rowDuringChoice, cloudA);                            // nothing written while the choice was open
+  assert.equal(posts.length, 3);                                           // A rev1, A rev2, B refused: no second (silent) write
+  assert.equal(JSON.stringify(srv.row()), cloudA); assert.equal(B.local().stats.videos, 5);   // "Buluttakini seç": A's save here
+  assert.deepEqual(B.seen.keeps, ['conflict']);                            // B's own save offered once as a code
+});

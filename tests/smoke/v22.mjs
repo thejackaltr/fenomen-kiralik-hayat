@@ -316,6 +316,13 @@ export async function runV22({ browser, BASE, OLD, ok }) {
     await sync(B, 'push');
     await B.p.waitForSelector('[data-test=cloud-conflict]', { timeout: 8000 });
     ok(tag + 'B refused (409 PT409 stale_revision) -> choice screen with "bodyNewer", "Önerilen" on B (3 sales)', (await B.S(() => document.querySelector('[data-test=cloud-conflict-body]').textContent)) === tr('sync.conflict.bodyNewer') && fake.calls(/POST \/rest\/v1\/fenomen_saves/).some((x) => x.auth) && JSON.stringify(await B.S(() => [...document.querySelectorAll('[data-test=conflict-recommended]')].map((x) => x.closest('.choice-card').getAttribute('data-test')))) === '["conflict-device"]' && fake.rowFor('dort@example.com').revision === revA);
+    {
+      const posts = fake.calls(/POST \/rest\/v1\/fenomen_saves/), lp = posts[posts.length - 1], row = fake.rowFor('dort@example.com');
+      const aVideos = (await state(A)).videos;
+      ok(tag + '409 explicit: B wrote with its old revision (+1 = ' + revA + ', server already ' + revA + ') -> refused; the cloud still holds A\'s save; no other write from B while the choice is open',
+        lp.body.revision === revA && row.revision === revA && row.data.stats.videos === aVideos && row.data.meta.sales !== 3 && posts.filter((x) => x.body && x.body.data && x.body.data.meta && x.body.data.meta.sales === 3).length === 1,
+        JSON.stringify({ sent: lp.body.revision, server: row.revision }));
+    }
     await B.tap('[data-test=use-cloud]'); await B.p.waitForSelector('[data-test=keep-modal]'); await B.tap('[data-test=keep-continue]'); await idle(B);
     ok(tag + '"Buluttakini seç" on B: A\'s save loaded, cloud untouched', (await state(B)).videos === (await state(A)).videos && (await state(B)).sales === 0 && fake.rowFor('dort@example.com').revision === revA);
 
