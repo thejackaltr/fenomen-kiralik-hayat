@@ -472,7 +472,9 @@ export async function runV22({ browser, BASE, OLD, ok }) {
       const size = vw + 'x' + vh, fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('hız sınırı ' + size);
       const T = await dev(fake, { vw, vh, mobile: true, cfg: cfgFor({ cloudSendGapMs: 5000, cloudNetLockMs: 10000, cloudRateLockMs: 30000, cloudResendSec: 60, cloudTimeoutMs: 4000 }) });
       await create(T, 'Hız Kanalı');
-      await T.p.clock.install();   // from here Date.now / setTimeout in the page move only when the test says so
+      // fake page clock, PAUSED: Date.now / setTimeout move only by fastForward (installed alone it keeps following real time,
+      // and a slow box then shortens the locks the test measures)
+      await T.p.clock.install(); await T.p.clock.pauseAt(await T.S(() => Date.now() + 1000));
       await openSettings(T); await T.tap('[data-test=account-signin]'); await T.p.waitForSelector('[data-test=login-modal]');
       const otp = () => fake.calls(/POST \/auth\/v1\/otp/).length, ver = () => fake.calls(/POST \/auth\/v1\/verify/).length;
       const btn = (sel) => T.S((q) => { const b = document.querySelector(q); return b ? { dis: b.disabled, txt: b.textContent } : null; }, sel);
