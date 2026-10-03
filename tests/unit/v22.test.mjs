@@ -17,7 +17,7 @@ registerLocales({ tr }); setLocale('tr');
 class Mem { constructor(o = {}) { this.m = new Map(Object.entries(o)); } getItem(k) { return this.m.has(k) ? this.m.get(k) : null; } setItem(k, v) { this.m.set(k, String(v)); } removeItem(k) { this.m.delete(k); } }
 const game = (o = {}) => { const s = G.newGame(1000, 7); if (o.created !== false) { G.createCharacter(s, { body: 'f', skin: 1, hair: 0, channel: o.channel || 'K' }); G.choosePath(s, 'vlog'); } if (o.videos) s.stats.videos = o.videos; if (o.sales) s.meta.sales = o.sales; if (o.fame) { s.meta.fame = o.fame; s.meta.fameEarned = o.fame; } if (o.followers) s.followers = o.followers; if (o.resetAt) s.resetAt = o.resetAt; return JSON.parse(serialize(s)); };
 
-test('texts: Yazı r9 keys in tr.json (account, auth, sync, reset, email), placeholders kept (legal), sender approved', () => {
+test('texts: Yazı r10 keys in tr.json (account, auth, sync, reset, email), placeholders kept (legal), sender approved', () => {
   for (const k of ['account', 'auth', 'sync', 'reset', 'email']) assert.ok(tr[k] && typeof tr[k] === 'object', k);
   for (const k of ['auth.login.privacySummary', 'auth.login.quotaFull', 'auth.login.sendError', 'auth.code.resend', 'auth.code.resendIn', 'sync.conflict.metaLast', 'sync.conflict.keepTitleReset', 'sync.conflict.keepBodyReset', 'reset.otherDevice', 'account.delete.button', 'auth.moveDomain.text']) assert.notEqual(t(k), k, k);
   const all = JSON.stringify(tr);
@@ -31,6 +31,12 @@ test('texts: Yazı r9 keys in tr.json (account, auth, sync, reset, email), place
   assert.equal(t('reset.backupNote', { n: CLOUD.backupDays }), 'Buluttaki eski kaydın 30 gün yedek olarak saklanır, sonra silinir.');
   assert.ok(tr.reset.backupNote.includes(CLOUD.backupDays + ' gün') && tr.account.privacy.details[7].includes(CLOUD.backupDays + ' gün'));   // r9 writes 30 out: must match the server (fenomen_cfg_backup_retention)
   for (const k of ['account.signedOutByServer', 'account.delete.signedOut']) assert.notEqual(t(k), k, k);
+  // r10: 11 items; [9] = deletion list (new, no e-mail), [10] = data controller (was [9]); #4/#5 placeholders stay
+  const D = tr.account.privacy.details;
+  assert.equal(D.length, 11);
+  assert.ok(D[9].startsWith('Hesabın silindiğinde yalnızca hesap kimliğini') && D[9].includes('e-posta adresin bu listede yer almaz'));
+  assert.ok(D[10].startsWith('Bu bilgilerin veri sorumlusu') && D.slice(0, 10).every((x) => !x.includes('veri sorumlusu')));
+  assert.ok(D[8].startsWith('Hesabını istediğin zaman') && D[3].includes('[TEKNİK KAYIT SAKLAMA SÜRESİ') && D[4].includes('[YURT DIŞI AKTARIM DAYANAĞI'));
   // no code validity in the UI (10 min is a server setting)
   for (const k of ['auth', 'account', 'sync']) assert.ok(!/\d+ dakika/.test(JSON.stringify(tr[k])), k + ' gives a code validity');
   assert.ok(tr.auth.login.privacySummary.length <= 90);
