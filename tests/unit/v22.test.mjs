@@ -216,21 +216,23 @@ test('auth brake: one request per press (double press = one), 5 s between code r
   // a request that throws (never expected) frees the button without a lock
   await assert.rejects(V.run('send', () => { throw new Error('boom'); })); assert.ok(!V.busy('send')); assert.equal(V.wait('send'), 0);
 });
-test('real HTTP 429: button locked for Retry-After (seconds / HTTP date, max 120 s) or 30 s (missing, unreadable, invalid, negative)', async () => {
-  assert.equal(CLOUD.rateLockMs, 30000); assert.equal(CLOUD.rateLockMaxMs, 120000);
+test('real HTTP 429: button locked for Retry-After (seconds / HTTP date, kept within 10-120 s) or 30 s (missing, unreadable, invalid, negative)', async () => {
+  assert.equal(CLOUD.rateLockMs, 30000); assert.equal(CLOUD.rateLockMinMs, 10000); assert.equal(CLOUD.rateLockMaxMs, 120000);
   const t0 = Date.UTC(2026, 9, 3, 14, 0, 0);
   const R = (v) => retryAfterMs(v, t0);
   assert.equal(R(undefined), 30000); assert.equal(R(null), 30000);              // no header / not exposed by CORS
-  assert.equal(R('45'), 45000); assert.equal(R(' 7 '), 7000); assert.equal(R('0'), 0);
+  assert.equal(R('45'), 45000); assert.equal(R(' 12 '), 12000); assert.equal(R('10'), 10000);
+  assert.equal(R('0'), 10000); assert.equal(R('3'), 10000); assert.equal(R(' 7 '), 10000);   // floor: never under 10 s
+  assert.equal(R(new Date(t0 + 4000).toUTCString()), 10000);                      // HTTP date 4 s ahead -> 10 s
   assert.equal(R('600'), 120000);                                                 // capped
   assert.equal(R(new Date(t0 + 60000).toUTCString()), 60000);                     // HTTP date
   assert.equal(R(new Date(t0 + 3600000).toUTCString()), 120000);                  // HTTP date, capped
   for (const bad of ['-5', '1.5', 'abc', '', '  ', '10s', new Date(t0 - 1000).toUTCString(), 'Wed, 32 Foo 2026 99:99:99 GMT']) assert.equal(R(bad), 30000, JSON.stringify(bad));
   // through the gate, with a fake clock; the lock counts from the answer; nothing is sent while locked
   let clock = t0; const now = () => clock;
-  for (const [ra, ms] of [[undefined, 30000], ['45', 45000], [new Date(t0 + 60000).toUTCString(), 60000], ['600', 120000], ['abc', 30000], ['-5', 30000]]) {
+  for (const [ra, ms] of [[undefined, 30000], ['0', 10000], ['3', 10000], ['45', 45000], [new Date(t0 + 60000).toUTCString(), 60000], ['600', 120000], ['abc', 30000], ['-5', 30000]]) {
     clock = t0;
-    const g = createAuthGate({ now, sendGapMs: CLOUD.sendGapMs, netLockMs: CLOUD.netLockMs, rateLockMs: CLOUD.rateLockMs, rateLockMaxMs: CLOUD.rateLockMaxMs });
+    const g = createAuthGate({ now, sendGapMs: CLOUD.sendGapMs, netLockMs: CLOUD.netLockMs, rateLockMs: CLOUD.rateLockMs, rateLockMinMs: CLOUD.rateLockMinMs, rateLockMaxMs: CLOUD.rateLockMaxMs });
     let n = 0; const res = Object.assign({ ok: false, status: 429, body: '<html>Error 1015</html>' }, ra === undefined ? {} : { retryAfter: ra });
     for (const kind of ['send', 'verify']) {
       clock = t0;

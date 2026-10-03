@@ -94,9 +94,9 @@ export function verifyErrorKey(res) {
   if (res.status >= 500) return 'auth.code.unreachable';
   return 'auth.code.wrongCode';
 }
-// Retry-After of a 429 -> lock in ms: delta seconds ("45") or an HTTP date; capped at maxMs; missing, unreadable (CORS),
-// invalid or in the past -> defMs. "0" is valid (no lock from the header; the 5 s gap still applies to code requests).
-export function retryAfterMs(value, nowMs, { defMs = 30000, maxMs = 120000 } = {}) {
+// Retry-After of a 429 -> lock in ms: delta seconds ("45") or an HTTP date, kept within [minMs, maxMs] (10-120 s: "0" or
+// "3" -> 10 s); missing, unreadable (CORS), invalid or in the past -> defMs (30 s).
+export function retryAfterMs(value, nowMs, { defMs = 30000, minMs = 10000, maxMs = 120000 } = {}) {
   if (value == null) return defMs;
   const v = String(value).trim();
   let ms;
@@ -104,21 +104,21 @@ export function retryAfterMs(value, nowMs, { defMs = 30000, maxMs = 120000 } = {
   else if (/[a-z]/i.test(v)) { const at = Date.parse(v); ms = isFinite(at) ? at - nowMs : NaN; }
   else ms = NaN;
   if (!isFinite(ms) || ms < 0) return defMs;
-  return Math.min(ms, maxMs);
+  return Math.min(Math.max(ms, minMs), maxMs);
 }
 // Brake for the two auth buttons (pure, clock injected). kind: 'send' (/auth/v1/otp, "Kod gönder" + "Kodu tekrar gönder")
 // | 'verify' (/auth/v1/verify). begin() = true means "send exactly one request now"; false = in flight or still locked.
 // send: at least sendGapMs between two code requests that really left the device (an offline attempt, sent: false, does
 // not count). Locks after the answer: network error while online or our own timeout -> netLockMs; HTTP 429 -> Retry-After
 // (retryAfterMs) or rateLockMs. Nothing is retried here or anywhere: the player presses again.
-export function createAuthGate({ now = () => Date.now(), sendGapMs = 5000, netLockMs = 10000, rateLockMs = 30000, rateLockMaxMs = 120000 } = {}) {
+export function createAuthGate({ now = () => Date.now(), sendGapMs = 5000, netLockMs = 10000, rateLockMs = 30000, rateLockMinMs = 10000, rateLockMaxMs = 120000 } = {}) {
   const mk = () => ({ busy: false, until: 0, last: -Infinity, started: 0 });
   const st = { send: mk(), verify: mk() };
   const wait = (kind) => { const s = st[kind]; const u = Math.max(s.until, kind === 'send' ? s.last + sendGapMs : 0); return Math.max(0, u - now()); };
   const lockFor = (res) => {
     if (!res) return 0;
     if (res.network === 'unreachable') return netLockMs;                 // TypeError while online, or our timeout
-    if (res.status === 429) return retryAfterMs(res.retryAfter, now(), { defMs: rateLockMs, maxMs: rateLockMaxMs });
+    if (res.status === 429) return retryAfterMs(res.retryAfter, now(), { defMs: rateLockMs, minMs: rateLockMinMs, maxMs: rateLockMaxMs });
     return 0;
   };
   return {

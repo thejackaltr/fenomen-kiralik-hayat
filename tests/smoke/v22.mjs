@@ -464,7 +464,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
   // ---- K: Cloudflare rate limit on /auth/v1/otp + /verify (10 req / 10 s per IP, 10 s block; its 429 has NO CORS header on
   // the Free plan -> the page sees a TypeError, simulated with route.abort(): Playwright's route.fulfill adds the CORS
   // header itself, so a header-less 429 cannot be faked with a route). Real brake: 5 s between code requests that went out;
-  // locks: network error / our timeout 10 s, HTTP 429 Retry-After (max 120 s) or 30 s. Page clock under Playwright control
+  // locks: network error / our timeout 10 s, HTTP 429 Retry-After (kept within 10-120 s) or 30 s. Page clock under Playwright control
   // (fastForward), every request counted: nothing is sent while a button is locked, nothing is retried behind the player.
   if (want('v22-K')) {
     const HTML429 = '<!DOCTYPE html><html><head><title>Access denied | fenomen-api.teserix.com used Cloudflare to restrict access</title></head><body><h1>Error 1015</h1><p>You are being rate limited</p></body></html>';
@@ -511,6 +511,8 @@ export async function runV22({ browser, BASE, OLD, ok }) {
 
       // (a) real HTTP 429 (CORS headers present, HTML body) -> auth.login.rateLimit + lock: Retry-After or 30 s
       await sendCase('(a) 429 right after the offline attempt, no Retry-After', () => fake.failRaw('POST', '/auth/v1/otp', 429, HTML429), 'auth.login.rateLimit', 30000, 'ratelimit');
+      await sendCase('(a) 429 Retry-After: 0 -> floor 10 s', () => fake.failRaw('POST', '/auth/v1/otp', 429, HTML429, { headers: { 'Retry-After': '0' }, expose: 'Retry-After' }), 'auth.login.rateLimit', 10000);
+      await sendCase('(a) 429 Retry-After: 3 -> floor 10 s', () => fake.failRaw('POST', '/auth/v1/otp', 429, HTML429, { headers: { 'Retry-After': '3' }, expose: 'Retry-After' }), 'auth.login.rateLimit', 10000);
       await sendCase('(a) 429 Retry-After: 45 (exposed)', () => fake.failRaw('POST', '/auth/v1/otp', 429, HTML429, { headers: { 'Retry-After': '45' }, expose: 'Retry-After' }), 'auth.login.rateLimit', 45000);
       const at = await T.S(() => Math.floor((Date.now() + 60000) / 1000) * 1000);   // HTTP dates have 1 s resolution: lock in (59, 60] s
       await sendCase('(a) 429 Retry-After: HTTP date (+60 s)', () => fake.failRaw('POST', '/auth/v1/otp', 429, HTML429, { headers: { 'Retry-After': new Date(at).toUTCString() }, expose: 'Retry-After' }), 'auth.login.rateLimit', 60000);
@@ -553,7 +555,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
       const r = await msg('[data-test=code-error]');
       c = await cycle('[data-test=code-resend]', 'send', 'auth.code.resendIn', 'auth.code.resend', 10000, null);
       ok(tag + '(d) resend network error -> auth.login.netOrRate, exactly 1 request; "Kodu tekrar gönder (10 sn)", then free', r === tr('auth.login.netOrRate') && otp() === n0 + 1 && c.ok, r + ' ' + c.detail);
-      ok(tag + 'totals: ' + otp() + ' code requests, ' + ver() + ' verify requests (one per accepted press)', otp() === 10 && ver() === 2, otp() + '/' + ver());
+      ok(tag + 'totals: ' + otp() + ' code requests, ' + ver() + ' verify requests (one per accepted press)', otp() === 12 && ver() === 2, otp() + '/' + ver());
       await done(T, 'hız sınırı ' + size);
     }
   }
