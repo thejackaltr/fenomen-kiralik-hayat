@@ -8,7 +8,7 @@ import { serialize, deserialize, SAVE_KEY } from '../../src/logic/save.js';
 import { buildEnvelope, checkEnvelope, encodeEnvelope, decodeEnvelope, readCode, readFileText, validateSave, moveFragment, fragmentData, clearFragment,
   applyImport, isEmptySave, summary, readBackup, BACKUP_KEY, checksumOf, IMPORT_PREFIX, hasBackup, backupConflict, backupCandidate, BackupOccupiedError } from '../../src/logic/transfer.js';
 import { checkLegal, emptyLegalItems, legalGuardPlugin } from '../../tools/legal-guard.mjs';
-import { moveMode, prepareMove, markMigrated, daysLeft } from '../../src/logic/move.js';
+import { moveMode, prepareMove, markMigrated, daysLeft, removeServiceWorker } from '../../src/logic/move.js';
 import { createTelemetry, mockTransport, httpTransport, httpRequest, wireTelemetry, playBucket, captureUtm, EVENT_IDS, PAYLOAD_FIELDS, KEYS, SEMVER, DEVICE_CLASSES, PLAY_BUCKETS } from '../../src/telemetry.js';
 import { OLD_ORIGIN, BASE_URL, NEW_ORIGIN, MOVE, TELEMETRY } from '../../src/config.js';
 import { shareUrl } from '../../src/ui/share.js';
@@ -482,4 +482,28 @@ test('notice band keeps every action above it: --nb-space reserved while shown, 
   assert.match(css, /\.sheet-box \{ margin-bottom: var\(--nb-space, 0px\); max-height: calc\(100% - var\(--nb-space, 0px\)\); \}/);
   assert.match(css, /\.creator, \.panel \{ scroll-padding-bottom: var\(--nb-space, 0px\); \}/);
   for (const f of ['src/ui/ui.js', 'src/ui/savefile.js']) assert.doesNotMatch(fs.readFileSync(f, 'utf8'), /tel-banner\]'\); if \(b\) b\.remove\(\)/, f + ' uses dismissNoticeBand()');
+});
+
+// ---- old address: the worker stops caching (and finishes in-flight puts) BEFORE its caches are deleted
+function swWin({ reply = true, script = 'https://x.test/app/sw.js' } = {}) {
+  const log = [], keys = new Set(['fenomen-1', 'other-app']);
+  const controller = { scriptURL: script, postMessage: (msg, ports) => { log.push('msg:' + msg); if (reply) setTimeout(() => { keys.add('fenomen-1'); log.push('late put'); ports[0].postMessage('stopped'); }, 20); } };
+  const reg = (scope) => ({ scope, unregister: async () => { log.push('unregister ' + scope); return true; } });
+  return { log, keys, win: { location: { href: 'https://x.test/app/index.html' }, MessageChannel,
+    navigator: { serviceWorker: { controller, getRegistrations: async () => [reg('https://x.test/app/'), reg('https://x.test/')] } },
+    caches: { keys: async () => [...keys], delete: async (k) => { log.push('delete ' + k); return keys.delete(k); } } } };
+}
+test('removeServiceWorker: stopCaching -> (late put lands) -> unregister ours only -> delete our caches; nothing re-created', async () => {
+  const W = swWin();
+  await removeServiceWorker(W.win);
+  assert.deepEqual(W.log, ['msg:stopCaching', 'late put', 'unregister https://x.test/app/', 'delete fenomen-1']);
+  assert.deepEqual([...W.keys], ['other-app']);
+});
+test('removeServiceWorker: an older worker without the handler -> go on after stopWaitMs; a foreign worker is not messaged', async () => {
+  const W = swWin({ reply: false }), t0 = Date.now();
+  await removeServiceWorker(W.win, { stopWaitMs: 60 });
+  assert.ok(Date.now() - t0 >= 55); assert.deepEqual(W.log, ['msg:stopCaching', 'unregister https://x.test/app/', 'delete fenomen-1']);
+  const F = swWin({ script: 'https://x.test/sw.js' });     // root-scope worker of another project on the same origin
+  await removeServiceWorker(F.win, { stopWaitMs: 60 });
+  assert.deepEqual(F.log, ['unregister https://x.test/app/', 'delete fenomen-1']);
 });
