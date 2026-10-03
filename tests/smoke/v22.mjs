@@ -421,6 +421,34 @@ export async function runV22({ browser, BASE, OLD, ok }) {
     await done(T, 'çıkış/sil');
   }
 
+  // ---- I: the server ends the session (signed out elsewhere): notice once; delete while the session is gone: no retry
+  {
+    const fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('oturum düştü');
+    const T = await dev(fake);
+    await create(T, 'Düşen Oturum'); await publishMini(T); await login(T, fake, 'dusen@example.com'); await idle(T);
+    await T.S(() => { window.__fenomen.ctrl.stop(); window.__fenomen.ctrl.save(); }); const keep = await localSave(T);
+    ok(tag + 'the server ends every session of this account', fake.revokeSessions('dusen@example.com') > 0);
+    await T.S(() => { window.__fenomen.ctrl.state.followers += 50; window.__fenomen.ctrl.save(); }); const keep2 = await localSave(T);
+    await sync(T, 'push'); await idle(T);
+    ok(tag + 'next write: 401, refresh refused -> toast "' + tr('account.signedOutByServer') + '"', await waitToast(T, tr('account.signedOutByServer')));
+    ok(tag + 'signed out here, sync state cleared, device save kept (incl. the unsent progress)', !(await T.S(() => window.__fenomen.account.sync.signedIn())) && !(await T.S(() => localStorage.getItem('fenomen_auth'))) && !(await T.S(() => localStorage.getItem('fenomen_cloud_sync'))) && Math.floor(JSON.parse(await localSave(T)).followers) === Math.floor(JSON.parse(keep2).followers) && JSON.parse(keep2).followers > JSON.parse(keep).followers, JSON.stringify({ now: JSON.parse(await localSave(T)).followers, keep2: JSON.parse(keep2).followers, keep: JSON.parse(keep).followers }));
+    ok(tag + 'the notice is shown once', (await toasts(T)).filter((x) => x === tr('account.signedOutByServer')).length === 1);
+    await openSettings(T);
+    ok(tag + 'Settings: guest again ("Giriş yap")', !!(await T.p.$('[data-test=account-signin]')));
+    // delete: the dialog is open while the session dies
+    await T.S(() => window.__fenomen.ui.closeModal());
+    await login(T, fake, 'dusen@example.com'); await idle(T); if (await T.p.$('[data-test=cloud-conflict]')) { await T.tap('[data-test=use-device]'); await T.tap('[data-test=keep-continue]'); await idle(T); }
+    const users = fake.users.size, saves = fake.saves.size, nT = (await toasts(T)).length;
+    await openSettings(T); await T.tap('[data-test=account-delete]'); await T.p.waitForSelector('[data-test=delete-modal]');
+    fake.revokeSessions('dusen@example.com');
+    await T.tap('[data-test=delete-yes]'); await T.p.waitForSelector('[data-test=delete-error]:not(.hidden)', { timeout: 8000 });
+    const D = await T.S(() => ({ err: document.querySelector('[data-test=delete-error]').textContent, yes: !!document.querySelector('[data-test=delete-yes]'), no: document.querySelector('[data-test=delete-no]') && !document.querySelector('[data-test=delete-no]').disabled }));
+    ok(tag + 'delete with the session gone: "' + tr('account.delete.signedOut') + '" (not delete.failed), no "Evet, sil" (no retry), "Vazgeç" usable', D.err === tr('account.delete.signedOut') && !D.yes && D.no, JSON.stringify(D));
+    ok(tag + 'nothing deleted on the server, signed out here, device save kept, no extra toast', fake.users.size === users && fake.saves.size === saves && !(await T.S(() => window.__fenomen.account.sync.signedIn())) && (await localSave(T)) !== null && !(await toasts(T)).slice(nT).includes(tr('account.signedOutByServer')));
+    await T.tap('[data-test=delete-no]'); await T.p.waitForSelector('[data-test=delete-modal]', { state: 'detached' });
+    await done(T, 'oturum düştü');
+  }
+
   // ---- J: old address (github.io) = no login, "Giriş için yeni adrese geç" note; login origin only
   if (OLD) {
     const fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('eski adres');

@@ -24,7 +24,8 @@ export function createSync({ api, ctrl, storage, tel = null, device = 'masaustu'
     if (lastNet !== kind) { lastNet = kind; hooks.toast('sync.' + kind); }
     setStatus(kind); return false;
   };
-  const signedOutByServer = () => { clearKnown(); setStatus('idle', null); return false; };
+  // the server ended the session (signed out elsewhere, token revoked, account gone): say so once; the device save stays
+  const signedOutByServer = ({ quiet = false } = {}) => { clearKnown(); setStatus('idle', null); if (!quiet) hooks.toast('account.signedOutByServer'); return false; };
   const fail = (r) => (r.signedOut ? signedOutByServer() : netFail(r));
   const done = (row, data) => { writeKnown(row, data); lastNet = null; setStatus('saved', now()); return true; };
 
@@ -144,7 +145,12 @@ export function createSync({ api, ctrl, storage, tel = null, device = 'masaustu'
     }),
     // the device save stays (both)
     signOut: async () => { if (timer) stop(); clearKnown(); await api.signOut(); setStatus('idle', null); start(); return true; },
-    deleteAccount: () => run(async () => { const r = await api.deleteAccount(); if (!r.ok) return false; clearKnown(); setStatus('idle', null); return true; }),
+    // -> true | false (try again) | 'signedOut' (session gone meanwhile: nothing deleted, the dialog says so, no retry)
+    deleteAccount: () => run(async () => {
+      const r = await api.deleteAccount();
+      if (!r.ok) return r.signedOut ? (signedOutByServer({ quiet: true }), 'signedOut') : false;
+      clearKnown(); setStatus('idle', null); return true;
+    }),
     start, stop
   };
   function start() {

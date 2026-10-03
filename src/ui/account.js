@@ -147,9 +147,12 @@ export function confirmDelete(ui, acc) {
     const yes = h('button', { class: 'btn danger', 'data-test': 'delete-yes', onclick: async () => {
       yes.disabled = no.disabled = true; yes.textContent = t('account.delete.deleting'); err.classList.add('hidden');
       const ok = await acc.sync.deleteAccount();
-      if (ok) { close(); ui.toast(t('account.delete.done'), 'ok'); return; }
-      yes.disabled = no.disabled = false; yes.textContent = t('account.delete.yes');
-      err.textContent = t('account.delete.failed'); err.classList.remove('hidden');
+      if (ok === true) { close(); ui.toast(t('account.delete.done'), 'ok'); return; }
+      no.disabled = false; err.classList.remove('hidden');
+      // signed out meanwhile: nothing was deleted and a retry cannot work -> say so, offer no "Evet, sil"
+      if (ok === 'signedOut') { yes.remove(); err.textContent = t('account.delete.signedOut'); return; }
+      yes.disabled = false; yes.textContent = t('account.delete.yes');
+      err.textContent = t('account.delete.failed');
     } }, t('account.delete.yes'));
     box.append(h('h2', { text: t('account.delete.title') }), h('p', { text: t('account.delete.body') }), err, h('div', { class: 'row end' }, no, yes));
   }, { dismissable: false, cls: 'acct' });

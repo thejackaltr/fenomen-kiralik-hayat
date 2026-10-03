@@ -337,3 +337,37 @@ test('409 explicit: the device with the old revision is refused (PT409) and gets
   assert.equal(JSON.stringify(srv.row()), cloudA); assert.equal(B.local().stats.videos, 5);   // "Buluttakini seç": A's save here
   assert.deepEqual(B.seen.keeps, ['conflict']);                            // B's own save offered once as a code
 });
+
+// ---------- the server ends the session: one notice (account.signedOutByServer); delete with the session gone
+test('signed out by the server: toast account.signedOutByServer once, known state cleared, device save kept', async () => {
+  const mine = game({ videos: 2 }), R = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1 }); const before = R.storage.getItem(SAVE_KEY);
+  R.api.pull = async () => ({ ok: false, status: 401, signedOut: true });
+  assert.equal(await R.sync.reconcile(), false);
+  assert.deepEqual(R.seen.toasts, ['account.signedOutByServer']); assert.equal(R.storage.getItem(KNOWN_KEY), null); assert.equal(R.storage.getItem(SAVE_KEY), before);
+  assert.equal(R.sync.status().kind, 'idle');
+  const P = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1 }); play(P, 1);
+  P.api.update = async () => ({ ok: false, status: 401, signedOut: true });
+  assert.equal(await P.sync.push(), false); assert.deepEqual(P.seen.toasts, ['account.signedOutByServer']);
+  // a network failure is not a sign-out
+  const N = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1 }); play(N, 1);
+  N.api.update = async () => ({ ok: false, network: 'unreachable' });
+  await N.sync.push(); assert.deepEqual(N.seen.toasts, ['sync.unreachable']); assert.notEqual(N.storage.getItem(KNOWN_KEY), null);
+});
+test('delete account with the session gone -> "signedOut" (no retry), no extra toast; other failures -> false (retry)', async () => {
+  const mine = game({ videos: 2 });
+  const R = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1 }); const before = R.storage.getItem(SAVE_KEY);
+  R.api.deleteAccount = async () => ({ ok: false, status: 401, signedOut: true });
+  assert.equal(await R.sync.deleteAccount(), 'signedOut'); assert.deepEqual(R.seen.toasts, []); assert.equal(R.storage.getItem(KNOWN_KEY), null); assert.equal(R.storage.getItem(SAVE_KEY), before);
+  const F = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1 });
+  F.api.deleteAccount = async () => ({ ok: false, network: 'unreachable' });
+  assert.equal(await F.sync.deleteAccount(), false); assert.notEqual(F.storage.getItem(KNOWN_KEY), null);
+});
+test('api: delete with an expired session whose refresh is refused -> signedOut', async () => {
+  const st = new Mem({ [SESSION_KEY]: JSON.stringify({ access_token: 'old', refresh_token: 'rt', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u1', email: 'a@b.co' } }) });
+  const seenPaths = [];
+  const fetchFn = async (url) => { const p = new URL(url).pathname; seenPaths.push(p); return p === '/auth/v1/token' ? { ok: false, status: 400, text: async () => '{"error_code":"refresh_token_not_found"}' } : { ok: false, status: 401, text: async () => '{"code":"PGRST301"}' }; };
+  const api = createCloudApi({ cfg: { url: 'https://cloud.test', key: 'k', table: 'fenomen_saves', timeoutMs: 1000 }, storage: st, fetchFn, online: () => true });
+  const r = await api.deleteAccount();
+  assert.equal(r.ok, false); assert.equal(r.signedOut, true); assert.equal(st.getItem(SESSION_KEY), null);
+  assert.deepEqual(seenPaths, ['/rest/v1/rpc/fenomen_delete_my_account', '/auth/v1/token']);   // tried once, refresh refused, no second RPC
+});

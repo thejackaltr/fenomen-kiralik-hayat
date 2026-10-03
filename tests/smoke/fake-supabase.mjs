@@ -122,6 +122,8 @@ export function createFakeSupabase({ resendSec = 60, now = () => Date.now() } = 
     // one-shot failure for the next matching request: fail('POST', '/auth/v1/otp', 429, {...}) or fail(..., 'abort')
     fail(method, path, status, body) { inject.push(status === 'abort' ? { match: (m, p) => m === method && p === path, abort: true } : { match: (m, p) => m === method && p === path, status, body }); },
     clearFails() { inject.length = 0; },
+    // the server ends every session of this user (signed out on another device / revoked): access and refresh tokens die
+    revokeSessions: (email) => { const u = users.get(email); if (!u) return 0; let n = 0; for (const [k, v] of tokens) if (v === u.id) { tokens.delete(k); n++; } for (const [k, v] of refresh) if (v === u.id) refresh.delete(k); return n; },
     // play "another device": write the row directly like a second client would
     rowFor: (email) => { const u = users.get(email); return u ? saves.get(u.id) || null : null; },
     userId: (email) => (users.get(email) || {}).id || null,
