@@ -1,5 +1,6 @@
 // v2.2 network client for Fenomen's own Supabase: GoTrue (e-mail + 6-digit code) and PostgREST (fenomen_saves + RPCs).
-// Plain fetch, no SDK. Every call resolves (never rejects): { ok, status, body } or { ok: false, network: 'offline'|'unreachable' }.
+// Plain fetch, no SDK. Every call resolves (never rejects): { ok, status, body } or { ok: false, network: 'offline'|'unreachable' }
+// (+ timeout: true when our own timeout aborted it). One request per call: no retry here (the screens decide).
 // Contract: supabase/migrations/20260929193000_v2_2_fenomen_cloud_save.sql
 //   GET + upsert POST /rest/v1/fenomen_saves?on_conflict=user_id (RLS: own row; revision = server revision + 1, else 409 PT409)
 //   POST /rest/v1/rpc/fenomen_reset_save { p_data, p_save_version, p_expected_revision, p_device } -> { revision, backup_id, updated_at }
@@ -24,12 +25,21 @@ export function createCloudApi({ cfg = CLOUD, storage, fetchFn = (...a) => fetch
     if (token) headers.Authorization = 'Bearer ' + token;
     if (prefer) headers.Prefer = prefer;
     const ctl = typeof AbortController === 'function' ? new AbortController() : null;
-    const timer = ctl ? setTimeout(() => ctl.abort(), cfg.timeoutMs || 10000) : null;
+    let timedOut = false;
+    const timer = ctl ? setTimeout(() => { timedOut = true; ctl.abort(); }, cfg.timeoutMs || 10000) : null;
+    let r;
     try {
-      const r = await fetchFn(base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: ctl ? ctl.signal : undefined, keepalive, credentials: 'omit', cache: 'no-store' });
-      const text = await r.text(); let parsed = null; try { parsed = text ? JSON.parse(text) : null; } catch (e) { parsed = text; }
-      return { ok: r.ok, status: r.status, body: parsed };
-    } catch (e) { return { ok: false, network: online() ? 'unreachable' : 'offline' }; } finally { if (timer) clearTimeout(timer); }
+      r = await fetchFn(base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: ctl ? ctl.signal : undefined, keepalive, credentials: 'omit', cache: 'no-store' });
+    } catch (e) {
+      if (timer) clearTimeout(timer);
+      const out = { ok: false, network: online() ? 'unreachable' : 'offline' };
+      if (timedOut) out.timeout = true;
+      return out;
+    }
+    // the status decides; the body may be HTML / plain text (Cloudflare) or unreadable: never breaks the answer
+    let text = ''; try { text = await r.text(); } catch (e) { text = ''; } finally { if (timer) clearTimeout(timer); }
+    let parsed = null; try { parsed = text ? JSON.parse(text) : null; } catch (e) { parsed = text; }
+    return { ok: r.ok, status: r.status, body: parsed };
   }
   let refreshing = null;
   async function refresh() {

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as G from '../../src/logic/game.js';
 import { serialize, deserialize, SAVE_KEY } from '../../src/logic/save.js';
-import { progress, recommend, isFresh, progressSig, cloudWasReset, loginDecision, pullDecision, sendErrorKey, verifyErrorKey, validEmail, validCode, splitMeta, saveSum, sameSave } from '../../src/logic/cloud.js';
+import { progress, recommend, isFresh, progressSig, cloudWasReset, loginDecision, pullDecision, sendErrorKey, verifyErrorKey, validEmail, validCode, splitMeta, saveSum, sameSave, createAuthGate, isNetBlock } from '../../src/logic/cloud.js';
 import { createCloudApi, SESSION_KEY } from '../../src/cloud/api.js';
 import { createSync, KNOWN_KEY } from '../../src/cloud/sync.js';
 import { checkAccountLegal, openAccountItems } from '../../tools/legal-guard.mjs';
@@ -94,7 +94,8 @@ test('"Kod gönder" errors: rateLimit / quotaFull / sendFail (invalid address on
   assert.equal(r(500, { msg: 'Database error saving new user' }), 'auth.login.sendError');
   assert.equal(r(503, 'Service Unavailable'), 'auth.code.unreachable');
   assert.equal(sendErrorKey({ network: 'offline' }), 'auth.code.offline');
-  assert.equal(sendErrorKey({ network: 'unreachable' }), 'auth.code.unreachable');
+  assert.equal(sendErrorKey({ network: 'unreachable' }), 'auth.login.netOrRate');   // network error while online (Cloudflare block or a real fault)
+  assert.equal(sendErrorKey({ network: 'unreachable', timeout: true }), 'auth.code.unreachable');   // our own timeout: no answer at all
   for (const k of ['auth.login.rateLimit', 'auth.login.quotaFull', 'auth.login.sendFail', 'auth.login.sendError', 'auth.code.offline', 'auth.code.unreachable']) assert.notEqual(t(k), k);
 });
 test('code errors: wrong/expired (same answer from the server) -> wrongCode; 429 -> rateLimit; formats', () => {
@@ -129,6 +130,87 @@ test('legal guard: a login build fails while account.privacy.details has a [plac
   assert.ok(checkAccountLegal(done, { VITE_SUPABASE_URL: 'https://x', VITE_SUPABASE_ANON_KEY: 'k' }).ok);
 });
 
+// ---------- Cloudflare rate limit on /auth/v1/otp + /verify (10 req / 10 s per IP, then 10 s block; its 429 has no CORS header)
+test('429 / network error messages: the status decides, never the body (HTML / plain text / empty / unreadable)', () => {
+  const html = '<!DOCTYPE html><html><head><title>Access denied | fenomen-api.teserix.com used Cloudflare to restrict access</title></head><body>Error 1015 You are being rate limited</body></html>';
+  for (const body of [html, 'error code: 1015', '', null, { message: 'x' }, { error_code: 'otp_expired' }]) {
+    assert.equal(sendErrorKey({ status: 429, body }), 'auth.login.rateLimit', 'send 429 ' + JSON.stringify(body));
+    assert.equal(verifyErrorKey({ status: 429, body }), 'auth.code.rateLimit', 'verify 429 ' + JSON.stringify(body));
+  }
+  assert.equal(sendErrorKey({ status: 503, body: html }), 'auth.code.unreachable');
+  assert.equal(sendErrorKey({ status: 400, body: html }), 'auth.login.sendError');   // an HTML body is not an e-mail error
+  // TypeError + navigator.onLine true -> netOrRate (+ 10 s lock); onLine false -> the offline text; our own timeout -> unreachable
+  assert.equal(sendErrorKey({ network: 'unreachable' }), 'auth.login.netOrRate');
+  assert.equal(verifyErrorKey({ network: 'unreachable' }), 'auth.login.netOrRate');
+  assert.equal(sendErrorKey({ network: 'offline' }), 'auth.code.offline');
+  assert.equal(verifyErrorKey({ network: 'offline' }), 'auth.code.offline');
+  assert.equal(verifyErrorKey({ network: 'unreachable', timeout: true }), 'auth.code.unreachable');
+  assert.ok(isNetBlock({ network: 'unreachable' }) && !isNetBlock({ network: 'offline' }) && !isNetBlock({ network: 'unreachable', timeout: true }) && !isNetBlock({ status: 429 }) && !isNetBlock(null));
+  // Yazı netOrRate r1 (a): fixed text (the countdown is on the button); one key for both screens; labels in the auth.code.resendIn format
+  assert.equal(t('auth.login.netOrRate'), 'Bağlantı kurulamadı ya da kısa sürede çok fazla deneme oldu. 10 saniye bekleyip tekrar dene.');
+  assert.equal(t('auth.code.netOrRate'), 'auth.code.netOrRate', 'no separate code-screen key');
+  assert.ok(!/\[[^\]]*\]/.test(JSON.stringify(tr.auth)), 'no placeholder left in auth.*');
+  assert.equal(t('auth.code.resendIn', { s: 4 }), 'Kodu tekrar gönder (4 sn)');
+  assert.equal(t('auth.login.sendIn', { s: 4 }), 'Kod gönder (4 sn)');
+  assert.equal(t('auth.code.verifyIn', { s: 10 }), 'Giriş yap (10 sn)');
+});
+test('api: 429 with a non-JSON body keeps the status; unreadable body too; a TypeError is one network error, our timeout is marked', async () => {
+  const one = (resp) => { const calls = []; return { calls, fetchFn: async (url, init) => { calls.push(url); return typeof resp === 'function' ? resp(init) : resp; } }; };
+  const html = '<html><body>Error 1015 You are being rate limited</body></html>';
+  let f = one({ ok: false, status: 429, text: async () => html });
+  let r = await createCloudApi({ cfg, storage: new Mem(), fetchFn: f.fetchFn, online: () => true }).sendCode('a@b.co');
+  assert.deepEqual(r, { ok: false, status: 429, body: html }); assert.equal(sendErrorKey(r), 'auth.login.rateLimit'); assert.equal(f.calls.length, 1);
+  f = one({ ok: false, status: 429, text: async () => { throw new TypeError('body stream'); } });
+  r = await createCloudApi({ cfg, storage: new Mem(), fetchFn: f.fetchFn, online: () => true }).verify('a@b.co', '123456');
+  assert.equal(r.status, 429); assert.equal(r.ok, false); assert.equal(verifyErrorKey(r), 'auth.code.rateLimit');
+  f = one(() => Promise.reject(new TypeError('Failed to fetch')));
+  r = await createCloudApi({ cfg, storage: new Mem(), fetchFn: f.fetchFn, online: () => true }).sendCode('a@b.co');
+  assert.deepEqual(r, { ok: false, network: 'unreachable' }); assert.equal(f.calls.length, 1, 'no retry inside the client');
+  f = one(() => Promise.reject(new TypeError('Failed to fetch')));
+  r = await createCloudApi({ cfg, storage: new Mem(), fetchFn: f.fetchFn, online: () => false }).verify('a@b.co', '123456');
+  assert.deepEqual(r, { ok: false, network: 'offline' });
+  f = one((init) => new Promise((res, rej) => init.signal.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')))));
+  r = await createCloudApi({ cfg: Object.assign({}, cfg, { timeoutMs: 20 }), storage: new Mem(), fetchFn: f.fetchFn, online: () => true }).sendCode('a@b.co');
+  assert.deepEqual(r, { ok: false, network: 'unreachable', timeout: true }); assert.equal(sendErrorKey(r), 'auth.code.unreachable');
+});
+test('auth brake: one request per press (double press = one), 5 s between code requests, 10 s lock after a network error while online, no hidden retry', async () => {
+  assert.equal(CLOUD.sendGapMs, 5000); assert.equal(CLOUD.netLockMs, 10000); assert.equal(CLOUD.resendWaitSec, 60);
+  let clock = 1000000; const now = () => clock;
+  const g = createAuthGate({ now, sendGapMs: CLOUD.sendGapMs, netLockMs: CLOUD.netLockMs });
+  let calls = 0, answer = { ok: true }, release;
+  const req = () => { calls++; return new Promise((res) => { release = () => res(answer); }); };
+  // double press while the first is in flight: the second sends nothing
+  const p1 = g.run('send', req), p2 = g.run('send', req);
+  assert.equal(await p2, null); assert.ok(g.busy('send')); assert.equal(calls, 1);
+  release(); assert.deepEqual(await p1, { ok: true }); assert.ok(!g.busy('send'));
+  // at least 5 s between two code requests (from the start of the previous one), on any screen
+  assert.equal(g.wait('send'), 5000);
+  clock += 4999; assert.equal(await g.run('send', req), null); assert.equal(calls, 1);
+  clock += 1; const p3 = g.run('send', req); assert.equal(calls, 2);
+  // network error while online -> locked 10 s (longer than the gap); nothing is retried meanwhile
+  answer = { ok: false, network: 'unreachable' }; release(); await p3;
+  assert.equal(g.wait('send'), 10000);
+  await new Promise((r) => setTimeout(r, 30)); assert.equal(calls, 2, 'no hidden retry');
+  clock += 9999; assert.equal(await g.run('send', req), null); assert.equal(calls, 2);
+  clock += 1; const p4 = g.run('send', req); assert.equal(calls, 3);
+  // offline / real 429 / our timeout: no 10 s lock, only the 5 s gap
+  let pending = p4;
+  for (const a of [{ ok: false, network: 'offline' }, { ok: false, status: 429, body: '<html></html>' }, { ok: false, network: 'unreachable', timeout: true }]) {
+    answer = a; release(); await pending;
+    assert.equal(g.wait('send'), 5000, JSON.stringify(a));
+    clock += 5000; pending = g.run('send', req);
+  }
+  answer = { ok: true }; release(); await pending; assert.equal(calls, 6);
+  // verify: no gap between attempts (a wrong code may be corrected at once), 10 s after a network error
+  const V = createAuthGate({ now, sendGapMs: 5000, netLockMs: 10000 }); let vc = 0;
+  const vr = (a) => () => { vc++; return Promise.resolve(a); };
+  await V.run('verify', vr({ ok: false, status: 403 })); assert.equal(V.wait('verify'), 0);
+  await V.run('verify', vr({ ok: false, network: 'unreachable' })); assert.equal(V.wait('verify'), 10000); assert.equal(vc, 2);
+  assert.equal(await V.run('verify', vr({ ok: true })), null); assert.equal(vc, 2);
+  assert.equal(V.wait('send'), 0, 'verify does not brake code requests');
+  // a request that throws (never expected) frees the button without a lock
+  await assert.rejects(V.run('send', () => { throw new Error('boom'); })); assert.ok(!V.busy('send'));
+});
 // ---------- API client against a scripted fetch
 function scripted(answers) {
   const calls = [];

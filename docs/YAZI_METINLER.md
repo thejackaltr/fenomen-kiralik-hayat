@@ -4,7 +4,7 @@ Kaynak: `src/locales/tr.json` (bu dosya `node tools/yazi-doc.mjs` ile üretilir)
 
 ## v2.2 — Hesap ve bulut kayıt (Yazı r10; aynen uygulandı)
 
-Yazı r10 (2026-10-03) metinleri anahtar adlarıyla aynen alındı (settings.credits de r10'dan, Ayarlar bölümünde). r10'da yeni: account.privacy.details[9] (silme listesi, süresiz B sürümü); veri sorumlusu satırı [10]'a kaydı. Açık yer tutucular olduğu gibi duruyor: account.privacy.details #4 [TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek], #5 [YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]. details[8] (giriş kayıtların sunucudan hemen silinir) ve delete.body bu dalda 8a536a5 + 72a860d'ye dayanır; details[9] (silme listesi: hesap kimliği, silme zamanı, referans; e-posta yok) bu dalda feaec45'e (merge 117ee96, fenomen_private.deletion_log) dayanır. v2.2 bunlarla birlikte çıkar. email.from onaylandı (29 Eyl 2026): gönderen fenomen@teserix.com, görünen ad "Fenomen: Kiralık Hayat". Giriş açık (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY) bir derleme, account.privacy.details'te [yer tutucu] kaldıkça `npm run build` hata verir (ALLOW_EMPTY_LEGAL=1 yalnız geliştirme/test). email.* oyunda gösterilmez (sunucu e-posta şablonları, supabase/templates/). Kodda kullanılmayan: account.title (Ayarlar'da başlık account.menu). auth.code.wrongOnly, auth.code.expired (sunucu yanlış ve süresi dolmuş kodu aynı yanıtla bildiriyor, ikisi için de wrongCode gösterilir) ve auth.moveDomain.url (bağlantı src/config.js BASE_URL) kaldırıldı. {email}, {s}, {t}, {f}, {v}, {n}, {k}, {c}, {d} kodla doldurulur. reset.backupNote ve details[7] r9/r10'da "30 gün" sabit yazılı; CLOUD.backupDays (30) ile aynı olmalı (unit test kontrol eder).
+Yazı r10 (2026-10-03) metinleri anahtar adlarıyla aynen alındı (settings.credits de r10'dan, Ayarlar bölümünde). r10'da yeni: account.privacy.details[9] (silme listesi, süresiz B sürümü); veri sorumlusu satırı [10]'a kaydı. Açık yer tutucular olduğu gibi duruyor: account.privacy.details #4 [TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek], #5 [YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]. details[8] (giriş kayıtların sunucudan hemen silinir) ve delete.body bu dalda 8a536a5 + 72a860d'ye dayanır; details[9] (silme listesi: hesap kimliği, silme zamanı, referans; e-posta yok) bu dalda feaec45'e (merge 117ee96, fenomen_private.deletion_log) dayanır. v2.2 bunlarla birlikte çıkar. email.from onaylandı (29 Eyl 2026): gönderen fenomen@teserix.com, görünen ad "Fenomen: Kiralık Hayat". Giriş açık (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY) bir derleme, account.privacy.details'te [yer tutucu] kaldıkça `npm run build` hata verir (ALLOW_EMPTY_LEGAL=1 yalnız geliştirme/test). email.* oyunda gösterilmez (sunucu e-posta şablonları, supabase/templates/). Kodda kullanılmayan: account.title (Ayarlar'da başlık account.menu). auth.code.wrongOnly, auth.code.expired (sunucu yanlış ve süresi dolmuş kodu aynı yanıtla bildiriyor, ikisi için de wrongCode gösterilir) ve auth.moveDomain.url (bağlantı src/config.js BASE_URL) kaldırıldı. {email}, {s}, {t}, {f}, {v}, {n}, {k}, {c}, {d} kodla doldurulur. auth.login.netOrRate: Yazı netOrRate r1 (a) sabit metin; giriş ve kod ekranı aynı anahtarı kullanır (ağ hatası + çevrimiçi: buton 10 sn kilitli, gizli yeniden deneme yok). Butondaki geri sayım auth.code.resendIn biçiminde: auth.login.sendIn "Kod gönder ({s} sn)", auth.code.verifyIn "Giriş yap ({s} sn)" (Yazı onayı bekliyor). reset.backupNote ve details[7] r9/r10'da "30 gün" sabit yazılı; CLOUD.backupDays (30) ile aynı olmalı (unit test kontrol eder).
 
 - `account.privacy.title`: Hesap ve bulut kayıt hakkında
 - `account.privacy.detailsLink`: Ayrıntılar
@@ -35,10 +35,12 @@ Yazı r10 (2026-10-03) metinleri anahtar adlarıyla aynen alındı (settings.cre
 - `auth.login.privacySummary`: E-postan yalnızca giriş kodu için. Aşama sayacı ve ziyaret sayımı hesaba bağlanmaz.
 - `auth.login.send`: Kod gönder
 - `auth.login.sending`: Gönderiliyor…
+- `auth.login.sendIn`: Kod gönder ({s} sn)
 - `auth.login.later`: Şimdi değil
 - `auth.login.badEmail`: Geçerli bir e-posta adresi yaz.
 - `auth.login.sendFail`: Kod gönderilemedi. Adresi kontrol edip tekrar dene.
 - `auth.login.rateLimit`: Çok fazla deneme oldu. Birkaç dakika sonra tekrar dene.
+- `auth.login.netOrRate`: Bağlantı kurulamadı ya da kısa sürede çok fazla deneme oldu. 10 saniye bekleyip tekrar dene.
 - `auth.login.quotaFull`: Şu an kod gönderemiyoruz. Girişsiz oynamaya devam et, kaydın bu cihazda tutulur. Girişi sonra tekrar dene.
 - `auth.login.sendError`: Kod şu an gönderilemedi. Biraz sonra tekrar dene.
 - `auth.code.title`: Kodu yaz
@@ -47,6 +49,7 @@ Yazı r10 (2026-10-03) metinleri anahtar adlarıyla aynen alındı (settings.cre
 - `auth.code.label`: 6 haneli kod
 - `auth.code.verify`: Giriş yap
 - `auth.code.verifying`: Kontrol ediliyor…
+- `auth.code.verifyIn`: Giriş yap ({s} sn)
 - `auth.code.resend`: Kodu tekrar gönder
 - `auth.code.resendIn`: Kodu tekrar gönder ({s} sn)
 - `auth.code.resent`: Yeni kodu gönderdik.

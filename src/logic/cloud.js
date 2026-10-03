@@ -69,11 +69,15 @@ export function pullDecision(local, row, known) {
 const RATE = ['over_email_send_rate_limit', 'over_request_rate_limit', 'over_sms_send_rate_limit'];
 const txt = (b) => (isObj(b) ? [b.msg, b.message, b.error_description, b.error].filter((x) => typeof x === 'string').join(' ') : '');
 const code = (b) => String(isObj(b) ? b.error_code || (typeof b.code === 'string' ? b.code : '') : '').toLowerCase();
-// res: { network: 'offline' | 'unreachable' } | { status, body }
+// res: { network: 'offline' | 'unreachable', timeout? } | { status, body }
+// Network error while online (not our own timeout) on /auth/v1/otp or /verify = Cloudflare's rate-limit block (its 429
+// carries no CORS header, the browser only sees a TypeError) or a real network fault: auth.login.netOrRate + 10 s lock.
+export const isNetBlock = (res) => !!res && res.network === 'unreachable' && !res.timeout;
+const netKey = (res) => (res && res.network === 'offline' ? 'auth.code.offline' : isNetBlock(res) ? 'auth.login.netOrRate' : 'auth.code.unreachable');
 // "Kod gönder": sendFail ONLY for an invalid address; rateLimit (429 / rate codes); quotaFull (SMTP/Resend could not
 // send: quota, provider error); sendError for anything else the server answered; offline/unreachable = no answer.
 export function sendErrorKey(res) {
-  if (!res || res.network) return 'auth.code.' + (res && res.network === 'offline' ? 'offline' : 'unreachable');
+  if (!res || res.network) return netKey(res);
   const c = code(res.body), m = txt(res.body);
   if (res.status === 429 || RATE.includes(c)) return 'auth.login.rateLimit';
   if (c === 'email_address_invalid' || (res.status === 400 && (c === 'validation_failed' || !c) && /e-?mail/i.test(m) && /invalid|validate/i.test(m))) return 'auth.login.sendFail';
@@ -84,11 +88,32 @@ export function sendErrorKey(res) {
 // "Giriş yap" on the code screen. GoTrue answers a wrong AND an expired code with the same otp_expired
 // ("Token has expired or is invalid"), so the client cannot tell them apart -> wrongCode (covers both).
 export function verifyErrorKey(res) {
-  if (!res || res.network) return 'auth.code.' + (res && res.network === 'offline' ? 'offline' : 'unreachable');
+  if (!res || res.network) return netKey(res);
   const c = code(res.body);
   if (res.status === 429 || RATE.includes(c)) return 'auth.code.rateLimit';
   if (res.status >= 500) return 'auth.code.unreachable';
   return 'auth.code.wrongCode';
+}
+// Brake for the two auth buttons (pure, clock injected). kind: 'send' (/auth/v1/otp, "Kod gönder" + "Kodu tekrar gönder")
+// | 'verify' (/auth/v1/verify). begin() = true means "send exactly one request now"; false = in flight or still locked.
+// send: at least sendGapMs between two code requests (from the start of the previous one). Both: a network error while
+// online locks the button for netLockMs. Nothing is retried here or anywhere: the player presses again.
+export function createAuthGate({ now = () => Date.now(), sendGapMs = 5000, netLockMs = 10000 } = {}) {
+  const st = { send: { busy: false, until: 0, last: -Infinity }, verify: { busy: false, until: 0, last: -Infinity } };
+  const wait = (kind) => { const s = st[kind]; const u = Math.max(s.until, kind === 'send' ? s.last + sendGapMs : 0); return Math.max(0, u - now()); };
+  return {
+    wait,
+    busy: (kind) => st[kind].busy,
+    begin(kind) { const s = st[kind]; if (s.busy || wait(kind) > 0) return false; s.busy = true; s.last = now(); return true; },
+    end(kind, res) { const s = st[kind]; s.busy = false; if (isNetBlock(res)) s.until = Math.max(s.until, now() + netLockMs); return wait(kind); },
+    // the one way the screens call the server: null = refused (no request); else exactly one call of request()
+    async run(kind, request) {
+      if (!this.begin(kind)) return null;
+      let r = { ok: false, network: 'unreachable', timeout: true };   // request() threw (it never should): no lock
+      try { r = await request(); } finally { this.end(kind, r); }
+      return r;
+    }
+  };
 }
 export const validEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s || '').trim()) && String(s).trim().length <= 254;
 export const validCode = (s) => /^\d{6}$/.test(String(s || '').trim());

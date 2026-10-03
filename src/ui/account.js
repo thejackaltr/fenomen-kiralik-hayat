@@ -7,7 +7,21 @@ import { fmt, fmtStamp, fmtClock } from '../logic/format.js';
 import { copyText } from './share.js';
 import { CLOUD, OLD_ORIGIN, BASE_URL } from '../config.js';
 import { buildEnvelope, encodeEnvelope } from '../logic/transfer.js';
-import { sendErrorKey, verifyErrorKey, validEmail, validCode, splitMeta } from '../logic/cloud.js';
+import { sendErrorKey, verifyErrorKey, validEmail, validCode, splitMeta, createAuthGate } from '../logic/cloud.js';
+
+// one brake per page (survives closing / reopening the screens): see createAuthGate and CLOUD.sendGapMs / netLockMs
+const gateOf = (acc) => acc.gate || (acc.gate = createAuthGate({ sendGapMs: acc.cfg.sendGapMs, netLockMs: acc.cfg.netLockMs }));
+// a locked button shows "<label> (n sn)" and unlocks itself; waitMs() = how long it stays locked (0 = free)
+function lockedButton(btn, waitMs, idleKey, countKey) {
+  let tm = null;
+  const paint = () => {
+    clearTimeout(tm); tm = null;
+    const w = waitMs();
+    btn.disabled = w > 0; btn.textContent = w > 0 ? t(countKey, { s: Math.ceil(w / 1000) }) : t(idleKey);
+    if (w > 0) tm = setTimeout(paint, (w % 1000) || 1000);
+  };
+  return { paint, stop: () => { clearTimeout(tm); tm = null; } };
+}
 
 const originOf = (u) => { try { return new URL(u).origin; } catch (e) { return ''; } };
 // where login can appear: cloud configured (build env / test config), this is the login origin, not the old address
@@ -63,6 +77,7 @@ export function showAccountPrivacy(ui, after = null) {
 
 // ---------- login: e-mail -> code ----------
 export function openLogin(ui, acc, email = '') {
+  let lock = null;
   ui.showModal((box, close) => {
     box.setAttribute('data-test', 'login-modal');
     const input = h('input', { class: 'input', type: 'email', inputmode: 'email', autocomplete: 'email', autocapitalize: 'off', spellcheck: 'false', maxlength: 254,
@@ -70,15 +85,16 @@ export function openLogin(ui, acc, email = '') {
     const err = h('p', { class: 'form-err hidden', role: 'alert', 'data-test': 'login-error' });
     const say = (key) => { err.textContent = key ? t(key) : ''; err.classList.toggle('hidden', !key); };
     const send = h('button', { class: 'btn primary', type: 'submit', 'data-test': 'login-send' }, t('auth.login.send'));
+    const gate = gateOf(acc);
+    lock = lockedButton(send, () => gate.wait('send'), 'auth.login.send', 'auth.login.sendIn');
     const form = h('form', { class: 'col', novalidate: true, onsubmit: async (e) => {
-      e.preventDefault(); if (send.disabled) return;
+      e.preventDefault(); if (send.disabled || gate.busy('send')) return;
       const v = input.value.trim();
       if (!validEmail(v)) { say('auth.login.badEmail'); input.focus(); return; }
-      say(null); send.disabled = true; send.textContent = t('auth.login.sending');
-      const r = await acc.api.sendCode(v);
-      send.disabled = false; send.textContent = t('auth.login.send');
-      if (!r.ok) { say(sendErrorKey(r)); return; }
-      close(); openCode(ui, acc, v);
+      const r = await gate.run('send', () => { say(null); send.disabled = true; send.textContent = t('auth.login.sending'); return acc.api.sendCode(v); });
+      if (r === null) { lock.paint(); return; }   // in flight or still braked: no request
+      if (!r.ok) { say(sendErrorKey(r)); lock.paint(); return; }
+      lock.paint(); close(); openCode(ui, acc, v);
     } },
       h('label', { class: 'field' }, h('span', { class: 'lbl', text: t('auth.login.emailLabel') }), input),
       // shown BEFORE any code is sent (r2 §1): two-line summary + "Ayrıntılar" (full text, also in Settings > Gizlilik)
@@ -89,11 +105,12 @@ export function openLogin(ui, acc, email = '') {
     box.append(h('h2', { text: t('auth.login.title') }), h('p', { text: t('auth.login.body') }),
       h('p', { class: 'muted small', 'data-test': 'login-optional', text: t('auth.login.optional') }),
       h('p', { class: 'muted small', 'data-test': 'login-age', text: t('auth.login.age') }), form);
+    lock.paint();
     setTimeout(() => input.focus(), 0);
-  }, { cls: 'acct' });
+  }, { cls: 'acct', onClose: () => { if (lock) lock.stop(); } });
 }
 export function openCode(ui, acc, email) {
-  let timer = null;
+  let rlock = null, vlock = null;
   ui.showModal((box, close) => {
     box.setAttribute('data-test', 'code-modal');
     const input = h('input', { class: 'input code-input', type: 'text', inputmode: 'numeric', autocomplete: 'one-time-code', pattern: '[0-9]*', maxlength: 6, 'data-test': 'code-input', 'aria-label': t('auth.code.label') });
@@ -101,29 +118,28 @@ export function openCode(ui, acc, email) {
     const note = h('p', { class: 'muted small hidden', 'data-test': 'code-note', 'aria-live': 'polite' });
     const say = (key) => { err.textContent = key ? t(key) : ''; err.classList.toggle('hidden', !key); };
     const verify = h('button', { class: 'btn primary', type: 'submit', 'data-test': 'code-verify' }, t('auth.code.verify'));
+    const gate = gateOf(acc);
+    // "Kodu tekrar gönder" waits as long as the server does between two codes to one address (CLOUD.resendWaitSec),
+    // and never less than the brake (gap between code requests / 10 s after a network error)
+    let resendAt = Date.now() + Math.max(0, Math.round(acc.cfg.resendWaitSec)) * 1000;
     const resend = h('button', { class: 'link', type: 'button', 'data-test': 'code-resend', onclick: async () => {
-      if (resend.disabled) return;
-      say(null); resend.disabled = true;
-      const r = await acc.api.sendCode(email);
-      if (!r.ok) { say(sendErrorKey(r)); resend.disabled = false; return; }
+      if (resend.disabled || gate.busy('send')) return;
+      const r = await gate.run('send', () => { say(null); resend.disabled = true; return acc.api.sendCode(email); });
+      if (r === null) { rlock.paint(); return; }
+      if (!r.ok) { say(sendErrorKey(r)); rlock.paint(); return; }
       note.textContent = t('auth.code.resent'); note.classList.remove('hidden');
-      countdown();
+      resendAt = Date.now() + Math.max(0, Math.round(acc.cfg.resendWaitSec)) * 1000;
+      rlock.paint();
     } }, t('auth.code.resend'));
-    // "Kodu tekrar gönder" waits as long as the server does between two codes to one address (CLOUD.resendWaitSec)
-    const countdown = () => {
-      let left = Math.max(0, Math.round(acc.cfg.resendWaitSec));
-      clearInterval(timer);
-      const paint = () => { resend.disabled = left > 0; resend.textContent = left > 0 ? t('auth.code.resendIn', { s: left }) : t('auth.code.resend'); };
-      paint();
-      timer = setInterval(() => { left--; paint(); if (left <= 0) { clearInterval(timer); timer = null; } }, 1000);
-    };
+    rlock = lockedButton(resend, () => Math.max(resendAt - Date.now(), gate.wait('send')), 'auth.code.resend', 'auth.code.resendIn');
+    vlock = lockedButton(verify, () => gate.wait('verify'), 'auth.code.verify', 'auth.code.verifyIn');
     const form = h('form', { class: 'col', novalidate: true, onsubmit: async (e) => {
-      e.preventDefault(); if (verify.disabled) return;
+      e.preventDefault(); if (verify.disabled || gate.busy('verify')) return;
       const v = input.value.replace(/\s+/g, '');
       if (!validCode(v)) { say('auth.code.badCode'); input.focus(); return; }
-      say(null); verify.disabled = true; verify.textContent = t('auth.code.verifying');
-      const r = await acc.api.verify(email, v);
-      verify.disabled = false; verify.textContent = t('auth.code.verify');
+      const r = await gate.run('verify', () => { say(null); verify.disabled = true; verify.textContent = t('auth.code.verifying'); return acc.api.verify(email, v); });
+      vlock.paint();
+      if (r === null) return;
       if (!r.ok) { say(verifyErrorKey(r)); input.select(); return; }
       close();
       await acc.sync.afterLogin();
@@ -133,9 +149,9 @@ export function openCode(ui, acc, email) {
       h('div', { class: 'row' }, resend, h('button', { class: 'link', type: 'button', 'data-test': 'code-change-email', onclick: () => { close(); openLogin(ui, acc, email); } }, t('auth.code.changeEmail'))),
       h('div', { class: 'row end' }, verify));
     box.append(h('h2', { text: t('auth.code.title') }), h('p', { 'data-test': 'code-sent', text: t('auth.code.sent', { email }) }), h('p', { class: 'muted small', text: t('auth.code.spam') }), form);
-    countdown();
+    rlock.paint(); vlock.paint();
     setTimeout(() => input.focus(), 0);
-  }, { cls: 'acct', onClose: () => { clearInterval(timer); timer = null; } });
+  }, { cls: 'acct', onClose: () => { if (rlock) rlock.stop(); if (vlock) vlock.stop(); } });
 }
 
 // ---------- delete account ----------
