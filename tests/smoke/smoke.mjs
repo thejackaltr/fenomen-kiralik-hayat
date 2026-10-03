@@ -449,7 +449,7 @@ async function runV21() {
     await T.p.setInputFiles('[data-test=import-file]', file);
     await T.p.waitForSelector('[data-test=import-confirm]', { timeout: 8000 });
     const conf = await T.S(() => document.querySelector('[data-test=import-confirm]').textContent);
-    ok(tag + 'import asks first and shows both saves', conf.includes('yerine geçecek') && /Yüklenecek kayıt · 12,3\d?\sB takipçi · Son oynama: \d+ Eylül 2026/.test(conf) && conf.includes('Şimdiki kayıt · 5 takipçi'), conf.slice(0, 160));
+    ok(tag + 'import asks first and shows both saves', conf.includes('yerine geçecek') && /Yüklenecek kayıt · 12,3\d?\sB takipçi · Son oynama: \d+ [A-ZÇĞİÖŞÜ][a-zçğıöşü]+ \d{4}/.test(conf) && conf.includes('Şimdiki kayıt · 5 takipçi'), conf.slice(0, 260));   // date = export time (was hardcoded "Eylül 2026")
     await T.tap('[data-test=import-yes]');
     await T.p.waitForTimeout(300);
     ok(tag + 'import restores the exported save', await T.S(() => { const s = window.__fenomen.ctrl.state; return Math.floor(s.followers) >= 12345 && s.char.channel === 'Dosya Kanalı'; }));
