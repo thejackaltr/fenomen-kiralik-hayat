@@ -495,7 +495,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
       const a = await msg('[data-test=login-error]'), aB = await btn('[data-test=login-send]');
       ok(tag + '(a) HTTP 429 with an HTML body -> auth.login.rateLimit (status decides), exactly 1 request', a === tr('auth.login.rateLimit') && otp() === n0 + 1, a);
       ok(tag + '(a) brake: "Kod gönder" locked with a countdown, 5 s between code requests', locked(aB, 'auth.login.sendIn', 5), JSON.stringify(aB));
-      await shot(T, 'ratelimit-' + size);
+      await T.S((q) => document.querySelector(q).scrollIntoView({ block: 'end' }), '[data-test=login-send]'); await shot(T, 'ratelimit-' + size);   // message + locked button in view
       await press('[data-test=login-send]');
       ok(tag + '(a) pressing the locked button sends nothing', otp() === n0 + 1);
       await run(4000); const a4 = await btn('[data-test=login-send]'); await run(1000); const a5 = await btn('[data-test=login-send]');
@@ -505,7 +505,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
       n0 = otp(); fake.fail('POST', '/auth/v1/otp', 'abort'); await press('[data-test=login-send]');
       const b = await msg('[data-test=login-error]'), bB = await btn('[data-test=login-send]');
       ok(tag + '(b) login screen, network error, navigator.onLine true -> auth.login.netOrRate (Yazı r1 a), "Kod gönder (10 sn)" locked, exactly 1 request', b === tr('auth.login.netOrRate') && locked(bB, 'auth.login.sendIn', 10) && otp() === n0 + 1, b + ' ' + JSON.stringify(bB));
-      await shot(T, 'netorrate-' + size);
+      await T.S((q) => document.querySelector(q).scrollIntoView({ block: 'end' }), '[data-test=login-send]'); await shot(T, 'netorrate-' + size);   // message + locked button in view
       await press('[data-test=login-send]'); await T.S(() => document.querySelector('[data-test=login-modal] form').requestSubmit());
       await run(5000); const b5 = await btn('[data-test=login-send]');
       await run(4000); const b9 = await btn('[data-test=login-send]');
@@ -523,7 +523,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
       let v0 = ver(); fake.fail('POST', '/auth/v1/verify', 'abort'); await press('[data-test=code-verify]');
       const d = await msg('[data-test=code-error]'), dB = await btn('[data-test=code-verify]');
       ok(tag + '(d) code screen, verify network error -> the same auth.login.netOrRate text as the login screen, "Giriş yap (10 sn)" locked, exactly 1 request', d === tr('auth.login.netOrRate') && locked(dB, 'auth.code.verifyIn', 10) && ver() === v0 + 1, d + ' ' + JSON.stringify(dB));
-      await shot(T, 'verify-netorrate-' + size);
+      await T.S((q) => document.querySelector(q).scrollIntoView({ block: 'end' }), '[data-test=code-verify]'); await shot(T, 'verify-netorrate-' + size);   // message + locked button in view
       await T.S(() => { document.querySelector('[data-test=code-verify]').click(); document.querySelector('[data-test=code-modal] form').requestSubmit(); });
       await run(9000); const d9 = await btn('[data-test=code-verify]'); await run(1000); const d10 = await btn('[data-test=code-verify]');
       ok(tag + '(d) verify locked until 10 s, nothing sent meanwhile, then free', locked(d9, 'auth.code.verifyIn', 1) && free(d10, tr('auth.code.verify')) && ver() === v0 + 1, JSON.stringify([d9, d10]));
