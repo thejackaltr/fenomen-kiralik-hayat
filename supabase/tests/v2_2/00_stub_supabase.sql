@@ -16,6 +16,8 @@ end $$;
 grant anon, authenticated, service_role to authenticator;
 grant anon, authenticated, service_role to postgres;
 grant all on schema public to postgres;
+-- live: database postgres is owned by postgres (CREATE: schema fenomen_private for the deletion list)
+do $$ begin execute format('grant create on database %I to postgres', current_database()); end $$;
 grant usage on schema public to anon, authenticated, service_role;
 alter default privileges for role postgres in schema public grant all on tables    to anon, authenticated, service_role;
 alter default privileges for role postgres in schema public grant all on sequences to anon, authenticated, service_role;

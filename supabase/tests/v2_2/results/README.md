@@ -50,3 +50,13 @@ Box yeniden kurulmuştu: docker, dockerd ve imajların hiçbiri (.136, GoTrue, P
 | `account-delete-local-run.txt` | **Yeniden koşuldu** (host). 47/47 PASS. |
 | `account-delete-run-136-f587eb5.txt`, `sql-local-run-136-f587eb5.txt` | `f587eb5` kodunun önceki .136 koşusu (40/40; 91/91 + 32/32). Referans için `/workspace/tmp/fenomen-account-delete-136/` klasöründen alındı. |
 | `stack-local-run*.txt` | Koşulmadı: GoTrue ve PostgREST imajları box'ta yok, çekilmedi. `fenomen_delete_my_account` JSON anahtarları değişmedi. |
+
+### 2026-10-03 ~03:20 TSİ: silme listesi (geri yüklemeden sonra silinmiş hesaplar geri gelmesin; YY isteği)
+`fenomen_private.deletion_log` (uid, silme zamanı, onay ref; e-posta yok, 45 gün). `_fenomen_delete_user(uid, ref)` aynı transaction'da yazar. Dışa aktarım ve yeniden uygulama araçları: `ops/fenomen_deletion_log_export.sh`, `ops/fenomen_deletion_log_reapply.sh`. Migration yerinde güncellendi (canlıda değil), rollback listeyi ve şemayı da kaldırıyor (round trip geçiyor). Verify artık 18/18. İmaj çekilmedi; .136 box'taki `public.ecr.aws/supabase/postgres:17.6.1.136` (ID f519727303f0).
+
+| Dosya | Durum |
+|---|---|
+| `sql-local-run-136.txt`, `sql-local-run.txt` | **Yeniden koşuldu** (.136 `fen22-sql136` ve host PG 17.11). 111/111 + 33/33, ALL PASS. Yeni testler: L01–L07 (Hesabımı sil listeye `self:session:<id>` yazar; anon/authenticated/service_role okuyamaz; `@`'lı ya da öneksiz ref reddedilir; 45 gün temizliği), P07e (24 ay → `purge:24m:<tarih>`). Ek runner kontrolü: pg_cron liste temizliği (canlı çalıştırma). |
+| `account-delete-run-136.txt`, `account-delete-local-run.txt` | **Yeniden koşuldu.** 51/51 PASS (T3 P10 R7 E7 X3 D8 S5 H4 Y4). Yeni testler: R7 (`@`'lı approval_ref reddi), D1/D2 (liste `info:<ref>`), S5, H4, Y4. |
+| `deletion-log-run-136.txt`, `deletion-log-local-run.txt` | **Yeni.** `deletion_log/run_deletion_log_tests.sh`. 30/30 PASS (T3 B2 S5 X6 R4 A10). Akış: D yedekten önce kendini siler → tam DB `pg_dump -Fc` → A info@ ile, B Hesabımı sil ile silinir → dışa aktarım (600, üzerine yazmaz, md5, değişmediyse yeni dosya yok, 45 gün budama) → DB drop + `pg_restore` (A ve B geri gelir) → reapply (A, B yeniden silinir, D atlanır) → verify 0. Liste ve tüm tablolar geri yüklemeden önceki hâliyle birebir aynı; ikinci reapply no-op; C değişmedi; md5 tutmayan ya da geçersiz satırlı dosya reddedilir ve hiçbir şey değişmez. |
+| `stack-local-run*.txt` | Koşulmadı: GoTrue ve PostgREST imajları box'ta yok. `http_tests.mjs` H51'e `p_ref` eklendi (yeni imza); doğrulanmadı. |

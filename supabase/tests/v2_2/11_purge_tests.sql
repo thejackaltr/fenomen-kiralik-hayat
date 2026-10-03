@@ -30,6 +30,11 @@ select t.ok((select count(*) from auth.refresh_tokens where token = 'fd-nosess-p
 select t.ok((select count(*) from auth.refresh_tokens where token = 'fd-nosess-p1') = 1 and (select count(*) from auth.flow_state where id = 'f0000000-0000-4000-8000-000000000001') = 1
             and (select count(*) from auth.refresh_tokens where token = 'fd-nosess-b') = 1,
             'P07d kept users'' refresh tokens without session and flow_state untouched (P1, B)');
+select t.ok((select string_agg(user_id::text || '=' || approval_ref, ',' order by user_id) from fenomen_private.deletion_log where user_id::text like '11111111-0000-4000-8000-%')
+            = '11111111-0000-4000-8000-000000000002=purge:24m:' || to_char(now() at time zone 'UTC', 'YYYY-MM-DD')
+           || ',11111111-0000-4000-8000-000000000003=purge:24m:' || to_char(now() at time zone 'UTC', 'YYYY-MM-DD'),
+            'P07e purged accounts (P2, P3) are on the deletion list as purge:24m:<UTC date>; kept accounts (P1, P4, P5) are not',
+            (select string_agg(user_id::text || '=' || approval_ref, ',') from fenomen_private.deletion_log));
 select t.as_service();
 select t.ok((select accounts = 0 and audit_entries = 0 and remaining = 0 from public.fenomen_purge_inactive_accounts()), 'P08 second purge run: nothing to delete');
 select t.logout();

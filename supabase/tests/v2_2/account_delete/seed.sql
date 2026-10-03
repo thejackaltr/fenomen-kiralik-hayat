@@ -11,6 +11,7 @@ delete from auth.audit_log_entries where payload::text like '%fd-test.invalid%' 
 delete from auth.refresh_tokens where user_id in (:'A', :'B', :'C');
 delete from auth.flow_state where user_id in (:'A'::uuid, :'B'::uuid, :'C'::uuid);
 delete from public.fenomen_save_backups where user_id in (:'A', :'B', :'C');
+delete from fenomen_private.deletion_log where user_id in (:'A', :'B', :'C');
 delete from public.fenomen_saves where user_id in (:'A', :'B', :'C');
 delete from auth.users where id in (:'A', :'B', :'C') or email like '%@fd-test.invalid';
 
