@@ -1,11 +1,12 @@
 # v2.2 zamanlama: pg_cron YOKSA ya da istenmezse Dokploy alternatifi
 
-İki iş var ve **her biri ayrı bir Aryen onayı** ister. Migration ikisini de kurmaz, çalıştırmaz.
+Üç iş var ve **her biri ayrı bir Aryen onayı** ister. Migration hiçbirini kurmaz, çalıştırmaz. Silme listesinin DB dışına aktarımı ayrı bir Dokploy görevidir (her 15 dk; runbook §13.3), pg_cron alternatifi yoktur.
 
 | İş | Fonksiyon | Zaman (TSİ) | pg_cron dosyası | Onay |
 |---|---|---|---|---|
 | A. 30 gün yedek temizliği | `public.fenomen_cleanup_save_backups()` → silinen yedek sayısı | her gece 03:47 | `v2_2_backup_cleanup_pg_cron.sql` (`47 0 * * *` UTC) | Onay A |
 | B. 24 ay hareketsiz hesap temizliği | `public.fenomen_purge_inactive_accounts()` → accounts / saves / backups / audit_entries / remaining | her gece 04:17 | `v2_2_inactive_purge_pg_cron.sql` (`17 1 * * *` UTC) | Onay B2 (ilk elle çalıştırmadan **sonra**; runbook §6) |
+| C. Silme listesi temizliği (45 gün) | `public.fenomen_cleanup_deletion_log()` → silinen liste satırı sayısı | her gece 04:47 | `v2_2_deletion_log_cleanup_pg_cron.sql` (`47 1 * * *` UTC) | O5 (runbook §13.3) |
 
 Tercih sırası: **1) pg_cron**, **2) Dokploy'da db konteynerinde psql**, **3) service_role ile RPC**. Üç yol da aynı fonksiyonu çağırır. EXECUTE yetkisi yalnız `postgres` (sahip) ve `service_role`'de var.
 
@@ -24,6 +25,10 @@ sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -X -h localhost -U postgres -d postg
 ```
 - Önkoşul: iş gerçekten **Fenomen**'in db konteynerinde çalışmalı. İlk kurulumda bir kez şunu çalıştırın: `select current_database(), (select count(*) from pg_class where relname in ('kodhane_saves','acik_ofis_saves'))`. İkinci değer `0` olmalı.
 - `POSTGRES_PASSWORD`, Dokploy Supabase şablonundaki db değişkeninin adıdır. Değer kopyalanmaz.
+C (silme listesi temizliği; yalnız O5'ten sonra):
+```sh
+sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -X -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -Atc "select public.fenomen_cleanup_deletion_log()"'
+```
 - B her çalıştırmada en fazla `fenomen_cfg_purge_batch_max()` (100) hesap siler. `remaining > 0` ise ertesi gece devam eder.
 
 ## Seçenek 3: service_role ile RPC (son çare)
@@ -38,6 +43,7 @@ B için yol `/rest/v1/rpc/fenomen_purge_inactive_accounts` olur. `FENOMEN_SERVIC
 ## İzleme (salt okuma)
 - A: `select count(*) from public.fenomen_save_backups where created_at <= now() - public.fenomen_cfg_backup_retention();` → 0 olmalı (en fazla bir günlük gecikme normal).
 - B: `supabase/ops/inactive_accounts_count.sql` → `accounts_to_delete` 0'a yakın kalmalı.
+- C: `select count(*) from fenomen_private.deletion_log where deleted_at <= now() - public.fenomen_cfg_deletion_log_retention();` → 0 (en fazla bir günlük gecikme normal).
 
 ## Geri alma
-pg_cron için: `v2_2_backup_cleanup_pg_cron.rollback.sql` ve `v2_2_inactive_purge_pg_cron.rollback.sql`. Dokploy için: zamanlanmış işi silin ya da pasifleştirin. Silinmiş hesaplar ve yedekler geri gelmez.
+pg_cron için: `v2_2_backup_cleanup_pg_cron.rollback.sql`, `v2_2_inactive_purge_pg_cron.rollback.sql` ve `v2_2_deletion_log_cleanup_pg_cron.rollback.sql`. Dokploy için: zamanlanmış işi silin ya da pasifleştirin. Silinmiş hesaplar ve yedekler geri gelmez.

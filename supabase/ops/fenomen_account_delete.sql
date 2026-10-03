@@ -1,13 +1,15 @@
 -- Fenomen: account deletion on request (info@), step B: DELETE (one transaction; any error = nothing deleted).
 -- ONLY after Aryen's written approval for THIS uid (runbook step 4). Run as postgres (the owner of _fenomen_delete_user)
 -- or supabase_admin, never with -1:
---   $PSQL -v uid=<auth user id> -v confirm_uid=<same id again> -v approval_ref=<reference, no personal data> \
+--   $PSQL -v uid=<auth user id> -v confirm_uid=<same id again> -v approval_ref=<reference, no personal data, no '@'> \
 --         -v expect=<token from the preflight> -f supabase/ops/fenomen_account_delete.sql
 -- Order: lock auth.users row -> recompute the token (expect) -> public._fenomen_delete_user(uid), the same path as
 -- "Hesabımı sil" and the 24-month purge: auth.refresh_tokens + auth.flow_state of the user (no FK), audit_log_entries
 -- (actor_id OR traits.user_id), fenomen_save_backups, fenomen_saves, auth.users (identities, sessions, mfa_*,
--- one_time_tokens ... cascade) -> check: 0 rows left anywhere.
+-- one_time_tokens ... cascade) + deletion list row (fenomen_private.deletion_log: uid, now(), 'info:<approval_ref>'; no e-mail)
+-- -> check: 0 rows left anywhere.
 -- Refuses (nothing deleted) when: a parameter is missing, uid is the nil uuid, confirm_uid differs, approval_ref empty,
+-- approval_ref contains '@' / a control character / more than 195 characters (it goes to the deletion list),
 -- nothing to delete, rows outside Fenomen (block), or the token differs (e-mail / created_at / id of the account or the
 -- Fenomen rows changed since the preflight, or the token belongs to another user).
 \set ON_ERROR_STOP on
@@ -54,6 +56,9 @@ begin
   end if;
   if length(v_ref) < 4 then
     raise exception 'fenomen account delete: approval_ref (Aryen''s approval reference) is required; nothing deleted';
+  end if;
+  if v_ref ~ '[@[:cntrl:]]' or length(v_ref) > 195 then
+    raise exception 'fenomen account delete: approval_ref goes to the deletion list: no e-mail address (@), no control characters, at most 195 characters; nothing deleted';
   end if;
   perform 1 from auth.users u where u.id = v_uid for update;          -- blocks concurrent writes that reference the user
   v_user := found;
@@ -129,8 +134,8 @@ begin
   end if;
 
   -- the same path as "Hesabımı sil" and the 24-month purge: refresh tokens + flow state (no FK), audit rows, backups, save,
-  -- auth.users (+ cascades). This file deletes nothing itself.
-  select * into r from public._fenomen_delete_user(v_uid);
+  -- auth.users (+ cascades), deletion list row 'info:<approval_ref>' when the auth user is deleted. This file deletes nothing itself.
+  select * into r from public._fenomen_delete_user(v_uid, 'info:' || v_ref);
   if r.accounts <> (case when v_user then 1 else 0 end) then
     raise exception 'fenomen account delete: _fenomen_delete_user deleted % auth users, expected %; rolled back', r.accounts, case when v_user then 1 else 0 end;
   end if;
@@ -186,7 +191,8 @@ begin
   if v_left is not null then
     raise exception 'fenomen account delete: rows left after the delete (%); rolled back, run the preflight again', v_left;
   end if;
-  raise notice 'fenomen account delete OK (approval %): auth.users %, fenomen_saves %, fenomen_save_backups %, audit_log_entries %, auth.refresh_tokens %, auth.flow_state % (counted before), cascaded: %; rows left: 0',
-    v_ref, r.accounts, r.saves, r.backups, r.audit_entries, n_rt, n_fs, coalesce(v_casc, 'none');
+  raise notice 'fenomen account delete OK (approval %): auth.users %, fenomen_saves %, fenomen_save_backups %, audit_log_entries %, auth.refresh_tokens %, auth.flow_state % (counted before), cascaded: %; rows left: 0; deletion list: %',
+    v_ref, r.accounts, r.saves, r.backups, r.audit_entries, n_rt, n_fs, coalesce(v_casc, 'none'),
+    coalesce((select d.approval_ref || ' ' || to_char(d.deleted_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') from fenomen_private.deletion_log d where d.user_id = v_uid), 'NOT LISTED');
 end $del$;
 commit;

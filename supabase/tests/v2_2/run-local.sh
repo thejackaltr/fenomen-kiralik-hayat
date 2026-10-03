@@ -13,6 +13,7 @@ PRE="$SB/ops/v2_2_cloud_save_preflight_readonly.sql"; VER="$SB/ops/v2_2_cloud_sa
 CNT="$SB/ops/inactive_accounts_count.sql"
 CRON_B="$SB/ops/v2_2_backup_cleanup_pg_cron.sql"; CRON_B_RB="$SB/ops/v2_2_backup_cleanup_pg_cron.rollback.sql"
 CRON_P="$SB/ops/v2_2_inactive_purge_pg_cron.sql"; CRON_P_RB="$SB/ops/v2_2_inactive_purge_pg_cron.rollback.sql"
+CRON_D="$SB/ops/v2_2_deletion_log_cleanup_pg_cron.sql"; CRON_D_RB="$SB/ops/v2_2_deletion_log_cleanup_pg_cron.rollback.sql"
 # counter (sayaç) schema = what origin/main ships (v2.1 anon_stats_events); optional 2nd variant = plans/fenomen-telemetry (read only)
 COUNTER1="$SB/migrations/20260928150000_v2_1_anon_stats_events.sql"
 COUNTER2="${COUNTER2:-/workspace/plans/fenomen-telemetry/01_stats_table.sql}"
@@ -25,8 +26,8 @@ psqlx() { local db="$1" user="$2"; shift 2; "$PGBIN/psql" -X -h "$SOCK" -p "$POR
 q()     { psqlx "$1" supabase_admin -Atc "$2"; }
 ro()    { PGOPTIONS='-c default_transaction_read_only=on' psqlx "$@"; }
 step()  { echo; echo "######## $*"; }
-dump_schema() { "$PGBIN/pg_dump" -h "$SOCK" -p "$PORT" -U supabase_admin --schema-only -n public -n auth "$1" | grep -v -E '^(--|\\restrict|\\unrestrict)' | sed '/^$/d'; }
-dump_data()   { "$PGBIN/pg_dump" -h "$SOCK" -p "$PORT" -U supabase_admin --data-only -n public -n auth "$1" | grep -v -E '^(--|\\restrict|\\unrestrict|SET |SELECT pg_catalog)' | sed '/^$/d' | sort; }
+dump_schema() { "$PGBIN/pg_dump" -h "$SOCK" -p "$PORT" -U supabase_admin --schema-only -n public -n auth -n fenomen_private "$1" | grep -v -E '^(--|\\restrict|\\unrestrict)' | sed '/^$/d'; }
+dump_data()   { "$PGBIN/pg_dump" -h "$SOCK" -p "$PORT" -U supabase_admin --data-only -n public -n auth -n fenomen_private "$1" | grep -v -E '^(--|\\restrict|\\unrestrict|SET |SELECT pg_catalog)' | sed '/^$/d' | sort; }
 dump_counter() {  # every anon_stats* table (schema + data + grants + policies) and function (definition md5 + ACL)
   "$PGBIN/pg_dump" -h "$SOCK" -p "$PORT" -U supabase_admin -t 'public.anon_stats*' "$1" | grep -v -E '^(--|\\restrict|\\unrestrict)' | sed '/^$/d'
   q "$1" "select p.oid::regprocedure || ' ' || md5(pg_get_functiondef(p.oid)) || ' ' || coalesce(p.proacl::text, '') from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname like 'anon\_stats%' order by 1"; }
@@ -89,7 +90,7 @@ chk "migration scheduled nothing (no pg_cron job) and ran no cleanup" '[ "$(q fe
 
 step "4. verify (read-only)"
 ro fen22_main postgres -v ON_ERROR_STOP=1 -f "$VER" > "$OUTD/ver1.out" 2>&1; rc=$?
-chk "verify passes (exit $rc): $(grep -o 'VERIFY OK: [0-9/]*' "$OUTD/ver1.out")" '[ $rc = 0 ] && grep -q "VERIFY OK: 16/16" "$OUTD/ver1.out"' "$(cat "$OUTD/ver1.out")"
+chk "verify passes (exit $rc): $(grep -o 'VERIFY OK: [0-9/]*' "$OUTD/ver1.out")" '[ $rc = 0 ] && grep -q "VERIFY OK: 18/18" "$OUTD/ver1.out"' "$(cat "$OUTD/ver1.out")"
 ro fen22_main postgres -v ON_ERROR_STOP=1 -f "$PRE" > "$OUTD/pre3.out" 2>&1; rc=$?
 chk "preflight after apply still read-only OK, reports ALREADY PRESENT (exit $rc)" '[ $rc = 0 ] && grep -q "ALREADY PRESENT" "$OUTD/pre3.out"'
 
@@ -143,24 +144,28 @@ dump_schema fen22_cron > "$OUTD/cron.schema.migrated"
 # like Supabase: the admin makes pg_cron available to postgres (plain PG needs superuser for CREATE EXTENSION pg_cron)
 q fen22_cron "create extension if not exists pg_cron; grant usage on schema cron to postgres; grant all on all tables in schema cron to postgres" >/dev/null
 jobs() { q fen22_cron "select coalesce(string_agg(jobname || '|' || schedule || '|' || command || '|' || username || '|' || active, ';' order by jobname), '') from cron.job where jobname like 'fenomen\_%'"; }
-for f in "$CRON_B" "$CRON_B" "$CRON_P" "$CRON_P"; do psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$f" > "$OUTD/cron.out" 2>&1 || { bad_ "ops $(basename "$f")"; cat "$OUTD/cron.out"; }; done
+for f in "$CRON_B" "$CRON_B" "$CRON_P" "$CRON_P" "$CRON_D" "$CRON_D"; do psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$f" > "$OUTD/cron.out" 2>&1 || { bad_ "ops $(basename "$f")"; cat "$OUTD/cron.out"; }; done
 J=$(jobs); echo "jobs: $J"
-chk "each ops file run twice -> exactly one job each, UTC 47 0 (03:47 TSİ) / 17 1 (04:17 TSİ), as postgres" \
-  '[ "$J" = "fenomen_inactive_accounts_purge|17 1 * * *|select * from public.fenomen_purge_inactive_accounts()|postgres|true;fenomen_save_backups_cleanup|47 0 * * *|select public.fenomen_cleanup_save_backups()|postgres|true" ]'
+chk "each ops file run twice -> exactly one job each, UTC 47 0 (03:47 TSİ) / 17 1 (04:17 TSİ) / 47 1 (04:47 TSİ), as postgres" \
+  '[ "$J" = "fenomen_deletion_log_cleanup|47 1 * * *|select public.fenomen_cleanup_deletion_log()|postgres|true;fenomen_inactive_accounts_purge|17 1 * * *|select * from public.fenomen_purge_inactive_accounts()|postgres|true;fenomen_save_backups_cleanup|47 0 * * *|select public.fenomen_cleanup_save_backups()|postgres|true" ]'
 # live: the exact job commands, every second, as postgres
 q fen22_cron "insert into auth.users (id, created_at, last_sign_in_at) values ('eeeeeeee-0000-4000-8000-000000000001', now() - interval '3 years', now() - interval '25 months'), ('eeeeeeee-0000-4000-8000-000000000002', now(), now())" >/dev/null
 q fen22_cron "insert into public.fenomen_save_backups (user_id, revision, save_version, data, created_at) values ('eeeeeeee-0000-4000-8000-000000000002', 1, 1, '{}', now() - interval '31 days'), ('eeeeeeee-0000-4000-8000-000000000002', 1, 1, '{}', now() - interval '29 days')" >/dev/null
-psqlx fen22_cron postgres -qAtc "select cron.schedule('fenomen_live_b', '1 seconds', 'select public.fenomen_cleanup_save_backups()'), cron.schedule('fenomen_live_p', '1 seconds', 'select * from public.fenomen_purge_inactive_accounts()')" >/dev/null
-st=""; for i in $(seq 1 40); do st=$(q fen22_cron "select string_agg(distinct j.jobname || ':' || d.status, ',' order by j.jobname || ':' || d.status) from cron.job_run_details d join cron.job j using (jobid) where j.jobname like 'fenomen_live_%' and d.status in ('succeeded', 'failed')"); [[ "$st" == *fenomen_live_b* && "$st" == *fenomen_live_p* ]] && break; sleep 0.5; done
-psqlx fen22_cron postgres -qAtc "select cron.unschedule('fenomen_live_b'), cron.unschedule('fenomen_live_p')" >/dev/null
-chk "pg_cron live run of both job commands as postgres: $st" '[ "$st" = "fenomen_live_b:succeeded,fenomen_live_p:succeeded" ]' "$(q fen22_cron "select string_agg(return_message, ' | ') from cron.job_run_details where status = 'failed'")"
+q fen22_cron "insert into fenomen_private.deletion_log (user_id, deleted_at, approval_ref) values ('eeeeeeee-0000-4000-8000-0000000000d1', now() - interval '46 days', 'info:FD-OLD'), ('eeeeeeee-0000-4000-8000-0000000000d2', now() - interval '44 days', 'info:FD-KEEP')" >/dev/null
+psqlx fen22_cron postgres -qAtc "select cron.schedule('fenomen_live_b', '1 seconds', 'select public.fenomen_cleanup_save_backups()'), cron.schedule('fenomen_live_p', '1 seconds', 'select * from public.fenomen_purge_inactive_accounts()'), cron.schedule('fenomen_live_d', '1 seconds', 'select public.fenomen_cleanup_deletion_log()')" >/dev/null
+st=""; for i in $(seq 1 40); do st=$(q fen22_cron "select string_agg(distinct j.jobname || ':' || d.status, ',' order by j.jobname || ':' || d.status) from cron.job_run_details d join cron.job j using (jobid) where j.jobname like 'fenomen_live_%' and d.status in ('succeeded', 'failed')"); [[ "$st" == *fenomen_live_b* && "$st" == *fenomen_live_p* && "$st" == *fenomen_live_d* ]] && break; sleep 0.5; done
+psqlx fen22_cron postgres -qAtc "select cron.unschedule('fenomen_live_b'), cron.unschedule('fenomen_live_p'), cron.unschedule('fenomen_live_d')" >/dev/null
+chk "pg_cron live run of the three job commands as postgres: $st" '[ "$st" = "fenomen_live_b:succeeded,fenomen_live_d:succeeded,fenomen_live_p:succeeded" ]' "$(q fen22_cron "select string_agg(return_message, ' | ') from cron.job_run_details where status = 'failed'")"
 LIVE=$(q fen22_cron "select (select count(*) from public.fenomen_save_backups where created_at < now() - interval '30 days') || '|' || (select count(*) from public.fenomen_save_backups) || '|' || (select count(*) from auth.users where id = 'eeeeeeee-0000-4000-8000-000000000001') || '|' || (select count(*) from auth.users where id = 'eeeeeeee-0000-4000-8000-000000000002')")
 chk "live run: 31-day backup deleted, 29-day kept, 25-month-inactive account deleted, active one kept [$LIVE]" '[ "$LIVE" = "0|1|0|1" ]'
+DL=$(q fen22_cron "select string_agg(approval_ref, ',' order by approval_ref) from fenomen_private.deletion_log")
+chk "live run: deletion list 46-day row deleted, 44-day row kept, purged account listed as purge:24m:<date> [$DL]" '[[ "$DL" =~ ^info:FD-KEEP,purge:24m:[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]'
 psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$CRON_B_RB" >/dev/null 2>&1 && psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$CRON_B_RB" >/dev/null 2>&1
-chk "backup-cleanup ops rollback (x2) removes only its job" '[ "$(jobs)" = "fenomen_inactive_accounts_purge|17 1 * * *|select * from public.fenomen_purge_inactive_accounts()|postgres|true" ]'
-psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$CRON_B" >/dev/null 2>&1
+psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$CRON_D_RB" >/dev/null 2>&1 && psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$CRON_D_RB" >/dev/null 2>&1
+chk "backup-cleanup and deletion-list-cleanup ops rollbacks (x2 each) remove only their jobs" '[ "$(jobs)" = "fenomen_inactive_accounts_purge|17 1 * * *|select * from public.fenomen_purge_inactive_accounts()|postgres|true" ]'
+psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$CRON_B" >/dev/null 2>&1; psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$CRON_D" >/dev/null 2>&1
 PGOPTIONS='-c fenomen.v22_allow_data_loss=on' psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$RB" > "$OUTD/cron.rb.out" 2>&1; rc=$?
-chk "migration rollback with both jobs scheduled: exit $rc, no fenomen job left" '[ $rc = 0 ] && [ -z "$(jobs)" ]' "$(cat "$OUTD/cron.rb.out")"
+chk "migration rollback with all three jobs scheduled: exit $rc, no fenomen job left" '[ $rc = 0 ] && [ -z "$(jobs)" ]' "$(cat "$OUTD/cron.rb.out")"
 psqlx fen22_cron postgres -v ON_ERROR_STOP=1 -f "$CRON_P_RB" >/dev/null 2>&1; rc=$?
 chk "purge ops rollback when the job is already gone: no-op (exit $rc)" '[ $rc = 0 ]'
 

@@ -1,11 +1,11 @@
-# 2026-10-03 02:34 TSİ — code f587eb5 + this commit. FD_MODE=local: throwaway PostgreSQL 17.11 (Debian, box) + auth_schema_fixture.sql (GoTrue auth schema, 23 tables, from a .136 schema dump)
+# 2026-10-03 03:15 TSİ — code 72a860d + this commit. FD_MODE=local: throwaway PostgreSQL 17.11 (Debian, box) + auth_schema_fixture.sql (GoTrue auth schema, 23 tables, from a .136 schema dump)
 == mode: local cluster (postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)), auth schema from auth_schema_fixture.sql
 == auth tables: 23 (audit_log_entries,custom_oauth_providers,flow_state,identities,instances,mfa_amr_claims,mfa_challenges,mfa_factors,oauth_authorizations,oauth_client_states,oauth_clients,oauth_consents,one_time_tokens,refresh_tokens,saml_providers,saml_relay_states,schema_migrations,sessions,sso_domains,sso_providers,users,webauthn_challenges,webauthn_credentials)
 
 ######## T. files
 PASS  T1 counts query byte-identical in preflight (2) / delete (2) / verify (2); identity block identical in preflight / delete
 PASS  T2 preflight / verify: begin transaction read only ... rollback, no write statement
-PASS  T3 delete: one transaction (single begin / commit), deletes only through public._fenomen_delete_user (no DELETE of its own)
+PASS  T3 delete: one transaction (single begin / commit), deletes only through public._fenomen_delete_user(uid, 'info:' || approval_ref) (no DELETE of its own)
 
 ######## P. preflight (read only)
 PASS  P1 found by e-mail (case / spaces ignored): exactly 1 match, uid, masked e-mail, read only
@@ -26,6 +26,7 @@ PASS  R3 expect missing  -- ERROR:  expect missing; nothing changed
 PASS  R4 uid missing  -- ERROR:  uid missing; nothing changed
 PASS  R5 nil uuid  -- ERROR:  fenomen account delete: the nil uuid is not a user; nothing deleted; nothing changed
 PASS  R6 uid not a uuid  -- ERROR:  invalid input syntax for type uuid: "alice"; nothing changed
+PASS  R7 approval_ref with an e-mail address (it goes to the deletion list)  -- ERROR:  fenomen account delete: approval_ref goes to the deletion list: no e-mail address (@), no control characters, at most 195 characters; nothing deleted; nothing changed
 
 ######## E. expect token
 PASS  E1 wrong token  -- ERROR:  fenomen account delete: account (id / e-mail / created_at) or Fenomen rows changed since the preflight, or the token is for another user (expect 000000000000, now f4ec24b0d644); run ; nothing changed
@@ -42,8 +43,8 @@ PASS  X2 preflight: a non-Fenomen table referencing auth.users -> BLOCKED, no to
 PASS  X3 delete BLOCKED by rows outside Fenomen (would be cascaded)  -- ERROR:  fenomen account delete BLOCKED: rows outside Fenomen (public.zz_fd_test_other=1) would be cascaded or left. Nothing deleted; nothing changed
 
 ######## D. delete with the right token, verify, other users untouched
-PASS  D1 delete with the right token (exit 0)  -- fenomen account delete OK (approval FN-SIL-TEST-01): auth.users 1, fenomen_saves 1, fenomen_save_backups 2, audit_log_entries 4, auth.refresh_tokens 4, auth.flow_state 1 (counted before), cascaded: auth.identities 1, auth.mfa_factors 1, auth.one_time_tokens 1, auth.sessions 3; rows left: 0
-PASS  D2 verify: 0 rows of A in auth.users, identities, sessions, refresh_tokens, flow_state, mfa, one_time_tokens, audit, fenomen_saves, fenomen_save_backups
+PASS  D1 delete with the right token (exit 0)  -- fenomen account delete OK (approval FN-SIL-TEST-01): auth.users 1, fenomen_saves 1, fenomen_save_backups 2, audit_log_entries 4, auth.refresh_tokens 4, auth.flow_state 1 (counted before), cascaded: auth.identities 1, auth.mfa_factors 1, auth.one_time_tokens 1, auth.sessions 3; rows left: 0; deletion list: info:FN-SIL-TEST-01 2026-10-03T00:13:53Z
+PASS  D2 verify (A listed on the deletion list as info:FN-SIL-TEST-01, not counted as a row left): 0 rows of A in auth.users, identities, sessions, refresh_tokens, flow_state, mfa, one_time_tokens, audit, fenomen_saves, fenomen_save_backups
 PASS  D3 every other row unchanged (B, C, B's audit row with A's e-mail, admin / null rows); exactly A's 4 audit rows gone
 PASS  D4 B and C still there (B: 2 refresh tokens incl. one without session, flow_state, cloud save)
 PASS  D4b A's refresh tokens (incl. the one without session) and flow_state gone via _fenomen_delete_user; B's (incl. without session) stay  -- A: rt_nosess=0 rt=0 flow=0; B: rt_nosess=1 rt=2 flow=1
@@ -56,18 +57,21 @@ PASS  S1 second verify finds the late row (exit 3)  -- ERROR:  fenomen account d
 PASS  S2 new preflight by uid: OK (leftovers), new token 04ae5a634136 (old f4ec24b0d644)
 PASS  S3 old token refused for the leftover delete  -- ERROR:  fenomen account delete: account (id / e-mail / created_at) or Fenomen rows changed since the preflight, or the token is for another user (expect f4ec24b0d644, now 04ae5a634136); run ; nothing changed
 PASS  S4 delete with the new token + new approval -> OK, verify OK, other users still unchanged
+PASS  S5 leftover delete (no auth user) adds no deletion list row; the first one (info:FN-SIL-TEST-01) is kept
 
 ######## H. "Hesabımı sil" (fenomen_delete_my_account as authenticated) on the same auth schema
 PASS  H1 fenomen_delete_my_account as A  -- {"saves": 1, "backups": 2, "deleted": true, "audit_entries": 3}
 PASS  H2 A's refresh tokens (incl. the one without session) and flow_state gone; B's (incl. without session) stay  -- A: rt_nosess=0 rt=0 flow=0; B: rt_nosess=1 rt=2 flow=1
 PASS  H3 info@ verify OK for A after "Hesabımı sil"; every other row unchanged
+PASS  H4 deletion list: only A, ref self:session:<JWT session_id>; B and C not listed
 
 ######## Y. 24-month purge (fenomen_purge_inactive_accounts as postgres) on the same auth schema
 PASS  Y1 purge deletes only A (inactive 24 months + 1 day): accounts|saves|backups|audit|remaining = 1|1|2|3|0
 PASS  Y2 A's refresh tokens (incl. the one without session) and flow_state gone; B's stay  -- A: rt_nosess=0 rt=0 flow=0; B: rt_nosess=1 rt=2 flow=1
 PASS  Y3 info@ verify OK for A after the purge; every other row unchanged
+PASS  Y4 deletion list: only A, ref purge:24m:<UTC date>  -- aaaaaaaa-0000-4000-8000-00000000000a=purge:24m:2026-10-03
 
 ######## SUMMARY
-T=3 P=10 R=6 E=7 X=3 D=8 S=4 H=3 Y=3 
-account delete checks: 47/47 PASS
+T=3 P=10 R=7 E=7 X=3 D=8 S=5 H=4 Y=4 
+account delete checks: 51/51 PASS
 RESULT: ALL PASS

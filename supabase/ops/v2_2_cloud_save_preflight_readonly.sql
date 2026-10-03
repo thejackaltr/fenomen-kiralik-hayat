@@ -38,13 +38,15 @@ union all
 select 'function', p.oid::regprocedure::text from pg_catalog.pg_proc p
  where (p.proname like 'fenomen\_%' or p.proname like '\_fenomen\_%') and p.pronamespace <> 'pg_catalog'::regnamespace
 union all
+select 'schema', n.nspname from pg_catalog.pg_namespace n where n.nspname = 'fenomen_private'
+union all
 select 'policy', schemaname || '.' || tablename || ': ' || policyname from pg_catalog.pg_policies where policyname like 'fenomen\_%'
 union all
 select 'trigger', t.tgrelid::regclass::text || ': ' || t.tgname from pg_catalog.pg_trigger t where t.tgname like 'fenomen\_%' and not t.tgisinternal
 union all
 select 'cron job', x.jobname from (
   select unnest(xpath('/row/j/text()', query_to_xml(
-           'select jobname as j from cron.job where jobname in (''fenomen_save_backups_cleanup'', ''fenomen_inactive_accounts_purge'')', false, false, '')))::text as jobname
+           'select jobname as j from cron.job where jobname in (''fenomen_save_backups_cleanup'', ''fenomen_inactive_accounts_purge'', ''fenomen_deletion_log_cleanup'')', false, false, '')))::text as jobname
    where to_regclass('cron.job') is not null) x
  order by 1, 2;
 
@@ -61,6 +63,7 @@ select to_regnamespace('auth') is not null                                      
             then has_table_privilege('postgres', to_regclass('auth.refresh_tokens'), 'DELETE') and has_table_privilege('postgres', to_regclass('auth.flow_state'), 'DELETE') end
                                                                                   as postgres_can_delete_rt_flow,     -- t gerekli (migration kontrol eder)
        (select rolbypassrls from pg_catalog.pg_roles where rolname = 'postgres')    as postgres_bypassrls,      -- t gerekli (migration kontrol eder)
+       has_database_privilege('postgres', current_database(), 'CREATE')            as postgres_can_create_schema,  -- t gerekli (silme listesi şeması fenomen_private)
        (select string_agg(tablename, ',' order by tablename) from pg_catalog.pg_tables where schemaname = 'auth') as auth_tables;
 select c.conrelid::regclass as referencing_table, c.conname, c.confdeltype = 'c' as on_delete_cascade
   from pg_catalog.pg_constraint c

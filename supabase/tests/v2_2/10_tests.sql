@@ -53,7 +53,7 @@ select t.throws($$select * from public.fenomen_list_save_backups()$$, '42501: pe
 select t.throws($$select public.fenomen_delete_my_account()$$, '42501: permission denied for function fenomen_delete_my_account', 'N08 anon cannot call fenomen_delete_my_account');
 select t.throws($$select * from public.fenomen_purge_inactive_accounts()$$, '42501: permission denied for function fenomen_purge_inactive_accounts', 'N09 anon cannot call the 24-month purge');
 select t.throws($$select public.fenomen_cleanup_save_backups()$$, '42501: permission denied for function fenomen_cleanup_save_backups', 'N10 anon cannot call backup cleanup');
-select t.throws($$select * from public._fenomen_delete_user('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')$$, '42501: permission denied for function _fenomen_delete_user', 'N11 anon cannot call _fenomen_delete_user');
+select t.throws($$select * from public._fenomen_delete_user('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'info:FD-TEST')$$, '42501: permission denied for function _fenomen_delete_user', 'N11 anon cannot call _fenomen_delete_user');
 select t.throws($$select public.fenomen_cfg_inactive_interval()$$, '42501: permission denied%', 'N12 anon cannot call config functions');
 
 -- ============================================================ R: "Baştan başla" + backups
@@ -126,9 +126,9 @@ select t.throws($$select public.fenomen_admin_restore_save_backup(gen_random_uui
 
 -- ============================================================ D: "Hesabımı sil"
 select t.login(:A);
-select t.throws($$select * from public._fenomen_delete_user('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')$$, '42501: permission denied for function _fenomen_delete_user', 'D01 authenticated cannot call _fenomen_delete_user(B)');
+select t.throws($$select * from public._fenomen_delete_user('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'info:FD-TEST')$$, '42501: permission denied for function _fenomen_delete_user', 'D01 authenticated cannot call _fenomen_delete_user(B)');
 select t.as_service();
-select t.throws($$select * from public._fenomen_delete_user('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')$$, '42501: permission denied for function _fenomen_delete_user', 'D02 service_role cannot call _fenomen_delete_user either');
+select t.throws($$select * from public._fenomen_delete_user('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'info:FD-TEST')$$, '42501: permission denied for function _fenomen_delete_user', 'D02 service_role cannot call _fenomen_delete_user either');
 select t.throws($$select public.fenomen_delete_my_account()$$, '42501: permission denied for function fenomen_delete_my_account', 'D03 service_role cannot call fenomen_delete_my_account (authenticated only)');
 select t.login('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
 select t.ok((select public.fenomen_delete_my_account() = '{"saves": 0, "backups": 0, "deleted": false, "audit_entries": 0}'::jsonb), 'D04 a JWT for a non-existent user deletes nothing');
@@ -166,6 +166,8 @@ grant select on b_before to public;
 select t.ok((select s = 1 and b = 1 and u = 1 and i = 1 and se = 1 and rt = 2 and fs = 1 from b_before), 'D06 before: B has save, backup, user, identity, session, 2 refresh tokens (1 without session), flow_state');
 select t.ok((select count(*) = 1 from public.fenomen_saves where user_id = :A) and (select count(*) = 5 from public.fenomen_save_backups where user_id = :A), 'D07 before: A has 1 save + 5 backups');
 select t.login(:A);
+-- like PostgREST: the JWT carries GoTrue's session_id -> deletion list ref self:session:<id>
+select set_config('request.jwt.claims', json_build_object('sub', :A, 'role', 'authenticated', 'session_id', '5e550000-0000-4000-8000-00000000000A')::text, false);
 do $$ declare r jsonb; begin
   r := public.fenomen_delete_my_account();
   perform t.ok(r = '{"saves": 1, "backups": 5, "deleted": true, "audit_entries": 3}'::jsonb, 'D08 A deletes its account: returns deleted/saves/backups/audit_entries counts', r::text);
@@ -193,7 +195,40 @@ select t.login(:A);
 select t.throws($$select t.upsert('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '{"v":2}', 1)$$, '23503: %', 'D13 still-valid JWT of the deleted user cannot recreate a save (FK -> 23503)');
 select t.ok((select count(*) = 0 from public.fenomen_saves), 'D14 still-valid JWT of the deleted user reads nothing');
 select t.ok((select public.fenomen_delete_my_account() = '{"saves": 0, "backups": 0, "deleted": false, "audit_entries": 0}'::jsonb), 'D15 second delete call is a no-op (idempotent)');
+select t.throws($$select count(*) from fenomen_private.deletion_log$$, '42501: permission denied for schema fenomen_private', 'L03a authenticated cannot read the deletion list');
+select t.throws($$select public.fenomen_cleanup_deletion_log()$$, '42501: permission denied for function fenomen_cleanup_deletion_log', 'L04a authenticated cannot run the deletion list cleanup');
+select t.login(null);
+select t.throws($$select count(*) from fenomen_private.deletion_log$$, '42501: permission denied for schema fenomen_private', 'L03b anon cannot read the deletion list');
+select t.as_service();
+select t.throws($$select count(*) from fenomen_private.deletion_log$$, '42501: permission denied for schema fenomen_private', 'L03c service_role cannot read the deletion list either');
+select t.ok(public.fenomen_cleanup_deletion_log() = 0, 'L04b service_role runs the deletion list cleanup (nothing older than 45 days)');
 select t.logout();
+
+-- ============================================================ L: deletion list (fenomen_private.deletion_log)
+select t.ok((select count(*) = 1 and bool_and(approval_ref = 'self:session:5e550000-0000-4000-8000-00000000000a'
+                    and deleted_at > now() - interval '1 hour') from fenomen_private.deletion_log where user_id = :A),
+            'L01 "Hesabımı sil" wrote A to the deletion list: uid + time + ref self:session:<JWT session_id>',
+            (select string_agg(user_id || ' ' || approval_ref, '; ') from fenomen_private.deletion_log));
+select t.ok((select count(*) from fenomen_private.deletion_log) = 1
+            and (select count(*) from fenomen_private.deletion_log where user_id in (:B, :C, 'dddddddd-dddd-4ddd-8ddd-dddddddddddd')) = 0,
+            'L02 only A is listed: not B / C, not the JWT of a non-existent user (D04, nothing deleted), second call (D15) adds nothing');
+select t.ok((select string_agg(attname, ',' order by attnum) from pg_attribute where attrelid = 'fenomen_private.deletion_log'::regclass and attnum > 0 and not attisdropped)
+            = 'user_id,deleted_at,approval_ref', 'L05 deletion list columns: user_id, deleted_at, approval_ref (no e-mail)');
+select t.throws($$select * from public._fenomen_delete_user('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'info:bob@example.com')$$, '22023: invalid_deletion_ref', 'L06a ref with an e-mail address refused');
+select t.throws($$select * from public._fenomen_delete_user('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'FN-SIL-1')$$, '22023: invalid_deletion_ref', 'L06b ref without self:/info:/purge: prefix refused');
+select t.throws($$select * from public._fenomen_delete_user('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', null)$$, '22023: invalid_deletion_ref', 'L06c null ref refused');
+select t.ok((select count(*) from auth.users where id = :B) = 1 and (select count(*) from public.fenomen_saves where user_id = :B) = 1
+            and (select count(*) from auth.refresh_tokens where user_id = :B) = 2, 'L06d refused refs deleted nothing (B still has user, save, refresh tokens)');
+select t.throws($$insert into fenomen_private.deletion_log (user_id, approval_ref) values (gen_random_uuid(), 'info:x@y.z')$$, '23514: %deletion_log_ref_chk%', 'L06e table CHECK: no e-mail in approval_ref even for direct inserts');
+insert into fenomen_private.deletion_log (user_id, deleted_at, approval_ref) values
+  ('e1000000-0000-4000-8000-000000000046', now() - interval '45 days' - interval '1 minute', 'info:FD-OLD'),
+  ('e1000000-0000-4000-8000-000000000044', now() - interval '44 days', 'info:FD-KEEP');
+select t.as_service();
+select t.ok(public.fenomen_cleanup_deletion_log() = 1, 'L07a cleanup deletes the row older than 45 days (1)');
+select t.logout();
+select t.ok((select string_agg(approval_ref, ',' order by approval_ref) from fenomen_private.deletion_log where user_id::text like 'e1000000-%') = 'info:FD-KEEP',
+            'L07b 44-day-old row kept');
+delete from fenomen_private.deletion_log where user_id::text like 'e1000000-%';
 
 -- ============================================================ P: 24-month inactive purge
 -- P1 keep: last sign-in 24 months - 1 day ago; P2 delete: 24 months + 1 day; P3 delete: never signed in, created 24 months + 1 day ago;

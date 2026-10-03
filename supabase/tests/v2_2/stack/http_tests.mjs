@@ -139,7 +139,7 @@ const TA = A.session.access_token, TB = B.session.access_token;
 {
   const other = await raw('POST', '/rest/v1/rpc/fenomen_delete_my_account', TA, { p_uid: B.user.id }); seen('rpc delete_my_account with p_uid', other);
   ok('H50 fenomen_delete_my_account(p_uid => B) does not exist -> 404 PGRST202', other.status === 404 && other.body.code === 'PGRST202');
-  const inner = await raw('POST', '/rest/v1/rpc/_fenomen_delete_user', TA, { p_uid: B.user.id }); seen('authenticated rpc _fenomen_delete_user', inner);
+  const inner = await raw('POST', '/rest/v1/rpc/_fenomen_delete_user', TA, { p_uid: B.user.id, p_ref: 'info:H51' }); seen('authenticated rpc _fenomen_delete_user', inner);
   ok('H51 authenticated rpc/_fenomen_delete_user(B) -> 403', inner.status === 403 && sql(`select count(*) from auth.users where id = '${B.user.id}'`) === '1');
   const sp = await raw('POST', '/rest/v1/rpc/fenomen_purge_inactive_accounts', TA, {}); seen('authenticated rpc purge', sp);
   ok('H52 authenticated rpc purge -> 403', sp.status === 403);

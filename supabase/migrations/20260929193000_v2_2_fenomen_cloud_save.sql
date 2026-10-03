@@ -12,17 +12,25 @@
 --   3. RPC (authenticated): fenomen_reset_save, fenomen_list_save_backups, fenomen_delete_my_account.
 --      RPC (yalnız service_role/postgres): fenomen_cleanup_save_backups, fenomen_purge_inactive_accounts,
 --      fenomen_admin_restore_save_backup.
---      İç (kimseye EXECUTE yok): _fenomen_delete_user(uid) (Hesabımı sil + 24 ay temizliği aynı yol),
+--      RPC (yalnız service_role/postgres): fenomen_cleanup_deletion_log (silme listesinin saklama temizliği).
+--      İç (kimseye EXECUTE yok): _fenomen_delete_user(uid, ref) (Hesabımı sil + 24 ay temizliği + info@ aynı yol),
 --      _fenomen_trim_backups, _fenomen_inactive_cutoff, _fenomen_save_summary, fenomen_saves_before_write.
 --   4. Ayarlar TEK yerde, sabit fonksiyonlar: fenomen_cfg_inactive_interval() = 24 ay,
 --      fenomen_cfg_backup_retention() = 30 gün, fenomen_cfg_backup_max_per_user() = 5,
---      fenomen_cfg_purge_batch_max() = 100. Değiştirmek = bu fonksiyonu yeniden tanımlamak (migration).
+--      fenomen_cfg_purge_batch_max() = 100, fenomen_cfg_deletion_log_retention() = 45 gün.
+--      Değiştirmek = bu fonksiyonu yeniden tanımlamak (migration).
 --   5. RLS açık + FORCE. authenticated: fenomen_saves'te yalnız kendi satırı (select/insert/update, kolon bazlı).
 --      anon: hiçbir yetki yok. İstemcinin DELETE yetkisi/policy'si yok ("Baştan başla" = RPC).
 --      fenomen_save_backups: istemci rollerine hiçbir yetki yok (liste RPC ile).
+--   6. fenomen_private.deletion_log — SİLME LİSTESİ: her tam silmede (auth.users satırı silindiğinde) uid + silme zamanı +
+--      onay referansı (self:<oturum> | info:<onay ref> | purge:24m:<tarih>); e-posta YOK. _fenomen_delete_user aynı
+--      transaction'da yazar. Amaç: DB yedekten geri yüklenince silinmiş hesapları yeniden silmek (DB DIŞINA dışa aktarılır:
+--      ops/fenomen_deletion_log_export.sh; geri yükleme sonrası ops/fenomen_deletion_log_reapply.sh). Ayrı şema, RLS açık
+--      + FORCE, policy yok, anon/authenticated/service_role'e hiçbir yetki yok. 45 gün sonra fenomen_cleanup_deletion_log() siler.
 --
 -- Bilerek YAPMADIKLARI: pg_cron kurmaz/zamanlamaz, temizliği/24 ay silmesini ÇALIŞTIRMAZ (ayrı onay adımları:
--- ops/v2_2_backup_cleanup_pg_cron.sql, ops/v2_2_inactive_purge_pg_cron.sql, ops/v2_2_schedule_dokploy.md).
+-- ops/v2_2_backup_cleanup_pg_cron.sql, ops/v2_2_inactive_purge_pg_cron.sql, ops/v2_2_deletion_log_cleanup_pg_cron.sql,
+-- ops/v2_2_schedule_dokploy.md). Silme listesinin DB dışına aktarımını da kurmaz (Dokploy zamanlı görevi, runbook §13).
 -- Sayaç (anon_stats_*) ve Umami ile hiçbir bağ yok: FK, trigger, join, ortak fonksiyon yok.
 --
 -- Kurallar: tek transaction (BEGIN/COMMIT dosyada), idempotent (iki kez çalıştırılabilir, veri korunur),
@@ -70,6 +78,19 @@ begin
        and attname not in ('id', 'user_id', 'revision', 'save_version', 'device', 'data', 'reason', 'save_updated_at', 'created_at');
     if extra is not null then raise exception 'public.fenomen_save_backups exists with unexpected columns: %', extra; end if;
   end if;
+  if to_regnamespace('fenomen_private') is not null
+     and pg_catalog.pg_get_userbyid((select nspowner from pg_catalog.pg_namespace where nspname = 'fenomen_private')) <> 'postgres' then
+    raise exception 'schema fenomen_private exists but is not owned by postgres: not created by this migration';
+  end if;
+  if to_regclass('fenomen_private.deletion_log') is not null then
+    select string_agg(attname, ', ' order by attname) into extra from pg_catalog.pg_attribute
+     where attrelid = 'fenomen_private.deletion_log'::regclass and attnum > 0 and not attisdropped
+       and attname not in ('user_id', 'deleted_at', 'approval_ref');
+    if extra is not null then raise exception 'fenomen_private.deletion_log exists with unexpected columns: %', extra; end if;
+  end if;
+  if to_regnamespace('fenomen_private') is null and not has_database_privilege('postgres', current_database(), 'CREATE') then
+    raise exception 'role postgres cannot CREATE in database %: schema fenomen_private (deletion list) could not be created', current_database();
+  end if;
 end $pre$;
 
 -- ---------------------------------------------------------------- 1. ayarlar (tek yer)
@@ -93,6 +114,15 @@ create or replace function public.fenomen_cfg_purge_batch_max()
 returns integer language sql immutable parallel safe set search_path = ''
 as $$ select 100 $$;
 comment on function public.fenomen_cfg_purge_batch_max() is 'Fenomen v2.2: fenomen_purge_inactive_accounts() tek çalıştırmada en fazla bu kadar hesap siler. TEK kaynak.';
+
+-- Silme listesi saklama süresi: en uzun yedek saklaması (Kodhane kayıt yedekleri 30 gün; Fenomen DB günlük yedeği 14 gün)
+-- + 15 gün pay (geri yükleme ihtiyacının geç fark edilmesi, en eski yedeğin seçilmesi, geri yükleme işinin sürmesi).
+-- D anında silinen hesap ancak D'den ÖNCE alınmış bir yedekle geri gelebilir; o yedek en geç D + 30 günde silinir.
+create or replace function public.fenomen_cfg_deletion_log_retention()
+returns interval language sql immutable parallel safe set search_path = ''
+as $$ select interval '45 days' $$;
+comment on function public.fenomen_cfg_deletion_log_retention() is
+  'Fenomen v2.2: silme listesi (fenomen_private.deletion_log ve DB dışı dışa aktarımlar) saklama süresi = en uzun yedek saklaması 30 gün + 15 gün pay. TEK kaynak.';
 
 -- ---------------------------------------------------------------- 2. tablolar
 create table if not exists public.fenomen_saves (
@@ -132,6 +162,27 @@ comment on table public.fenomen_save_backups is
   'Fenomen v2.2 "Baştan başla" yedekleri (30 gün, kullanıcı başına en fazla 5). İstemci rollerine yetki yok; liste fenomen_list_save_backups().';
 create index if not exists fenomen_save_backups_user_created_idx on public.fenomen_save_backups (user_id, created_at desc);
 create index if not exists fenomen_save_backups_created_idx on public.fenomen_save_backups (created_at);
+
+-- silme listesi: AYRI şema (istemci rolleri şemayı göremez), e-posta YOK; DB dışına dışa aktarılır (bkz. başlık §6)
+create schema if not exists fenomen_private authorization postgres;
+revoke all on schema fenomen_private from public, anon, authenticated, service_role;
+comment on schema fenomen_private is 'Fenomen v2.2: istemci rollerine kapalı iç tablolar (silme listesi). anon/authenticated/service_role: yetki yok.';
+create table if not exists fenomen_private.deletion_log (
+  user_id      uuid        primary key,                -- auth.users.id (FK YOK: satır, hesap silindikten sonra da kalır)
+  deleted_at   timestamptz not null default now(),
+  approval_ref text        not null,
+  constraint deletion_log_ref_chk check (approval_ref ~ '^(self|info|purge):[^@[:cntrl:]]{1,200}$')
+);
+comment on table fenomen_private.deletion_log is
+  'Fenomen v2.2 silme listesi: tam silinen hesapların uid + silme zamanı + onay referansı (e-posta yok). _fenomen_delete_user yazar. '
+  'Geri yükleme sonrası yeniden silme için DB dışına aktarılır. 45 gün (fenomen_cfg_deletion_log_retention) sonra fenomen_cleanup_deletion_log siler.';
+comment on column fenomen_private.deletion_log.approval_ref is
+  'self:session:<oturum id> (Hesabımı sil) | info:<Aryen onay referansı> (e-postayla talep) | purge:24m:<UTC tarih> (24 ay temizliği). "@" içeremez.';
+create index if not exists deletion_log_deleted_at_idx on fenomen_private.deletion_log (deleted_at);
+alter table fenomen_private.deletion_log enable row level security;
+alter table fenomen_private.deletion_log force row level security;
+revoke all on table fenomen_private.deletion_log from public, anon, authenticated, service_role;
+-- bilerek policy yok: yalnız postgres (BYPASSRLS, sahip) ve süper kullanıcı okur/yazar.
 
 -- ---------------------------------------------------------------- 3. yazma trigger'ı (sunucu alanları + revision)
 create or replace function public.fenomen_saves_before_write()
@@ -216,16 +267,19 @@ begin
                    order by x.created_at desc, x.id desc offset public.fenomen_cfg_backup_max_per_user());
 end $$;
 
--- ORTAK SİLME YOLU: "Hesabımı sil" (auth.uid()) ve 24 ay temizliği bunu çağırır. Kimseye EXECUTE yok (yalnız sahibi postgres).
+-- ORTAK SİLME YOLU: "Hesabımı sil" (auth.uid()), 24 ay temizliği ve info@ betiği bunu çağırır. Kimseye EXECUTE yok (yalnız sahibi postgres).
+-- p_ref: onay referansı (self:… | info:… | purge:…; "@" ve kontrol karakteri yok). auth.users satırı silindiyse (tam silme)
+--   AYNI transaction'da fenomen_private.deletion_log'a (uid, now(), p_ref) yazılır; uid zaten listedeyse ilk kayıt korunur.
 -- security definer DEĞİL: yalnız postgres sahipli definer fonksiyonların içinden çalışır.
 -- GoTrue denetim kayıtları (auth.audit_log_entries; FK yok, cascade ile gitmez): payload json içinde
 --   actor_id = kullanıcı (kendi girişi, yenileme, çıkış…) VEYA traits.user_id = kullanıcı (ör. admin işlemi o kullanıcı hakkında).
 --   Yalnız bu iki eşleşme; başka kullanıcıların kayıtlarına dokunulmaz. (GoTrue v2.189.0 internal/models/audit_log_entry.go)
 -- auth.refresh_tokens (user_id varchar, FK yok: oturumsuz eski token'lar sessions cascade'iyle gitmez) ve auth.flow_state
 --   (user_id uuid, FK yok: PKCE akış kayıtları) açıkça silinir; yalnız bu kullanıcının satırları.
--- Dönüş tipi değişti (audit_entries): create or replace yetmez, önce drop (iç fonksiyon; bağımlılık yok, yetkiler §8'de yeniden).
+-- İmza değişti (p_ref): create or replace yetmez, önce drop (iç fonksiyon; bağımlılık yok, yetkiler §8'de yeniden).
 drop function if exists public._fenomen_delete_user(uuid);
-create function public._fenomen_delete_user(p_uid uuid)
+drop function if exists public._fenomen_delete_user(uuid, text);
+create function public._fenomen_delete_user(p_uid uuid, p_ref text)
 returns table (accounts integer, saves integer, backups integer, audit_entries integer)
 language plpgsql volatile set search_path = ''
 as $$
@@ -233,6 +287,10 @@ declare n_u integer; n_s integer; n_b integer; n_a integer;
 begin
   if p_uid is null then
     raise exception using errcode = '22004', message = 'user_id_required';
+  end if;
+  if p_ref is null or p_ref !~ '^(self|info|purge):[^@[:cntrl:]]{1,200}$' then
+    raise exception using errcode = '22023', message = 'invalid_deletion_ref',
+      hint = 'p_ref: self:<...> | info:<approval ref> | purge:<...>, at most 200 characters, no e-mail address (@), no control characters';
   end if;
   delete from auth.refresh_tokens t where t.user_id = p_uid::text;   -- oturuma bağlı olanlar ve oturumsuz eski token'lar
   delete from auth.flow_state f where f.user_id = p_uid;
@@ -247,6 +305,10 @@ begin
   -- auth.identities, auth.sessions, mfa_factors, one_time_tokens, oauth_*, webauthn_*: FK on delete cascade (GoTrue şeması)
   delete from auth.users u where u.id = p_uid;
   get diagnostics n_u = row_count;
+  if n_u = 1 then   -- tam silme: silme listesine (aynı transaction; geri alınırsa liste satırı da geri alınır)
+    insert into fenomen_private.deletion_log (user_id, deleted_at, approval_ref) values (p_uid, now(), p_ref)
+    on conflict (user_id) do nothing;
+  end if;
   return query select n_u, n_s, n_b, n_a;
 end $$;
 
@@ -311,10 +373,13 @@ $$;
 create or replace function public.fenomen_delete_my_account()
 returns jsonb language plpgsql volatile security definer set search_path = ''
 as $$
-declare uid uuid := auth.uid(); r record;
+declare uid uuid := auth.uid(); r record; sid text;
 begin
   if uid is null then raise exception using errcode = '42501', message = 'not_authenticated'; end if;
-  select * into r from public._fenomen_delete_user(uid);
+  -- onay referansı = GoTrue oturum id'si (JWT session_id; kişisel veri değil). Biçim uymazsa no-session.
+  sid := nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'session_id';
+  if sid is null or sid !~ '^[0-9a-fA-F-]{36}$' then sid := 'no-session'; end if;
+  select * into r from public._fenomen_delete_user(uid, 'self:session:' || lower(sid));
   return jsonb_build_object('deleted', r.accounts = 1, 'saves', r.saves, 'backups', r.backups, 'audit_entries', r.audit_entries);
 end $$;
 
@@ -326,6 +391,17 @@ as $$
 declare n integer;
 begin
   delete from public.fenomen_save_backups b where b.created_at <= now() - public.fenomen_cfg_backup_retention();
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- silme listesi saklaması: fenomen_cfg_deletion_log_retention()'dan (45 gün) eski satırları siler; silinen satır sayısı.
+create or replace function public.fenomen_cleanup_deletion_log()
+returns integer language plpgsql volatile security definer set search_path = ''
+as $$
+declare n integer;
+begin
+  delete from fenomen_private.deletion_log d where d.deleted_at <= now() - public.fenomen_cfg_deletion_log_retention();
   get diagnostics n = row_count;
   return n;
 end $$;
@@ -351,7 +427,7 @@ begin
      limit lim
        for update of u skip locked
   loop
-    select * into d from public._fenomen_delete_user(r.id);
+    select * into d from public._fenomen_delete_user(r.id, 'purge:24m:' || to_char(now() at time zone 'UTC', 'YYYY-MM-DD'));
     a := a + d.accounts; s := s + d.saves; b := b + d.backups; au := au + d.audit_entries;
   end loop;
   select count(*) into rem from auth.users u where coalesce(u.last_sign_in_at, u.created_at) < cutoff;
@@ -389,9 +465,9 @@ declare f text;
 begin
   foreach f in array array[
     'public.fenomen_cfg_inactive_interval()', 'public.fenomen_cfg_backup_retention()',
-    'public.fenomen_cfg_backup_max_per_user()', 'public.fenomen_cfg_purge_batch_max()',
+    'public.fenomen_cfg_backup_max_per_user()', 'public.fenomen_cfg_purge_batch_max()', 'public.fenomen_cfg_deletion_log_retention()',
     'public._fenomen_inactive_cutoff()', 'public._fenomen_save_summary(jsonb)', 'public._fenomen_trim_backups(uuid)',
-    'public._fenomen_delete_user(uuid)', 'public.fenomen_saves_before_write()',
+    'public._fenomen_delete_user(uuid,text)', 'public.fenomen_saves_before_write()', 'public.fenomen_cleanup_deletion_log()',
     'public.fenomen_reset_save(jsonb,integer,bigint,text)', 'public.fenomen_list_save_backups()',
     'public.fenomen_delete_my_account()', 'public.fenomen_cleanup_save_backups()',
     'public.fenomen_purge_inactive_accounts(integer)', 'public.fenomen_admin_restore_save_backup(uuid)']
@@ -403,6 +479,7 @@ grant execute on function public.fenomen_reset_save(jsonb, integer, bigint, text
 grant execute on function public.fenomen_list_save_backups()                     to authenticated;
 grant execute on function public.fenomen_delete_my_account()                     to authenticated;
 grant execute on function public.fenomen_cleanup_save_backups()                  to service_role;
+grant execute on function public.fenomen_cleanup_deletion_log()                  to service_role;
 grant execute on function public.fenomen_purge_inactive_accounts(integer)        to service_role;
 grant execute on function public.fenomen_admin_restore_save_backup(uuid)         to service_role;
 -- ayarlar: sayım sorgusu / destek service_role ile de okuyabilsin (salt değer, veri yok)
@@ -410,6 +487,7 @@ grant execute on function public.fenomen_cfg_inactive_interval()   to service_ro
 grant execute on function public.fenomen_cfg_backup_retention()    to service_role;
 grant execute on function public.fenomen_cfg_backup_max_per_user() to service_role;
 grant execute on function public.fenomen_cfg_purge_batch_max()     to service_role;
+grant execute on function public.fenomen_cfg_deletion_log_retention() to service_role;
 grant execute on function public._fenomen_inactive_cutoff()        to service_role;
 
 -- ---------------------------------------------------------------- 9. zamanlama: BURADA YOK (ayrı onay)
