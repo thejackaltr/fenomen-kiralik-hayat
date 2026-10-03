@@ -12,7 +12,7 @@ const NOTICE_SEEN = () => { try { if (!localStorage.getItem('fenomen_tel_notice'
 export async function runV22({ browser, BASE, OLD, ok }) {
   const NEW_O = new URL(BASE).origin, OLD_O = OLD ? new URL(OLD).origin : null;
   const SHOTS = process.env.SHOTS22 || '';
-  const cfgFor = (o = {}) => ({ oldOrigin: OLD_O || 'http://old.invalid', baseUrl: BASE, moveMode: 'none', cloudUrl: FAKE_URL, cloudKey: FAKE_KEY, loginOrigin: NEW_O, cloudResendSec: 2, cloudSyncSec: 3600, cloudTimeoutMs: 4000, cloudSendGapMs: 0, cloudNetLockMs: 0, ...o });
+  const cfgFor = (o = {}) => ({ oldOrigin: OLD_O || 'http://old.invalid', baseUrl: BASE, moveMode: 'none', cloudUrl: FAKE_URL, cloudKey: FAKE_KEY, loginOrigin: NEW_O, cloudResendSec: 2, cloudSyncSec: 3600, cloudTimeoutMs: 4000, cloudSendGapMs: 0, cloudNetLockMs: 0, cloudRateLockMs: 0, ...o });
   // (the auth brake is off by default here so the blocks can send codes back to back; v22-K runs it with the real 5 s / 10 s)
   const tagOf = (k) => '[v2.2 ' + k + '] ';
 
@@ -463,13 +463,14 @@ export async function runV22({ browser, BASE, OLD, ok }) {
 
   // ---- K: Cloudflare rate limit on /auth/v1/otp + /verify (10 req / 10 s per IP, 10 s block; its 429 has NO CORS header on
   // the Free plan -> the page sees a TypeError, simulated with route.abort(): Playwright's route.fulfill adds the CORS
-  // header itself, so a header-less 429 cannot be faked with a route). Real brake (5 s between code requests, 10 s lock after a network error while
-  // online), page clock under Playwright control, every request counted: nothing is retried behind the player's back.
+  // header itself, so a header-less 429 cannot be faked with a route). Real brake: 5 s between code requests that went out;
+  // locks: network error / our timeout 10 s, HTTP 429 Retry-After (max 120 s) or 30 s. Page clock under Playwright control
+  // (fastForward), every request counted: nothing is sent while a button is locked, nothing is retried behind the player.
   if (want('v22-K')) {
     const HTML429 = '<!DOCTYPE html><html><head><title>Access denied | fenomen-api.teserix.com used Cloudflare to restrict access</title></head><body><h1>Error 1015</h1><p>You are being rate limited</p></body></html>';
     for (const [vw, vh] of [[360, 640], [568, 320]]) {
       const size = vw + 'x' + vh, fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('hız sınırı ' + size);
-      const T = await dev(fake, { vw, vh, mobile: true, cfg: cfgFor({ cloudSendGapMs: 5000, cloudNetLockMs: 10000, cloudResendSec: 60 }) });
+      const T = await dev(fake, { vw, vh, mobile: true, cfg: cfgFor({ cloudSendGapMs: 5000, cloudNetLockMs: 10000, cloudRateLockMs: 30000, cloudResendSec: 60, cloudTimeoutMs: 4000 }) });
       await create(T, 'Hız Kanalı');
       await T.p.clock.install();   // from here Date.now / setTimeout in the page move only when the test says so
       await openSettings(T); await T.tap('[data-test=account-signin]'); await T.p.waitForSelector('[data-test=login-modal]');
@@ -477,66 +478,80 @@ export async function runV22({ browser, BASE, OLD, ok }) {
       const btn = (sel) => T.S((q) => { const b = document.querySelector(q); return b ? { dis: b.disabled, txt: b.textContent } : null; }, sel);
       const msg = (sel) => T.S((q) => { const e = document.querySelector(q); return e && !e.classList.contains('hidden') ? e.textContent : ''; }, sel);
       const settle = (sel) => T.p.waitForFunction((q) => { const b = document.querySelector(q); return !b || !/…$/.test(b.textContent); }, sel, { timeout: 8000 });
-      const run = async (ms) => { await T.p.clock.runFor(ms); await T.p.waitForTimeout(30); };
+      const run = async (ms) => { await T.p.clock.fastForward(ms); await T.p.waitForTimeout(40); };
       const press = async (sel) => { await T.S((q) => document.querySelector(q).click(), sel); await settle(sel); await T.p.waitForTimeout(50); };
+      const free = (b, label) => !!b && !b.dis && b.txt === label;
+      const locked = (b, label, s) => !!b && b.dis && b.txt === tr(label, { s });
+      const inView = (sel) => T.S((q) => document.querySelector(q).scrollIntoView({ block: 'end' }), sel);
+      const count = { send: otp, verify: ver };
+      // a locked button: countdown from s, presses / Enter send nothing, 1 s before the end still locked, then free
+      const cycle = async (sel, kind, countKey, idleKey, ms, form) => {
+        const n = count[kind](), s = Math.ceil(ms / 1000), b0 = await btn(sel);
+        await T.S(([q, f]) => { document.querySelector(q).click(); if (f) document.querySelector(f).requestSubmit(); }, [sel, form]);
+        await run(ms - 1000); const b1 = await btn(sel); await run(1000); const b2 = await btn(sel);
+        return { ok: locked(b0, countKey, s) && locked(b1, countKey, 1) && free(b2, tr(idleKey)) && count[kind]() === n, detail: JSON.stringify([b0, b1, b2, count[kind]() - n]) };
+      };
+      const LOGIN = ['[data-test=login-send]', 'send', 'auth.login.sendIn', 'auth.login.send', 0, '[data-test=login-modal] form'];
+      const sendCase = async (name, prep, wantMsg, wantMs, shotName) => {
+        const n0 = otp(); prep(); await press(LOGIN[0]);
+        const m = await msg('[data-test=login-error]');
+        if (shotName) { await inView(LOGIN[0]); await shot(T, shotName + '-' + size); }
+        const c = await cycle(LOGIN[0], LOGIN[1], LOGIN[2], LOGIN[3], wantMs, LOGIN[5]);
+        ok(tag + name + ' -> ' + wantMsg + ', exactly 1 request; "Kod gönder (' + Math.ceil(wantMs / 1000) + ' sn)" locked, nothing sent while locked, then free', m === tr(wantMsg) && otp() === n0 + 1 && c.ok, m + ' ' + c.detail);
+      };
       await T.p.fill('[data-test=login-email]', 'hiz@example.com');
-      const free = (b, label) => b && !b.dis && b.txt === label;
-      const locked = (b, label, s) => b && b.dis && b.txt === tr(label, { s });
 
-      // (c) navigator.onLine false -> the existing offline text, no request
-      let n0 = otp(); await T.ctx.setOffline(true); await press('[data-test=login-send]');
+      // (c) navigator.onLine false -> the existing offline text; nothing left the device -> no 5 s gap: a real request may go at once
+      let n0 = otp(); await T.ctx.setOffline(true); await press(LOGIN[0]);
       const off = await msg('[data-test=login-error]'); await T.ctx.setOffline(false);
-      const offB = await btn('[data-test=login-send]');
-      ok(tag + '(c) network error with navigator.onLine false -> auth.code.offline, no request, no 10 s lock (only the 5 s brake)', off === tr('auth.code.offline') && otp() === n0 && locked(offB, 'auth.login.sendIn', 5) && (await T.S(() => navigator.onLine)), off + ' ' + JSON.stringify(offB));
-      await run(5000);
+      const offB = await btn(LOGIN[0]);
+      ok(tag + '(c) navigator.onLine false -> auth.code.offline, no request, button free at once (no gap, no lock)', off === tr('auth.code.offline') && otp() === n0 && free(offB, tr('auth.login.send')) && (await T.S(() => navigator.onLine)), off + ' ' + JSON.stringify(offB));
 
-      // (a) a real 429 the page can read (CORS header present), HTML body -> auth.login.rateLimit; only the 5 s brake
-      n0 = otp(); fake.failRaw('POST', '/auth/v1/otp', 429, HTML429); await press('[data-test=login-send]');
-      const a = await msg('[data-test=login-error]'), aB = await btn('[data-test=login-send]');
-      ok(tag + '(a) HTTP 429 with an HTML body -> auth.login.rateLimit (status decides), exactly 1 request', a === tr('auth.login.rateLimit') && otp() === n0 + 1, a);
-      ok(tag + '(a) brake: "Kod gönder" locked with a countdown, 5 s between code requests', locked(aB, 'auth.login.sendIn', 5), JSON.stringify(aB));
-      await T.S((q) => document.querySelector(q).scrollIntoView({ block: 'end' }), '[data-test=login-send]'); await shot(T, 'ratelimit-' + size);   // message + locked button in view
-      await press('[data-test=login-send]');
-      ok(tag + '(a) pressing the locked button sends nothing', otp() === n0 + 1);
-      await run(4000); const a4 = await btn('[data-test=login-send]'); await run(1000); const a5 = await btn('[data-test=login-send]');
-      ok(tag + '(a) unlocks after 5 s (1 s before: still locked)', locked(a4, 'auth.login.sendIn', 1) && free(a5, tr('auth.login.send')) && otp() === n0 + 1, JSON.stringify([a4, a5]));
+      // (a) real HTTP 429 (CORS headers present, HTML body) -> auth.login.rateLimit + lock: Retry-After or 30 s
+      await sendCase('(a) 429 right after the offline attempt, no Retry-After', () => fake.failRaw('POST', '/auth/v1/otp', 429, HTML429), 'auth.login.rateLimit', 30000, 'ratelimit');
+      await sendCase('(a) 429 Retry-After: 45 (exposed)', () => fake.failRaw('POST', '/auth/v1/otp', 429, HTML429, { headers: { 'Retry-After': '45' }, expose: 'Retry-After' }), 'auth.login.rateLimit', 45000);
+      const at = await T.S(() => Math.floor((Date.now() + 60000) / 1000) * 1000);   // HTTP dates have 1 s resolution: lock in (59, 60] s
+      await sendCase('(a) 429 Retry-After: HTTP date (+60 s)', () => fake.failRaw('POST', '/auth/v1/otp', 429, HTML429, { headers: { 'Retry-After': new Date(at).toUTCString() }, expose: 'Retry-After' }), 'auth.login.rateLimit', 60000);
+      await sendCase('(a) 429 Retry-After: 600 -> capped at 120 s', () => fake.failRaw('POST', '/auth/v1/otp', 429, HTML429, { headers: { 'Retry-After': '600' }, expose: 'Retry-After' }), 'auth.login.rateLimit', 120000);
+      await sendCase('(a) 429 Retry-After: invalid ("soon") -> 30 s', () => fake.failRaw('POST', '/auth/v1/otp', 429, 'error code: 1015', { type: 'text/plain', headers: { 'Retry-After': 'soon' }, expose: 'Retry-After' }), 'auth.login.rateLimit', 30000);
+      await sendCase('(a) 429 Retry-After: 45 NOT exposed (no Access-Control-Expose-Headers, unreadable for the page) -> 30 s', () => fake.failRaw('POST', '/auth/v1/otp', 429, HTML429, { headers: { 'Retry-After': '45' } }), 'auth.login.rateLimit', 30000);
 
-      // (b) route.abort() = network error while online -> netOrRate + 10 s lock with countdown, no retry while waiting
-      n0 = otp(); fake.fail('POST', '/auth/v1/otp', 'abort'); await press('[data-test=login-send]');
-      const b = await msg('[data-test=login-error]'), bB = await btn('[data-test=login-send]');
-      ok(tag + '(b) login screen, network error, navigator.onLine true -> auth.login.netOrRate (Yazı r1 a), "Kod gönder (10 sn)" locked, exactly 1 request', b === tr('auth.login.netOrRate') && locked(bB, 'auth.login.sendIn', 10) && otp() === n0 + 1, b + ' ' + JSON.stringify(bB));
-      await T.S((q) => document.querySelector(q).scrollIntoView({ block: 'end' }), '[data-test=login-send]'); await shot(T, 'netorrate-' + size);   // message + locked button in view
-      await press('[data-test=login-send]'); await T.S(() => document.querySelector('[data-test=login-modal] form').requestSubmit());
-      await run(5000); const b5 = await btn('[data-test=login-send]');
-      await run(4000); const b9 = await btn('[data-test=login-send]');
-      ok(tag + '(b) still locked at 5 s and 9 s (countdown 5, 1), presses and Enter send nothing, no hidden retry', locked(b5, 'auth.login.sendIn', 5) && locked(b9, 'auth.login.sendIn', 1) && otp() === n0 + 1 && (await msg('[data-test=login-error]')) === tr('auth.login.netOrRate'), JSON.stringify([b5, b9]));
-      await run(1000); const b10 = await btn('[data-test=login-send]');
-      ok(tag + '(b) unlocks after 10 s, still 1 request', free(b10, tr('auth.login.send')) && otp() === n0 + 1, JSON.stringify(b10));
+      // our own timeout (cloudTimeoutMs 4 s here): auth.code.unreachable + 10 s lock
+      n0 = otp(); fake.fail('POST', '/auth/v1/otp', 'hang'); await T.S((q) => document.querySelector(q).click(), LOGIN[0]);
+      await T.p.waitForTimeout(100); const tB0 = await btn(LOGIN[0]);
+      await run(4000); await settle(LOGIN[0]); await T.p.waitForTimeout(50);
+      const tm = await msg('[data-test=login-error]');
+      await inView(LOGIN[0]); await shot(T, 'timeout-' + size);
+      const tc = await cycle(LOGIN[0], 'send', LOGIN[2], LOGIN[3], 10000, LOGIN[5]);
+      ok(tag + 'our timeout -> auth.code.unreachable, exactly 1 request; "Kod gönder (10 sn)" locked, nothing sent while locked, then free', tB0 && tB0.dis && tB0.txt === tr('auth.login.sending') && tm === tr('auth.code.unreachable') && otp() === n0 + 1 && tc.ok, tm + ' ' + tc.detail);
+
+      // (b) route.abort() = network error while online -> netOrRate + 10 s lock
+      await sendCase('(b) login screen, network error, navigator.onLine true', () => fake.fail('POST', '/auth/v1/otp', 'abort'), 'auth.login.netOrRate', 10000, 'netorrate');
 
       // double press on a free button: one request; the code screen opens
       n0 = otp(); await T.S(() => { const q = document.querySelector('[data-test=login-send]'); q.click(); q.click(); document.querySelector('[data-test=login-modal] form').requestSubmit(); });
       await T.p.waitForSelector('[data-test=code-modal]');
       ok(tag + 'double press + Enter on "Kod gönder": exactly 1 request, code screen', otp() === n0 + 1);
 
-      // code screen: verify network error -> netOrRate + "Giriş yap (10 sn)"; real 429 (HTML) -> auth.code.rateLimit, no lock
+      // code screen: verify network error -> netOrRate + "Giriş yap (10 sn)"; real 429 -> auth.code.rateLimit + 30 s
       await T.p.fill('[data-test=code-input]', '111111');
-      let v0 = ver(); fake.fail('POST', '/auth/v1/verify', 'abort'); await press('[data-test=code-verify]');
-      const d = await msg('[data-test=code-error]'), dB = await btn('[data-test=code-verify]');
-      ok(tag + '(d) code screen, verify network error -> the same auth.login.netOrRate text as the login screen, "Giriş yap (10 sn)" locked, exactly 1 request', d === tr('auth.login.netOrRate') && locked(dB, 'auth.code.verifyIn', 10) && ver() === v0 + 1, d + ' ' + JSON.stringify(dB));
-      await T.S((q) => document.querySelector(q).scrollIntoView({ block: 'end' }), '[data-test=code-verify]'); await shot(T, 'verify-netorrate-' + size);   // message + locked button in view
-      await T.S(() => { document.querySelector('[data-test=code-verify]').click(); document.querySelector('[data-test=code-modal] form').requestSubmit(); });
-      await run(9000); const d9 = await btn('[data-test=code-verify]'); await run(1000); const d10 = await btn('[data-test=code-verify]');
-      ok(tag + '(d) verify locked until 10 s, nothing sent meanwhile, then free', locked(d9, 'auth.code.verifyIn', 1) && free(d10, tr('auth.code.verify')) && ver() === v0 + 1, JSON.stringify([d9, d10]));
-      v0 = ver(); fake.failRaw('POST', '/auth/v1/verify', 429, HTML429); await press('[data-test=code-verify]');
-      const e = await msg('[data-test=code-error]'), eB = await btn('[data-test=code-verify]');
-      ok(tag + '(d) verify HTTP 429 with an HTML body -> auth.code.rateLimit, no lock, exactly 1 request', e === tr('auth.code.rateLimit') && free(eB, tr('auth.code.verify')) && ver() === v0 + 1, e + ' ' + JSON.stringify(eB));
+      const VER = ['[data-test=code-verify]', 'verify', 'auth.code.verifyIn', 'auth.code.verify'];
+      let v0 = ver(); fake.fail('POST', '/auth/v1/verify', 'abort'); await press(VER[0]);
+      const d = await msg('[data-test=code-error]');
+      await inView(VER[0]); await shot(T, 'verify-netorrate-' + size);
+      let c = await cycle(VER[0], VER[1], VER[2], VER[3], 10000, '[data-test=code-modal] form');
+      ok(tag + '(d) code screen, verify network error -> the same auth.login.netOrRate text as the login screen, exactly 1 request; "Giriş yap (10 sn)" locked, then free', d === tr('auth.login.netOrRate') && ver() === v0 + 1 && c.ok, d + ' ' + c.detail);
+      v0 = ver(); fake.failRaw('POST', '/auth/v1/verify', 429, HTML429); await press(VER[0]);
+      const e = await msg('[data-test=code-error]');
+      await inView(VER[0]); await shot(T, 'verify-ratelimit-' + size);
+      c = await cycle(VER[0], VER[1], VER[2], VER[3], 30000, '[data-test=code-modal] form');
+      ok(tag + '(d) verify HTTP 429 (HTML body) -> auth.code.rateLimit, exactly 1 request; "Giriş yap (30 sn)" locked, then free', e === tr('auth.code.rateLimit') && ver() === v0 + 1 && c.ok, e + ' ' + c.detail);
       // resend after its 60 s: network error -> netOrRate + "Kodu tekrar gönder (10 sn)"
       await run(60000); n0 = otp(); fake.fail('POST', '/auth/v1/otp', 'abort'); await press('[data-test=code-resend]');
-      const r = await msg('[data-test=code-error]'), rB = await btn('[data-test=code-resend]');
-      ok(tag + '(d) resend network error -> auth.login.netOrRate, "Kodu tekrar gönder (10 sn)", exactly 1 request', r === tr('auth.login.netOrRate') && locked(rB, 'auth.code.resendIn', 10) && otp() === n0 + 1, r + ' ' + JSON.stringify(rB));
-      await run(10000); const r10 = await btn('[data-test=code-resend]');
-      ok(tag + '(d) resend free after 10 s, no request meanwhile', free(r10, tr('auth.code.resend')) && otp() === n0 + 1, JSON.stringify(r10));
-      ok(tag + 'totals: ' + otp() + ' code requests, ' + ver() + ' verify requests (one per accepted press)', otp() === 4 && ver() === 2, otp() + '/' + ver());
+      const r = await msg('[data-test=code-error]');
+      c = await cycle('[data-test=code-resend]', 'send', 'auth.code.resendIn', 'auth.code.resend', 10000, null);
+      ok(tag + '(d) resend network error -> auth.login.netOrRate, exactly 1 request; "Kodu tekrar gönder (10 sn)", then free', r === tr('auth.login.netOrRate') && otp() === n0 + 1 && c.ok, r + ' ' + c.detail);
+      ok(tag + 'totals: ' + otp() + ' code requests, ' + ver() + ' verify requests (one per accepted press)', otp() === 10 && ver() === 2, otp() + '/' + ver());
       await done(T, 'hız sınırı ' + size);
     }
   }

@@ -1,6 +1,7 @@
 // v2.2 network client for Fenomen's own Supabase: GoTrue (e-mail + 6-digit code) and PostgREST (fenomen_saves + RPCs).
 // Plain fetch, no SDK. Every call resolves (never rejects): { ok, status, body } or { ok: false, network: 'offline'|'unreachable' }
-// (+ timeout: true when our own timeout aborted it). One request per call: no retry here (the screens decide).
+// (+ timeout: true when our own timeout aborted it; sent: false when nothing left the device because navigator.onLine was
+// false; retryAfter: the raw Retry-After header when the page may read it). One request per call: no retry here.
 // Contract: supabase/migrations/20260929193000_v2_2_fenomen_cloud_save.sql
 //   GET + upsert POST /rest/v1/fenomen_saves?on_conflict=user_id (RLS: own row; revision = server revision + 1, else 409 PT409)
 //   POST /rest/v1/rpc/fenomen_reset_save { p_data, p_save_version, p_expected_revision, p_device } -> { revision, backup_id, updated_at }
@@ -19,7 +20,7 @@ export function createCloudApi({ cfg = CLOUD, storage, fetchFn = (...a) => fetch
     expires_at: typeof b.expires_at === 'number' ? b.expires_at : Math.floor(now() / 1000) + (+b.expires_in || 3600), user: { id: b.user.id, email: b.user.email || '' } } : null);
 
   async function req(path, { method = 'GET', body, token, prefer, keepalive = false } = {}) {
-    if (!online()) return { ok: false, network: 'offline' };
+    if (!online()) return { ok: false, network: 'offline', sent: false };
     const headers = { apikey: cfg.key, Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (token) headers.Authorization = 'Bearer ' + token;
@@ -39,7 +40,11 @@ export function createCloudApi({ cfg = CLOUD, storage, fetchFn = (...a) => fetch
     // the status decides; the body may be HTML / plain text (Cloudflare) or unreadable: never breaks the answer
     let text = ''; try { text = await r.text(); } catch (e) { text = ''; } finally { if (timer) clearTimeout(timer); }
     let parsed = null; try { parsed = text ? JSON.parse(text) : null; } catch (e) { parsed = text; }
-    return { ok: r.ok, status: r.status, body: parsed };
+    const out = { ok: r.ok, status: r.status, body: parsed };
+    // Retry-After is not a CORS-safelisted header: null unless the server exposes it (then the 429 lock uses its default)
+    let ra = null; try { ra = r.headers && typeof r.headers.get === 'function' ? r.headers.get('retry-after') : null; } catch (e) { ra = null; }
+    if (ra != null && ra !== '') out.retryAfter = ra;
+    return out;
   }
   let refreshing = null;
   async function refresh() {

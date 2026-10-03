@@ -40,7 +40,8 @@ export function createFakeSupabase({ resendSec = 60, now = () => Date.now() } = 
     if (inj >= 0) {
       const x = inject.splice(inj, 1)[0];
       if (x.abort) return route.abort('connectionrefused');
-      if (x.raw) return route.fulfill({ status: x.status, headers: Object.assign({ 'Content-Type': x.raw.type }, cors), body: x.raw.text });
+      if (x.hang) return;   // never answered: the page's own timeout aborts it
+      if (x.raw) return route.fulfill({ status: x.status, headers: Object.assign({ 'Content-Type': x.raw.type }, cors, x.raw.headers, x.raw.expose ? { 'Access-Control-Expose-Headers': x.raw.expose } : {}), body: x.raw.text });
       return reply(route, x.status, x.body);
     }
     if (headers.apikey !== FAKE_KEY) return reply(route, 401, { message: 'Invalid API key' });
@@ -125,9 +126,11 @@ export function createFakeSupabase({ resendSec = 60, now = () => Date.now() } = 
   return {
     handle, log, users, saves, backups, codes, codeOf,
     // one-shot failure for the next matching request: fail('POST', '/auth/v1/otp', 429, {...}) or fail(..., 'abort')
-    fail(method, path, status, body) { inject.push(status === 'abort' ? { match: (m, p) => m === method && p === path, abort: true } : { match: (m, p) => m === method && p === path, status, body }); },
-    // one-shot raw (non-JSON) answer with CORS headers, e.g. an HTML 429: failRaw('POST', '/auth/v1/otp', 429, '<html>…')
-    failRaw(method, path, status, text, { type = 'text/html; charset=UTF-8' } = {}) { inject.push({ match: (m, p) => m === method && p === path, status, raw: { text, type } }); },
+    // fail(..., 'hang') = never answered (the client's timeout ends it)
+    fail(method, path, status, body) { const match = (m, p) => m === method && p === path; inject.push(status === 'abort' ? { match, abort: true } : status === 'hang' ? { match, hang: true } : { match, status, body }); },
+    // one-shot raw (non-JSON) answer with CORS headers, e.g. an HTML 429: failRaw('POST', '/auth/v1/otp', 429, '<html>…',
+    // { headers: { 'Retry-After': '45' }, expose: 'Retry-After' }) (expose = Access-Control-Expose-Headers)
+    failRaw(method, path, status, text, { type = 'text/html; charset=UTF-8', headers = {}, expose = '' } = {}) { inject.push({ match: (m, p) => m === method && p === path, status, raw: { text, type, headers, expose } }); },
     clearFails() { inject.length = 0; },
     // the server ends every session of this user (signed out on another device / revoked): access and refresh tokens die
     revokeSessions: (email) => { const u = users.get(email); if (!u) return 0; let n = 0; for (const [k, v] of tokens) if (v === u.id) { tokens.delete(k); n++; } for (const [k, v] of refresh) if (v === u.id) refresh.delete(k); return n; },

@@ -3,7 +3,7 @@
 //
 // Test/debug override: a script that runs before the app may set `window.__FENOMEN_CFG__ = { oldOrigin, baseUrl,
 // moveMode, moveStart, redirectDelayMs, maxHashChars, telemetryUrl, telemetryKey, cloudUrl, cloudKey, loginOrigin,
-// cloudSyncSec, cloudResendSec, cloudTimeoutMs, cloudPushDelayMs, cloudPushGapMs, cloudSendGapMs, cloudNetLockMs }`. The smoke test uses this to make a local
+// cloudSyncSec, cloudResendSec, cloudTimeoutMs, cloudPushDelayMs, cloudPushGapMs, cloudSendGapMs, cloudNetLockMs, cloudRateLockMs }`. The smoke test uses this to make a local
 // preview server act as the "old" or "new" address (see tests/smoke/smoke.mjs, runV21). Nothing else sets it.
 const O = (typeof globalThis !== 'undefined' && globalThis.__FENOMEN_CFG__) || {};
 const ENV = (typeof import.meta !== 'undefined' && import.meta.env) || {};
@@ -63,9 +63,13 @@ export const CLOUD = {
   resendWaitSec: pick('cloudResendSec', 60),  // GoTrue sends at most one code per address per 60 s (infra: AUTH rate limits)
   // Cloudflare rate limit on /auth/v1/otp + /auth/v1/verify: 10 requests / 10 s per IP, then a 10 s block. Its 429 has no
   // CORS header (Free plan), so the browser sees a network error. Client brake: at least sendGapMs between two code
-  // requests (any screen); a network error while online locks that button for netLockMs (no silent retry).
+  // requests that really left the device (any screen); a network error while online or our own timeout locks that button
+  // for netLockMs; a real HTTP 429 locks it for Retry-After (seconds or HTTP date, at most rateLockMaxMs) or rateLockMs
+  // when the header is missing, unreadable (CORS) or invalid. No silent retry anywhere.
   sendGapMs: pick('cloudSendGapMs', 5000),
   netLockMs: pick('cloudNetLockMs', 10000),
+  rateLockMs: pick('cloudRateLockMs', 30000),
+  rateLockMaxMs: 120000,
   backupDays: 30,                             // "Baştan başla" backup kept 30 days (plan; server fenomen_cfg_backup_retention)
   timeoutMs: pick('cloudTimeoutMs', 10000)
 };

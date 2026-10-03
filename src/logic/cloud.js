@@ -94,22 +94,47 @@ export function verifyErrorKey(res) {
   if (res.status >= 500) return 'auth.code.unreachable';
   return 'auth.code.wrongCode';
 }
+// Retry-After of a 429 -> lock in ms: delta seconds ("45") or an HTTP date; capped at maxMs; missing, unreadable (CORS),
+// invalid or in the past -> defMs. "0" is valid (no lock from the header; the 5 s gap still applies to code requests).
+export function retryAfterMs(value, nowMs, { defMs = 30000, maxMs = 120000 } = {}) {
+  if (value == null) return defMs;
+  const v = String(value).trim();
+  let ms;
+  if (/^\d+$/.test(v)) ms = Number(v) * 1000;
+  else if (/[a-z]/i.test(v)) { const at = Date.parse(v); ms = isFinite(at) ? at - nowMs : NaN; }
+  else ms = NaN;
+  if (!isFinite(ms) || ms < 0) return defMs;
+  return Math.min(ms, maxMs);
+}
 // Brake for the two auth buttons (pure, clock injected). kind: 'send' (/auth/v1/otp, "Kod gönder" + "Kodu tekrar gönder")
 // | 'verify' (/auth/v1/verify). begin() = true means "send exactly one request now"; false = in flight or still locked.
-// send: at least sendGapMs between two code requests (from the start of the previous one). Both: a network error while
-// online locks the button for netLockMs. Nothing is retried here or anywhere: the player presses again.
-export function createAuthGate({ now = () => Date.now(), sendGapMs = 5000, netLockMs = 10000 } = {}) {
-  const st = { send: { busy: false, until: 0, last: -Infinity }, verify: { busy: false, until: 0, last: -Infinity } };
+// send: at least sendGapMs between two code requests that really left the device (an offline attempt, sent: false, does
+// not count). Locks after the answer: network error while online or our own timeout -> netLockMs; HTTP 429 -> Retry-After
+// (retryAfterMs) or rateLockMs. Nothing is retried here or anywhere: the player presses again.
+export function createAuthGate({ now = () => Date.now(), sendGapMs = 5000, netLockMs = 10000, rateLockMs = 30000, rateLockMaxMs = 120000 } = {}) {
+  const mk = () => ({ busy: false, until: 0, last: -Infinity, started: 0 });
+  const st = { send: mk(), verify: mk() };
   const wait = (kind) => { const s = st[kind]; const u = Math.max(s.until, kind === 'send' ? s.last + sendGapMs : 0); return Math.max(0, u - now()); };
+  const lockFor = (res) => {
+    if (!res) return 0;
+    if (res.network === 'unreachable') return netLockMs;                 // TypeError while online, or our timeout
+    if (res.status === 429) return retryAfterMs(res.retryAfter, now(), { defMs: rateLockMs, maxMs: rateLockMaxMs });
+    return 0;
+  };
   return {
     wait,
     busy: (kind) => st[kind].busy,
-    begin(kind) { const s = st[kind]; if (s.busy || wait(kind) > 0) return false; s.busy = true; s.last = now(); return true; },
-    end(kind, res) { const s = st[kind]; s.busy = false; if (isNetBlock(res)) s.until = Math.max(s.until, now() + netLockMs); return wait(kind); },
+    begin(kind) { const s = st[kind]; if (s.busy || wait(kind) > 0) return false; s.busy = true; s.started = now(); return true; },
+    end(kind, res) {
+      const s = st[kind]; s.busy = false;
+      if (!(res && res.sent === false)) s.last = s.started;              // the gap starts only after a request that went out
+      const ms = lockFor(res); if (ms > 0) s.until = Math.max(s.until, now() + ms);
+      return wait(kind);
+    },
     // the one way the screens call the server: null = refused (no request); else exactly one call of request()
     async run(kind, request) {
       if (!this.begin(kind)) return null;
-      let r = { ok: false, network: 'unreachable', timeout: true };   // request() threw (it never should): no lock
+      let r = { ok: false, sent: false };   // request() threw (it never should): no gap, no lock
       try { r = await request(); } finally { this.end(kind, r); }
       return r;
     }

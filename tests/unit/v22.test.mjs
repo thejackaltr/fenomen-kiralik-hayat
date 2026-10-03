@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as G from '../../src/logic/game.js';
 import { serialize, deserialize, SAVE_KEY } from '../../src/logic/save.js';
-import { progress, recommend, isFresh, progressSig, cloudWasReset, loginDecision, pullDecision, sendErrorKey, verifyErrorKey, validEmail, validCode, splitMeta, saveSum, sameSave, createAuthGate, isNetBlock } from '../../src/logic/cloud.js';
+import { progress, recommend, isFresh, progressSig, cloudWasReset, loginDecision, pullDecision, sendErrorKey, verifyErrorKey, validEmail, validCode, splitMeta, saveSum, sameSave, createAuthGate, isNetBlock, retryAfterMs } from '../../src/logic/cloud.js';
 import { createCloudApi, SESSION_KEY } from '../../src/cloud/api.js';
 import { createSync, KNOWN_KEY } from '../../src/cloud/sync.js';
 import { checkAccountLegal, openAccountItems } from '../../tools/legal-guard.mjs';
@@ -169,12 +169,12 @@ test('api: 429 with a non-JSON body keeps the status; unreadable body too; a Typ
   assert.deepEqual(r, { ok: false, network: 'unreachable' }); assert.equal(f.calls.length, 1, 'no retry inside the client');
   f = one(() => Promise.reject(new TypeError('Failed to fetch')));
   r = await createCloudApi({ cfg, storage: new Mem(), fetchFn: f.fetchFn, online: () => false }).verify('a@b.co', '123456');
-  assert.deepEqual(r, { ok: false, network: 'offline' });
+  assert.deepEqual(r, { ok: false, network: 'offline', sent: false });   // navigator.onLine false: nothing left the device
   f = one((init) => new Promise((res, rej) => init.signal.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')))));
   r = await createCloudApi({ cfg: Object.assign({}, cfg, { timeoutMs: 20 }), storage: new Mem(), fetchFn: f.fetchFn, online: () => true }).sendCode('a@b.co');
   assert.deepEqual(r, { ok: false, network: 'unreachable', timeout: true }); assert.equal(sendErrorKey(r), 'auth.code.unreachable');
 });
-test('auth brake: one request per press (double press = one), 5 s between code requests, 10 s lock after a network error while online, no hidden retry', async () => {
+test('auth brake: one request per press (double press = one), 5 s between code requests that went out, 10 s lock after a network error while online or our timeout, no hidden retry', async () => {
   assert.equal(CLOUD.sendGapMs, 5000); assert.equal(CLOUD.netLockMs, 10000); assert.equal(CLOUD.resendWaitSec, 60);
   let clock = 1000000; const now = () => clock;
   const g = createAuthGate({ now, sendGapMs: CLOUD.sendGapMs, netLockMs: CLOUD.netLockMs });
@@ -194,14 +194,18 @@ test('auth brake: one request per press (double press = one), 5 s between code r
   await new Promise((r) => setTimeout(r, 30)); assert.equal(calls, 2, 'no hidden retry');
   clock += 9999; assert.equal(await g.run('send', req), null); assert.equal(calls, 2);
   clock += 1; const p4 = g.run('send', req); assert.equal(calls, 3);
-  // offline / real 429 / our timeout: no 10 s lock, only the 5 s gap
-  let pending = p4;
-  for (const a of [{ ok: false, network: 'offline' }, { ok: false, status: 429, body: '<html></html>' }, { ok: false, network: 'unreachable', timeout: true }]) {
-    answer = a; release(); await pending;
-    assert.equal(g.wait('send'), 5000, JSON.stringify(a));
-    clock += 5000; pending = g.run('send', req);
-  }
-  answer = { ok: true }; release(); await pending; assert.equal(calls, 6);
+  // our own timeout: 10 s lock too (from the answer); offline after the request left (catch): only the 5 s gap
+  answer = { ok: false, network: 'unreachable', timeout: true }; release(); await p4;
+  assert.equal(g.wait('send'), 10000);
+  clock += 10000; const p5 = g.run('send', req); assert.equal(calls, 4);
+  answer = { ok: false, network: 'offline' }; release(); await p5;
+  assert.equal(g.wait('send'), 5000);
+  // an attempt that never left the device (navigator.onLine false, sent: false) starts no gap: a real request may go at once
+  clock += 5000;
+  assert.deepEqual(await g.run('send', () => ({ ok: false, network: 'offline', sent: false })), { ok: false, network: 'offline', sent: false });
+  assert.equal(g.wait('send'), 0);
+  const p6 = g.run('send', req); assert.equal(calls, 5);
+  answer = { ok: true }; release(); await p6;
   // verify: no gap between attempts (a wrong code may be corrected at once), 10 s after a network error
   const V = createAuthGate({ now, sendGapMs: 5000, netLockMs: 10000 }); let vc = 0;
   const vr = (a) => () => { vc++; return Promise.resolve(a); };
@@ -210,7 +214,39 @@ test('auth brake: one request per press (double press = one), 5 s between code r
   assert.equal(await V.run('verify', vr({ ok: true })), null); assert.equal(vc, 2);
   assert.equal(V.wait('send'), 0, 'verify does not brake code requests');
   // a request that throws (never expected) frees the button without a lock
-  await assert.rejects(V.run('send', () => { throw new Error('boom'); })); assert.ok(!V.busy('send'));
+  await assert.rejects(V.run('send', () => { throw new Error('boom'); })); assert.ok(!V.busy('send')); assert.equal(V.wait('send'), 0);
+});
+test('real HTTP 429: button locked for Retry-After (seconds / HTTP date, max 120 s) or 30 s (missing, unreadable, invalid, negative)', async () => {
+  assert.equal(CLOUD.rateLockMs, 30000); assert.equal(CLOUD.rateLockMaxMs, 120000);
+  const t0 = Date.UTC(2026, 9, 3, 14, 0, 0);
+  const R = (v) => retryAfterMs(v, t0);
+  assert.equal(R(undefined), 30000); assert.equal(R(null), 30000);              // no header / not exposed by CORS
+  assert.equal(R('45'), 45000); assert.equal(R(' 7 '), 7000); assert.equal(R('0'), 0);
+  assert.equal(R('600'), 120000);                                                 // capped
+  assert.equal(R(new Date(t0 + 60000).toUTCString()), 60000);                     // HTTP date
+  assert.equal(R(new Date(t0 + 3600000).toUTCString()), 120000);                  // HTTP date, capped
+  for (const bad of ['-5', '1.5', 'abc', '', '  ', '10s', new Date(t0 - 1000).toUTCString(), 'Wed, 32 Foo 2026 99:99:99 GMT']) assert.equal(R(bad), 30000, JSON.stringify(bad));
+  // through the gate, with a fake clock; the lock counts from the answer; nothing is sent while locked
+  let clock = t0; const now = () => clock;
+  for (const [ra, ms] of [[undefined, 30000], ['45', 45000], [new Date(t0 + 60000).toUTCString(), 60000], ['600', 120000], ['abc', 30000], ['-5', 30000]]) {
+    clock = t0;
+    const g = createAuthGate({ now, sendGapMs: CLOUD.sendGapMs, netLockMs: CLOUD.netLockMs, rateLockMs: CLOUD.rateLockMs, rateLockMaxMs: CLOUD.rateLockMaxMs });
+    let n = 0; const res = Object.assign({ ok: false, status: 429, body: '<html>Error 1015</html>' }, ra === undefined ? {} : { retryAfter: ra });
+    for (const kind of ['send', 'verify']) {
+      clock = t0;
+      await g.run(kind, () => { n++; return res; });
+      assert.equal(g.wait(kind), ms, kind + ' ' + ra);
+      clock = t0 + ms - 1; assert.equal(await g.run(kind, () => { n++; return { ok: true }; }), null);
+      clock = t0 + ms; assert.deepEqual(await g.run(kind, () => { n++; return { ok: true }; }), { ok: true });
+    }
+    assert.equal(n, 4, 'one request per accepted press, none while locked');
+  }
+  // the client reads the header only when the browser lets it (exposed): otherwise it is absent -> 30 s
+  const hdr = (h) => ({ ok: false, status: 429, headers: { get: (k) => (k.toLowerCase() === 'retry-after' ? h : null) }, text: async () => 'error code: 1015' });
+  let api = createCloudApi({ cfg, storage: new Mem(), fetchFn: async () => hdr('45'), online: () => true });
+  assert.deepEqual(await api.sendCode('a@b.co'), { ok: false, status: 429, body: 'error code: 1015', retryAfter: '45' });
+  api = createCloudApi({ cfg, storage: new Mem(), fetchFn: async () => hdr(null), online: () => true });
+  const r = await api.verify('a@b.co', '123456'); assert.equal(r.retryAfter, undefined); assert.equal(verifyErrorKey(r), 'auth.code.rateLimit');
 });
 // ---------- API client against a scripted fetch
 function scripted(answers) {
@@ -233,7 +269,7 @@ test('api: offline / unreachable never throw', async () => {
   const api = createCloudApi({ cfg, storage: new Mem(), fetchFn: scripted(['net']).fetchFn, online: () => true });
   assert.deepEqual(await api.sendCode('a@b.co'), { ok: false, network: 'unreachable' });
   const off = createCloudApi({ cfg, storage: new Mem(), fetchFn: () => { throw new Error('no'); }, online: () => false });
-  assert.deepEqual(await off.sendCode('a@b.co'), { ok: false, network: 'offline' });
+  assert.deepEqual(await off.sendCode('a@b.co'), { ok: false, network: 'offline', sent: false });
 });
 test('api: upsert per CONTRACT §2 -> stale on 409 PT409 / 23505; 23503 (account gone) signs out; 401 refreshes once', async () => {
   const st = new Mem({ [SESSION_KEY]: sess() });

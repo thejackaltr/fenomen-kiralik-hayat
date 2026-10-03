@@ -10,7 +10,7 @@ import { buildEnvelope, encodeEnvelope } from '../logic/transfer.js';
 import { sendErrorKey, verifyErrorKey, validEmail, validCode, splitMeta, createAuthGate } from '../logic/cloud.js';
 
 // one brake per page (survives closing / reopening the screens): see createAuthGate and CLOUD.sendGapMs / netLockMs
-const gateOf = (acc) => acc.gate || (acc.gate = createAuthGate({ sendGapMs: acc.cfg.sendGapMs, netLockMs: acc.cfg.netLockMs }));
+const gateOf = (acc) => acc.gate || (acc.gate = createAuthGate({ sendGapMs: acc.cfg.sendGapMs, netLockMs: acc.cfg.netLockMs, rateLockMs: acc.cfg.rateLockMs, rateLockMaxMs: acc.cfg.rateLockMaxMs }));
 // a locked button shows "<label> (n sn)" and unlocks itself; waitMs() = how long it stays locked (0 = free)
 function lockedButton(btn, waitMs, idleKey, countKey) {
   let tm = null;
