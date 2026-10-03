@@ -266,6 +266,18 @@ test('instant push: soon() after a published video coalesces a burst into one wr
   await sleep(150); assert.deepEqual(R.log, ['update@1', 'update@2']); assert.ok(Date.now() - t0 >= 60);
   R.sync.soon(); await sleep(220); assert.deepEqual(R.log, ['update@1', 'update@2']);   // nothing new -> no request
 });
+test('instant push: a write that goes out while soon() is pending moves it to pushGapMs after THAT write', async () => {
+  const mine = game({ videos: 2 }), cfg = { ...CLOUD, pushDelayMs: 30, pushGapMs: 150 };
+  const R = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1, win: fakeWin(), cfg });
+  await sleep(160);                                          // out of any earlier gap
+  play(R, 1); R.sync.soon();                                 // due in 30 ms
+  play(R, 1); await R.sync.push(); const t0 = Date.now();    // e.g. the 60 s write goes out first
+  assert.deepEqual(R.log, ['update@1']);
+  play(R, 1); await sleep(80);
+  assert.deepEqual(R.log, ['update@1']);                     // was: a second write ~30 ms after the first
+  await sleep(140);
+  assert.deepEqual(R.log, ['update@1', 'update@2']); assert.ok(Date.now() - t0 >= 150);
+});
 test('instant push: flush() (hidden / pagehide) writes now with keepalive, cancels a scheduled one; back-to-back = one request', async () => {
   const mine = game({ videos: 2 }), cfg = { ...CLOUD, pushDelayMs: 40, pushGapMs: 40 }, win = fakeWin();
   const R = rig({ local: mine, row: { revision: 1, data: mine }, rev: 1, win, cfg });

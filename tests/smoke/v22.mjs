@@ -6,6 +6,7 @@ import { createFakeSupabase, FAKE_URL, FAKE_KEY } from './fake-supabase.mjs';
 
 const TR = JSON.parse(fs.readFileSync(new URL('../../src/locales/tr.json', import.meta.url), 'utf8'));
 const tr = (k, vars = {}) => { let v = k.split('.').reduce((o, p) => (o ? o[p] : undefined), TR); if (typeof v !== 'string') throw new Error('no tr ' + k); for (const [a, b] of Object.entries(vars)) v = v.split('{' + a + '}').join(String(b)); return v; };
+const want = (k) => !process.env.SECTIONS || process.env.SECTIONS.split(',').includes(k);   // see smoke.mjs
 const NOTICE_SEEN = () => { try { if (!localStorage.getItem('fenomen_tel_notice')) localStorage.setItem('fenomen_tel_notice', '1'); } catch (e) { /* ignore */ } };
 
 export async function runV22({ browser, BASE, OLD, ok }) {
@@ -62,7 +63,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
   });
 
   // ---- A: guest unchanged; no cloud config = no account section; login screen texts and order
-  {
+  if (want('v22-A')) {
     const fake = createFakeSupabase({ resendSec: 2 }), tag = tagOf('misafir');
     const T0 = await dev(fake, { cfg: cfgFor({ cloudUrl: null, cloudKey: null }) });
     await create(T0, 'Bulutsuz'); await openSettings(T0);
@@ -94,9 +95,11 @@ export async function runV22({ browser, BASE, OLD, ok }) {
   }
 
   // ---- B: "Kod gönder" errors (one test each), code screen, resend, wrong / bad code, rule 1 (cloud empty -> upload)
-  {
+  if (want('v22-B')) {
     const fake = createFakeSupabase({ resendSec: 2 }), tag = tagOf('giriş');
-    const T = await dev(fake);
+    // this block counts the writes of push() itself: the instant write after a publish (tested in B2) is off here,
+    // otherwise its timer (15 s after the login write) could add a write in the middle of a count
+    const T = await dev(fake, { cfg: cfgFor({ cloudPushDelayMs: 3600 * 1000 }) });
     await create(T, 'Giriş Kanalı'); await publishMini(T);
     await openSettings(T); await T.tap('[data-test=account-signin]'); await T.p.waitForSelector('[data-test=login-modal]');
     const err = () => T.S(() => { const e = document.querySelector('[data-test=login-error]'); return e && !e.classList.contains('hidden') ? e.textContent : ''; });
@@ -167,10 +170,13 @@ export async function runV22({ browser, BASE, OLD, ok }) {
     // periodic push + push when hidden: only when the save changed
     await T.S(() => window.__fenomen.ui.closeModal());
     await publishMini(T); const W = /POST \/rest\/v1\/fenomen_saves/, nW = fake.calls(W).length;
+    // freeze the game loop first: a 250 ms tick between this push and the next one changes the save (money, playSec),
+    // and then the second push rightly writes -> that was the flaky "nothing changed" check
+    await T.S(() => { window.__fenomen.ctrl.stop(); window.__fenomen.ctrl.save(); });
     await sync(T, 'push'); await idle(T);
     const r2 = fake.rowFor('oyuncu@example.com');
     ok(tag + 'push after new progress: upsert (on_conflict=user_id) with revision 2 = known 1 + 1', r2.revision === 2 && fake.calls(W).length === nW + 1 && fake.calls(W).pop().search.includes('on_conflict=user_id') && fake.calls(W).pop().body.revision === 2 && r2.data.stats.videos === (await state(T)).videos);
-    await T.S(() => { window.__fenomen.ctrl.stop(); }); const nW2 = fake.calls(W).length;
+    const nW2 = fake.calls(W).length;
     await sync(T, 'push'); await idle(T);
     ok(tag + 'nothing changed since the last write: no request', fake.calls(W).length === nW2);
     await T.S(() => window.__fenomen.ctrl.start());
@@ -188,38 +194,43 @@ export async function runV22({ browser, BASE, OLD, ok }) {
   }
 
   // ---- B2: write right away: a published video (debounced, coalesced), page hidden / pagehide (keepalive); 60 s kept
-  {
+  if (want('v22-B2')) {
     const fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('anında');
     const T = await dev(fake, { cfg: cfgFor({ cloudPushDelayMs: 400, cloudPushGapMs: 2500 }) });
     await create(T, 'Anında Kanal'); await publishMini(T); await login(T, fake, 'aninda@example.com'); await idle(T);
+    // deterministic: no fixed sleeps decide a result. Gap/delay are lower bounds checked on the page's own clock
+    // (sync.lastWrite() = start of each write), "nothing more will come" = no write scheduled (sync.soonPending()).
+    // 2 ms slack = Date.now() rounding only (not network time).
     const W = /POST \/rest\/v1\/fenomen_saves/, rev = () => fake.rowFor('aninda@example.com').revision;
-    await T.p.waitForTimeout(2600);   // out of the gap after the login write
-    const n0 = fake.calls(W).length, r0 = rev();
+    const writes = () => fake.calls(W), lastAt = () => T.S(() => window.__fenomen.account.sync.lastWrite()), GAP = 2500 - 2, DELAY = 400 - 2;
+    const until = async (fn, ms = 20000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await T.p.waitForTimeout(50); } return false; };
+    const pending = () => T.S(() => window.__fenomen.account.sync.soonPending());
+    const n0 = writes().length, r0 = rev(), loginAt = await lastAt();
     await publishMini(T);
-    await T.p.waitForFunction(() => !window.__fenomen.account.sync.busy(), null, { timeout: 8000 }).catch(() => {});
-    await T.p.waitForTimeout(1200); await idle(T);
-    ok(tag + 'video published: written shortly after without waiting for the 60 s write (one upsert, revision + 1)', fake.calls(W).length === n0 + 1 && rev() === r0 + 1 && fake.rowFor('aninda@example.com').data.stats.videos === (await state(T)).videos, (fake.calls(W).length - n0) + ' writes');
+    const w1 = await until(() => writes().length === n0 + 1); await idle(T);
+    ok(tag + 'video published: written without waiting for the 60 s write (one upsert, revision + 1, >= 2.5 s after the login write), nothing else scheduled',
+      w1 && rev() === r0 + 1 && (await lastAt()) - loginAt >= GAP && !(await pending()) && writes().length === n0 + 1, JSON.stringify({ n: writes().length - n0, gap: (await lastAt()) - loginAt }));
     // five publishes back to back (as the manager can do) -> one request
-    await T.p.waitForTimeout(2600); const n1 = fake.calls(W).length;
-    await T.S(() => { const f = window.__fenomen; for (let i = 0; i < 5; i++) { f.ctrl.state.followers += 10; f.ctrl.emit('published', { auto: true }); } });
-    await T.p.waitForTimeout(1200); await idle(T);
-    ok(tag + '5 publishes in a row -> 1 write (debounced)', fake.calls(W).length === n1 + 1, (fake.calls(W).length - n1) + ' writes');
-    // inside the gap after a write: held back, then written once
-    await T.S(() => { const f = window.__fenomen; f.ctrl.state.followers += 10; f.ctrl.emit('published', { auto: true }); });
-    await T.p.waitForTimeout(800); const held = fake.calls(W).length === n1 + 1;
-    await T.p.waitForTimeout(2400); await idle(T);
-    ok(tag + 'a publish within 2.5 s (gap) of the last write waits for the gap, then 1 write', held && fake.calls(W).length === n1 + 2, (fake.calls(W).length - n1) + ' writes');
-    // page hidden: written now (no delay); pagehide right after: nothing new -> no request
-    const n2 = fake.calls(W).length;
-    await T.S(() => { window.__fenomen.ctrl.state.followers += 77; Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
-    await T.p.waitForTimeout(150);
-    const afterHidden = fake.calls(W).length;
-    await T.S(() => { window.dispatchEvent(new Event('pagehide')); }); await T.p.waitForTimeout(400); await idle(T);
-    ok(tag + 'page hidden: written at once (keepalive path); pagehide right after: no second request', afterHidden === n2 + 1 && fake.calls(W).length === n2 + 1 && Math.floor(fake.rowFor('aninda@example.com').data.followers) === (await state(T)).followers, (afterHidden - n2) + '/' + (fake.calls(W).length - n2));
+    const n1 = writes().length, prevAt = await lastAt();
+    const [p5, tBurst] = await T.S(() => { const f = window.__fenomen; for (let i = 0; i < 5; i++) { f.ctrl.state.followers += 10; f.ctrl.emit('published', { auto: true }); } return [f.account.sync.soonPending(), Date.now()]; });
+    const w2 = await until(() => writes().length === n1 + 1); await idle(T);
+    ok(tag + '5 publishes in a row -> 1 write (>= 0.4 s after them, >= 2.5 s after the previous write), then nothing scheduled',
+      p5 && w2 && (await lastAt()) - tBurst >= DELAY && (await lastAt()) - prevAt >= GAP && !(await pending()) && writes().length === n1 + 1, JSON.stringify({ n: writes().length - n1, afterBurst: (await lastAt()) - tBurst, gap: (await lastAt()) - prevAt }));
+    // right after a write: held back until the gap is over, then written once
+    const at2 = await lastAt();
+    const p1 = await T.S(() => { const f = window.__fenomen; f.ctrl.state.followers += 10; f.ctrl.emit('published', { auto: true }); return f.account.sync.soonPending(); });
+    const w3 = await until(() => writes().length === n1 + 2); await idle(T);
+    ok(tag + 'a publish right after a write waits for the gap (>= 2.5 s after that write), then 1 write', p1 && w3 && (await lastAt()) - at2 >= GAP && !(await pending()) && writes().length === n1 + 2, JSON.stringify({ gap: (await lastAt()) - at2 }));
+    // page hidden: the write starts in the same task (no delay); pagehide right after: nothing new -> no request
+    const n2 = writes().length;
+    await T.S(() => window.__fenomen.ctrl.emit('published', { auto: true }));   // a scheduled write is replaced by the flush
+    const H = await T.S(() => { window.__fenomen.ctrl.state.followers += 77; Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); const s = window.__fenomen.account.sync; return { busy: s.busy(), pending: s.soonPending() }; });
+    await T.S(() => { window.dispatchEvent(new Event('pagehide')); }); await idle(T);
+    ok(tag + 'page hidden: written at once (keepalive path, scheduled write cancelled); pagehide right after: no second request', H.busy && !H.pending && writes().length === n2 + 1 && Math.floor(fake.rowFor('aninda@example.com').data.followers) === (await state(T)).followers, JSON.stringify({ ...H, n: writes().length - n2 }));
     await T.S(() => { Object.defineProperty(document, 'hidden', { value: false, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
-    const n3 = fake.calls(W).length;
-    await T.S(() => { window.__fenomen.ctrl.state.followers += 5; window.dispatchEvent(new Event('pagehide')); }); await T.p.waitForTimeout(300); await idle(T);
-    ok(tag + 'pagehide alone (tab closed): written at once', fake.calls(W).length === n3 + 1);
+    const n3 = writes().length;
+    const PH = await T.S(() => { window.__fenomen.ctrl.state.followers += 5; window.dispatchEvent(new Event('pagehide')); return window.__fenomen.account.sync.busy(); }); await idle(T);
+    ok(tag + 'pagehide alone (tab closed): written at once', PH && writes().length === n3 + 1);
     await done(T, 'anında');
   }
 
@@ -231,7 +242,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
     const up = !!fake.rowFor(email) && fake.rowFor(email).data.char.channel === 'Bulut Kanalı';
     await done(A, 'bulut A'); return up;
   };
-  {
+  if (want('v22-C')) {
     const tag = tagOf('kural 2'), shared = createFakeSupabase({ resendSec: 0 });
     ok(tag + 'device A uploads (rule 1)', await seedCloud(shared, 'iki@example.com'));
     const B = await dev(shared, { vw: 390, vh: 844, mobile: true });
@@ -300,7 +311,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
   }
 
   // ---- C2: end to end, new device: create a character, sign in -> the cloud save is loaded, never a choice screen
-  {
+  if (want('v22-C2')) {
     const tag = tagOf('yeni cihaz'), shared = createFakeSupabase({ resendSec: 0 });
     ok(tag + 'device A (desktop) has progress in the cloud', await seedCloud(shared, 'yeni@example.com'));
     const cloud = shared.rowFor('yeni@example.com');
@@ -322,7 +333,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
   }
 
   // ---- E: rule 4 (a write is refused during play) + F: reset on another device + reset signed in
-  {
+  if (want('v22-E')) {
     const fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('kural 4');
     const A = await dev(fake), B = await dev(fake, { vw: 390, vh: 844, mobile: true });
     await create(A, 'Dört Kanal'); await publishMini(A); await login(A, fake, 'dort@example.com'); await idle(A);
@@ -391,7 +402,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
   }
 
   // ---- G: logout keeps the device save; H: delete account (failure, then success) keeps the device save
-  {
+  if (want('v22-G')) {
     const fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('çıkış');
     const T = await dev(fake);
     await create(T, 'Çıkış Kanal'); await publishMini(T); await login(T, fake, 'cikis@example.com'); await idle(T);
@@ -422,7 +433,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
   }
 
   // ---- I: the server ends the session (signed out elsewhere): notice once; delete while the session is gone: no retry
-  {
+  if (want('v22-I')) {
     const fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('oturum düştü');
     const T = await dev(fake);
     await create(T, 'Düşen Oturum'); await publishMini(T); await login(T, fake, 'dusen@example.com'); await idle(T);
@@ -450,7 +461,7 @@ export async function runV22({ browser, BASE, OLD, ok }) {
   }
 
   // ---- J: old address (github.io) = no login, "Giriş için yeni adrese geç" note; login origin only
-  if (OLD) {
+  if (!want('v22-J')) { /* skipped */ } else if (OLD) {
     const fake = createFakeSupabase({ resendSec: 0 }), tag = tagOf('eski adres');
     const T = await dev(fake, { url: OLD, cfg: cfgFor({ oldOrigin: OLD_O, moveMode: 'banner' }) });
     await create(T, 'Eski Adres'); await openSettings(T);

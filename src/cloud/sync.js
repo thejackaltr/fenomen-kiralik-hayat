@@ -67,6 +67,9 @@ export function createSync({ api, ctrl, storage, tel = null, device = 'masaustu'
   function fireSoon() {
     soonTimer = null;
     if (!api.signedIn()) return;
+    // another write (60 s / flush / manual) went out after this was scheduled: keep the gap from that one
+    const wait = lastWriteAt + cfg.pushGapMs - now();
+    if (wait > 0) { soonTimer = win.setTimeout(fireSoon, wait); return; }
     if (busy) { soonTimer = win.setTimeout(fireSoon, 1000); return; }   // a sync is running: try again right after it
     api2.push();
   }
@@ -94,6 +97,8 @@ export function createSync({ api, ctrl, storage, tel = null, device = 'masaustu'
     signedIn: () => api.signedIn(),
     email: () => api.email(),
     busy: () => busy,
+    soonPending: () => !!soonTimer,          // a write after a publish is scheduled (status / tests)
+    lastWrite: () => lastWriteAt,            // when the last write started (ms; status / tests)
     // right after the 6-digit code was accepted (rules 1-3)
     afterLogin: () => run(async () => {
       clearKnown();
