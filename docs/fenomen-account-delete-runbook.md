@@ -112,7 +112,8 @@ Fenomen DB'si yedekten geri yüklenirse, yedekten sonra silinen hesaplar (info@,
 2. Yedek geri yüklenir (Altyapı).
 3. **Yeniden uygula:** `bash supabase/ops/fenomen_deletion_log_reapply.sh reapply <dizindeki tüm fenomen-deletion-log-*.csv>`. Komut idempotenttir: silinecek şeyi olmayan uid atlanır, ikinci çalıştırma hiçbir şeyi değiştirmez.
 4. **Doğrula:** `… reapply.sh verify <aynı dosyalar>` → `verify OK: … 0 rows left, N on the deletion list`. İstenirse info@ ile silinen uid'ler için adım 6 da çalıştırılır.
-5. API açılır. Sonuç (uid sayısı, yeniden silinen ve atlanan sayısı) Aryen'e bildirilir. Oyunculara yeniden e-posta gönderilmez; silme zaten onaylanmış ve bildirilmişti.
+5. **Yedek zamanından sonraki silme talepleri (destek e-postası ve uygulama logu) kontrol edilip elle yeniden silinir.** Liste yalnız listeye yazılmış silmeleri kapsar; listeden önceki, son dışa aktarımdan sonraki ya da bekleyen talepler burada yakalanır. Her biri bu runbook'un adımlarıyla (onay, preflight, silme, verify) yeniden silinir. Ayrıntı: v2.2 runbook §13.4 adım 6.
+6. API açılır. Sonuç (uid sayısı, yeniden silinen, atlanan ve adım 5'te elle silinen sayısı) Aryen'e bildirilir. Oyunculara yeniden e-posta gönderilmez; silme zaten onaylanmış ve bildirilmişti.
 
 ## Yanıt taslakları (gönderim yok; Aryen / info@ sorumlusu gönderir)
 Taslaklar, Gizlilik metninin üslubuyla yazıldı. Yayından önce Yazı'nın gözden geçirmesi önerilir. Hesabın var olup olmadığı yalnız kayıtlı adrese söylenir.
