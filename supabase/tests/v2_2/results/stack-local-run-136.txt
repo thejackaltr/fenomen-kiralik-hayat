@@ -1,0 +1,156 @@
+# image: public.ecr.aws/supabase/postgres:17.6.1.136 (f519727303f0) + supabase/gotrue:v2.189.0 + postgrest/postgrest:v14.12 — code 8a536a5 — 2026-10-01 TSİ. Host has no psql/pg_dump: shims ran the same image's client in helper container fen22-pgcli (--network host, repo read-only). supabase-js 2.117.2.
+# PATH=<shim>:$PATH PG_IMG=public.ecr.aws/supabase/postgres:17.6.1.136 bash supabase/tests/v2_2/stack/run-stack.sh
+
+######## 0. throwaway stack: public.ecr.aws/supabase/postgres:17.6.1.136, supabase/gotrue:v2.189.0, postgrest/postgrest:v14.12 (127.0.0.1 only)
+TEMPLATES OK: 6 files match r2
+gotrue: {"version":"v2.189.0","name":"GoTrue","description":"GoTrue is a user registration and authentication API"}
+server PostgreSQL 17.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit
+templates: /workspace/fenomen-v2.2/supabase/templates (repo, Yazı r2)
+
+######## 1. facts of the real image (who may DELETE auth.users, cascades)
+postgres: superuser=false bypassrls=true
+auth.users owner=supabase_auth_admin acl={supabase_auth_admin=arwdDxtm/supabase_auth_admin,dashboard_user=arwdDxtm/supabase_auth_admin,postgres=ar*wdDxtm/supabase_auth_admin}
+DELETE on auth.users: postgres=true supabase_auth_admin=true service_role=false authenticated=false
+FK -> auth.users: auth.identities CASCADE, auth.mfa_factors CASCADE, auth.oauth_authorizations CASCADE, auth.oauth_consents CASCADE, auth.one_time_tokens CASCADE, auth.sessions CASCADE, auth.webauthn_challenges CASCADE, auth.webauthn_credentials CASCADE
+gotrue schema version 20260302000000
+PASS  postgres can DELETE auth.users in this image
+
+######## 2. counter base (origin/main v2.1) + preflight + migration x2 + verify on the real image
+PASS  counter migration (v2.1 anon_stats_events) applied as postgres
+PASS  preflight read-only on the real image (exit 0): target OK, not applied
+ auth_schema_exists | auth_users_exists |  auth_users_owner   | auth_users_count | postgres_can_delete_auth_users | postgres_can_delete_audit_log | postgres_bypassrls |                                                                                                                                                                         auth_tables                                                                                                                                                                          
+--------------------+-------------------+---------------------+------------------+--------------------------------+-------------------------------+--------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ t                  | t                 | supabase_auth_admin |                  | t                              | t                             | t                  | audit_log_entries,custom_oauth_providers,flow_state,identities,instances,mfa_amr_claims,mfa_challenges,mfa_factors,oauth_authorizations,oauth_client_states,oauth_clients,oauth_consents,one_time_tokens,refresh_tokens,saml_providers,saml_relay_states,schema_migrations,sessions,sso_domains,sso_providers,users,webauthn_challenges,webauthn_credentials
+(1 row)
+
+     referencing_table     |              conname              | on_delete_cascade 
+---------------------------+-----------------------------------+-------------------
+ auth.identities           | identities_user_id_fkey           | t
+ auth.sessions             | sessions_user_id_fkey             | t
+ auth.mfa_factors          | mfa_factors_user_id_fkey          | t
+ auth.one_time_tokens      | one_time_tokens_user_id_fkey      | t
+ auth.oauth_authorizations | oauth_authorizations_user_id_fkey | t
+ auth.oauth_consents       | oauth_consents_user_id_fkey       | t
+ auth.webauthn_credentials | webauthn_credentials_user_id_fkey | t
+ auth.webauthn_challenges  | webauthn_challenges_user_id_fkey  | t
+(8 rows)
+
+ pg_cron_available_version | pg_cron_installed_version |                                                     shared_preload_libraries                                                      | cron_database_name | cron_timezone 
+---------------------------+---------------------------+-----------------------------------------------------------------------------------------------------------------------------------+--------------------+---------------
+ 1.6.4                     |                           | pg_stat_statements, pgaudit, plpgsql, plpgsql_check, pg_cron, pg_net, pgsodium, auto_explain, pg_tle, plan_filter, supabase_vault | postgres           | GMT
+(1 row)
+
+PASS  migration x2 as postgres (exit 0/0), schema identical after the 2nd run
+PASS  verify on the real image: VERIFY OK: 16/16
+
+######## 3. HTTP: GoTrue OTP + PostgREST + supabase-js
+⚠️  Node.js 20 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 22 or later. For more information, visit: https://github.com/orgs/supabase/discussions/45715
+PASS  H01 signInWithOtp sends a mail with a 6-digit code (GOTRUE_MAILER_OTP_LENGTH=6), template {{ .Token }}  -- subject: Fenomen: Kiralık Hayat ilk giriş kodun
+PASS  H02 verifyOtp({type:"email"}) returns a session; JWT role authenticated, sub = user id
+PASS  H01c From = "Fenomen: Kiralık Hayat" <fenomen@teserix.com> (GOTRUE_SMTP_SENDER_NAME / GOTRUE_SMTP_ADMIN_EMAIL)  -- From: Fenomen: Kiralık Hayat<fenomen@teserix.com>
+PASS  H03 last_sign_in_at set by the OTP login
+PASS  H01b new user -> "confirmation" template (Yazı r2 email.codeNew): subject, welcome line, 10 min, no link, no default text  -- subject: Fenomen: Kiralık Hayat ilk giriş kodun
+PASS  H04 existing user: new code ok, 2nd code within GOTRUE_SMTP_MAX_FREQUENCY (60s here) -> 429  -- 429 over_email_send_rate_limit For security purposes, you can only request this after 59 seconds.
+PASS  H04c confirmed user -> "magic_link" template (Yazı r2 email.codeReturning): subject, 6-digit code, no welcome line, no link, no default text  -- subject: Fenomen: Kiralık Hayat giriş kodun
+PASS  H04b new address: 1st code ok, immediate 2nd -> 429  -- 429 over_email_send_rate_limit
+PASS  H05 wrong code -> error, no session  -- 403 otp_expired
+PASS  H06 a used code cannot be used again  -- 403 otp_expired
+PASS  H07 shouldCreateUser:false for an unknown address -> error, no user created  -- 422 otp_disabled Signups not allowed for otp
+PASS  H10 A upsert own save (revision 1)
+PASS  H11 B upsert own save
+PASS  H12 B select sees only its own row
+PASS  H13 B GET A's row by id -> 200 []
+PASS  H14 B PATCH A's row -> no row changed  -- HTTP 200
+PASS  H15 B insert a row for C -> 403 (42501 RLS)
+PASS  H16 B upsert onto A's existing row -> 403
+PASS  H17 A DELETE its own row -> 403 (no DELETE grant), row still there
+PASS  H18 stale revision -> HTTP 409, code PT409, message stale_revision  -- {"code":"PT409","details":"sent revision 1, server revision 1","hint":"Pull the save again, then write with revision = server revision + 1.","message":"stale_re
+PASS  H19 revision = server + 1 -> 200 (upsert updated), revision 2  -- HTTP 200
+PASS  H20 data > 256 KiB -> 400 code 23514
+PASS  H21 client cannot write updated_at -> 403
+PASS  H30 anon select fenomen_saves -> 401
+PASS  H31 anon insert -> 401
+PASS  H32 anon select backups -> 401
+PASS  H33 anon rpc/fenomen_reset_save -> 401  -- HTTP 401 42501
+PASS  H33 anon rpc/fenomen_list_save_backups -> 401  -- HTTP 401 42501
+PASS  H33 anon rpc/fenomen_delete_my_account -> 401  -- HTTP 401 42501
+PASS  H33 anon rpc/fenomen_purge_inactive_accounts -> 401  -- HTTP 401 42501
+PASS  H33 anon rpc/fenomen_cleanup_save_backups -> 401  -- HTTP 401 42501
+PASS  H33 anon rpc/_fenomen_delete_user -> 401  -- HTTP 401 42501
+PASS  H40 reset with an old expected revision -> 409 PT409
+PASS  H41 reset -> 200 {revision 3, backup_id}  -- {"revision":3,"backup_id":"e72c9abf-ac98-4c9e-bf45-850a38882e80","updated_at":"2026-10-01T17:57:15.850391+00:00"}
+PASS  H42 old device (knew revision 2) cannot overwrite the reset -> 409
+PASS  H43 list: A sees only its own backup (revision 2, 40 followers), B only its own  -- {"id":"e72c9abf-ac98-4c9e-bf45-850a38882e80","revision":2,"save_version":2,"device":"mobil","reason":"reset","created_at":"2026-10-01T17:57:15.850391+00:00","expires_at":"2026-10-31T17:57:15.850391+00:00","size_bytes":70,"summary":{"fame":3,"money":7,"sales":1,"followers":40}}
+PASS  H44 authenticated cannot read the backup table directly -> 403
+PASS  H45 authenticated rpc cleanup -> 403
+PASS  H46 service_role rpc cleanup -> 200 (0 deleted: nothing is 30 days old)  -- {"success":true,"error":null,"data":0,"count":null,"status":200,"statusText":"OK"}
+PASS  H50 fenomen_delete_my_account(p_uid => B) does not exist -> 404 PGRST202
+PASS  H51 authenticated rpc/_fenomen_delete_user(B) -> 403
+PASS  H52 authenticated rpc purge -> 403
+PASS  H53 before: A has rows in auth tables (identities, sessions, ...)  -- identities=1,sessions=1,one_time_tokens=1,refresh_tokens=1
+PASS  H53b before: real GoTrue audit rows exist for A (actor_id = A: login/verify) and for B  -- A=3 (actor 3) B=2 total=8
+PASS  H54 A rpc fenomen_delete_my_account -> 200 {deleted:true, saves:1, backups:1}  -- {"saves":1,"backups":1,"deleted":true,"audit_entries":3}
+PASS  H55 A gone from auth.users; NO row with A's user_id left in any auth table (identities, sessions, refresh_tokens, one_time_tokens, mfa_*, ...)
+PASS  H56 A's save + backups gone
+PASS  H57 B untouched
+PASS  H57b A's audit rows gone (actor_id OR traits.user_id); B's audit rows and all others untouched; returned audit_entries = deleted rows  -- A 3->0 B 2->2 total 8->5 returned 3
+PASS  H58 RISK documented: deleted user's old access token still accepted by PostgREST until exp (200 [])
+PASS  H59 ...but cannot recreate data: insert -> 409 (23503 FK)
+PASS  H60 GoTrue rejects the old token (/auth/v1/user)  -- HTTP 403 {"code":403,"error_code":"user_not_found","msg":"User from sub claim in JWT does
+PASS  H61 signOut({scope:"local"}) after delete clears the local session without error  -- global signOut: ok
+PASS  H62 deleted user's refresh token -> rejected
+PASS  H70 alternative: admin API deleteUser (GoTrue, supabase_auth_admin) also removes save + backups via ON DELETE CASCADE  -- before 1/1, after user/save/backups 0/0/0
+PASS  H80 RISK documented: refreshing the session (staying signed in) does NOT update auth.users.last_sign_in_at  -- refresh ok; last_sign_in_at unchanged: true
+
+HTTP status map observed:
+  B insert row for C -> HTTP 403 code 42501 "new row violates row-level security policy for table "fenome"
+  B upsert onto A -> HTTP 403 code 42501 "new row violates row-level security policy for table "fenome"
+  A DELETE own row -> HTTP 403 code 42501 "permission denied for table fenomen_saves"
+  stale upsert (revision = server) -> HTTP 409 code PT409 "stale_revision"
+  save > 256 KiB -> HTTP 400 code 23514 "new row for relation "fenomen_saves" violates check constrai"
+  client writes updated_at -> HTTP 403 code 42501 "permission denied for table fenomen_saves"
+  anon GET fenomen_saves -> HTTP 401 code 42501 "permission denied for table fenomen_saves"
+  anon rpc fenomen_reset_save -> HTTP 401 code 42501 "permission denied for function fenomen_reset_save"
+  anon rpc fenomen_list_save_backups -> HTTP 401 code 42501 "permission denied for function fenomen_list_save_backups"
+  anon rpc fenomen_delete_my_account -> HTTP 401 code 42501 "permission denied for function fenomen_delete_my_account"
+  anon rpc fenomen_purge_inactive_accounts -> HTTP 401 code 42501 "permission denied for function fenomen_purge_inactive_accoun"
+  anon rpc fenomen_cleanup_save_backups -> HTTP 401 code 42501 "permission denied for function fenomen_cleanup_save_backups"
+  anon rpc _fenomen_delete_user -> HTTP 401 code 42501 "permission denied for function _fenomen_delete_user"
+  reset with old expected revision -> HTTP 409 code PT409 "stale_revision"
+  authenticated GET fenomen_save_backups -> HTTP 403 code 42501 "permission denied for table fenomen_save_backups"
+  authenticated rpc cleanup -> HTTP 403 code 42501 "permission denied for function fenomen_cleanup_save_backups"
+  rpc delete_my_account with p_uid -> HTTP 404 code PGRST202 "Could not find the function public.fenomen_delete_my_account"
+  authenticated rpc _fenomen_delete_user -> HTTP 403 code 42501 "permission denied for function _fenomen_delete_user"
+  authenticated rpc purge -> HTTP 403 code 42501 "permission denied for function fenomen_purge_inactive_accoun"
+  deleted user's old JWT: GET fenomen_saves -> HTTP 200
+  deleted user's old JWT: insert -> HTTP 409 code 23503 "insert or update on table "fenomen_saves" violates foreign k"
+  deleted user's old JWT: GET /auth/v1/user -> HTTP 403 code 403
+  signOut() (global) after delete -> ok
+  deleted user's refresh token -> HTTP 400 code 400
+
+HTTP/supabase-js checks: 56/56 PASS
+PASS  HTTP/supabase-js checks 56/56 (exit 0)
+PASS  SMTP sink received the OTP mails (5); none left the box
+
+######## 4. 24-month purge on the real image: count (read-only) == purge; GoTrue admin API no longer knows the users
+audit rows before purge: old1=1 old2=1 keep=1 total=11
+count: 2 years|2024-10-01 17:57:20.398143+00|5|2|2|2|2|100|2|0|2
+purge (service_role over REST): [{"accounts":2,"saves":2,"backups":2,"audit_entries":2,"remaining":0}]
+PASS  count (read-only, exit 0) == purge result: accounts 2, saves 2, backups 2, audit 2
+PASS  purge removed the real GoTrue audit rows of the purged users (traits.user_id path: 1+1 -> 0+0), kept user's 1 rows stay, nothing else touched (11 -> 9)
+PASS  GoTrue admin API: purged user -> 404, 24 months - 1 day user -> 200 (got 404/200)
+
+######## 5. pg_cron ops files on the real image (as postgres; pg_cron via supautils)
+PASS  ops files create pg_cron (if needed) and exactly one job each: fenomen_inactive_accounts_purge|17 1 * * *|postgres;fenomen_save_backups_cleanup|47 0 * * *|postgres
+cron.timezone=GMT cron.database_name=postgres
+
+######## 6. rollback on the real image: schema == before, counter untouched
+PASS  rollback x2 (exit 0/0); no fenomen cron job left
+head: cannot open '/tmp/fenomen-v22-stack/rollback.diff' for reading: No such file or directory
+PASS  pg_dump --schema-only public+auth after rollback == before migration
+head: cannot open '/tmp/fenomen-v22-stack/counter.diff' for reading: No such file or directory
+PASS  counter (anon_stats_*) tables + functions byte-identical before/after (migration, HTTP tests, purge, rollback)
+
+######## SUMMARY
+stack runner checks: 14/14 PASS (includes the HTTP line: 56/56)
+RESULT: ALL PASS

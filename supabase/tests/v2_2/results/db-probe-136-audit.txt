@@ -1,0 +1,93 @@
+# image: public.ecr.aws/supabase/postgres:17.6.1.136 (ID f519727303f0), container fen22-probe (--network none), image's own auth schema init (no GoTrue migrations: no auth.sessions, no ip_address column) — 2026-10-01 TSİ
+# steps: v2.1 + v2.2 migrations as postgres -> verify (read-only) -> test below (setup as supabase_admin; delete_my_account as authenticated; purge as postgres)
+# verify tail:
+16|account deletion also removes GoTrue audit rows: postgres can DELETE auth.audit_log_entries; _fenomen_delete_user matches actor_id OR traits.user_id; delete_my_account + purge use it|t||16
+result|VERIFY OK: 16/16|t||1000
+# ---- script ----
+\set ON_ERROR_STOP 1
+\pset footer off
+-- setup as supabase_admin (superuser)
+delete from auth.users where email like '%@probe.test';
+delete from auth.audit_log_entries;
+insert into auth.users (instance_id, id, aud, role, email, created_at, last_sign_in_at) values
+ ('00000000-0000-0000-0000-000000000000','11111111-1111-4111-8111-111111111111','authenticated','authenticated','a@probe.test', now(), now()),
+ ('00000000-0000-0000-0000-000000000000','22222222-2222-4222-8222-222222222222','authenticated','authenticated','b@probe.test', now(), now()),
+ ('00000000-0000-0000-0000-000000000000','33333333-3333-4333-8333-333333333333','authenticated','authenticated','old1@probe.test', now()-interval '30 months', now()-interval '25 months'),
+ ('00000000-0000-0000-0000-000000000000','44444444-4444-4444-8444-444444444444','authenticated','authenticated','old2@probe.test', now()-interval '30 months', null);
+insert into auth.audit_log_entries (instance_id, id, payload, created_at) values
+ ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), '{"action":"login","actor_id":"11111111-1111-4111-8111-111111111111","log_type":"account","traits":{"provider":"email"}}', now()),
+ ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), '{"action":"user_modified","actor_id":"99999999-9999-4999-8999-999999999999","log_type":"user","traits":{"user_id":"11111111-1111-4111-8111-111111111111","user_email":"a@probe.test"}}', now()),
+ ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), '{"action":"login","actor_id":"22222222-2222-4222-8222-222222222222","log_type":"account","traits":{"provider":"email"}}', now()),
+ ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), '{"action":"user_signedup","actor_id":"99999999-9999-4999-8999-999999999999","log_type":"team","traits":{"user_id":"22222222-2222-4222-8222-222222222222","user_email":"a@probe.test"}}', now()),
+ ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), '{"action":"login","actor_id":"33333333-3333-4333-8333-333333333333","log_type":"account"}', now()-interval '25 months'),
+ ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), '{"action":"user_signedup","actor_id":"99999999-9999-4999-8999-999999999999","log_type":"team","traits":{"user_id":"44444444-4444-4444-8444-444444444444"}}', now()-interval '30 months');
+select 'before' t, count(*) from auth.audit_log_entries;
+set role postgres;
+-- 'Hesabımı sil' as A (authenticated, real auth.uid())
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated"}', true);
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111', true);
+select 'delete_my_account' t, public.fenomen_delete_my_account();
+commit;
+set role postgres;
+select 'after_A' t, count(*) total,
+  count(*) filter (where payload->>'actor_id'='11111111-1111-4111-8111-111111111111' or payload->'traits'->>'user_id'='11111111-1111-4111-8111-111111111111') a_rows,
+  count(*) filter (where payload->>'actor_id'='22222222-2222-4222-8222-222222222222' or payload->'traits'->>'user_id'='22222222-2222-4222-8222-222222222222') b_rows
+ from auth.audit_log_entries;
+-- 24-month purge (as postgres, like cron)
+-- (count query skipped here: this bare image has no auth.sessions before GoTrue migrations; covered by SQL suite P03)
+select 'purge' t, * from public.fenomen_purge_inactive_accounts();
+select 'after_purge' t, count(*) total,
+  count(*) filter (where payload->>'actor_id' in ('33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444') or payload->'traits'->>'user_id' in ('33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444')) old_rows,
+  count(*) filter (where payload->>'actor_id'='22222222-2222-4222-8222-222222222222' or payload->'traits'->>'user_id'='22222222-2222-4222-8222-222222222222') b_rows
+ from auth.audit_log_entries;
+select 'users_left' t, string_agg(email, ',' order by email) from auth.users;
+-- authenticated/service_role still cannot touch audit table directly
+select 'acl' t, has_table_privilege('authenticated','auth.audit_log_entries','DELETE') auth_del, has_table_privilege('service_role','auth.audit_log_entries','DELETE') sr_del, has_table_privilege('anon','auth.audit_log_entries','DELETE') anon_del;
+# ---- output ----
+DELETE 3
+DELETE 8
+INSERT 0 4
+INSERT 0 6
+   t    | count 
+--------+-------
+ before |     6
+
+SET
+BEGIN
+SET
+                              set_config                               
+-----------------------------------------------------------------------
+ {"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated"}
+
+              set_config              
+--------------------------------------
+ 11111111-1111-4111-8111-111111111111
+
+         t         |                    fenomen_delete_my_account                    
+-------------------+-----------------------------------------------------------------
+ delete_my_account | {"saves": 0, "backups": 0, "deleted": true, "audit_entries": 2}
+
+COMMIT
+SET
+    t    | total | a_rows | b_rows 
+---------+-------+--------+--------
+ after_A |     4 |      0 |      2
+
+   t   | accounts | saves | backups | audit_entries | remaining 
+-------+----------+-------+---------+---------------+-----------
+ purge |        2 |     0 |       0 |             2 |         0
+
+      t      | total | old_rows | b_rows 
+-------------+-------+----------+--------
+ after_purge |     2 |        0 |      2
+
+     t      |  string_agg  
+------------+--------------
+ users_left | b@probe.test
+
+  t  | auth_del | sr_del | anon_del 
+-----+----------+--------+----------
+ acl | f        | f      | f
+

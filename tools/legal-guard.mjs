@@ -19,6 +19,24 @@ export function checkLegal(tr, env = {}) {
   throw new Error(`[legal-guard] src/locales/tr.json ${LEGAL_KEY} boş: ${which}. Yasal metin yazılmadan yayın derlemesi yapılamaz. Geliştirme/test derlemesi için: ALLOW_EMPTY_LEGAL=1 npm run build`);
 }
 
+// v2.2: a build that turns login on (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY) must not ship the account text
+// (tr.json account.privacy.details) with a lawyer placeholder like "[YURT DIŞI AKTARIM DAYANAĞI — …]" or an empty item.
+// Builds without the cloud env (login hidden, e.g. GitHub Pages) are not affected. Same escape hatch: ALLOW_EMPTY_LEGAL=1.
+export const ACCOUNT_LEGAL_KEY = 'account.privacy.details';
+export function openAccountItems(tr) {
+  const list = tr && tr.account && tr.account.privacy && tr.account.privacy.details;
+  if (!Array.isArray(list) || list.length === 0) return [0];
+  return list.map((p, i) => (typeof p === 'string' && p.trim() && !/\[[^\]]*\]/.test(p) ? -1 : i)).filter((i) => i >= 0);
+}
+export function checkAccountLegal(tr, env = {}) {
+  const cloud = !!(String(env.VITE_SUPABASE_URL || '').trim() && String(env.VITE_SUPABASE_ANON_KEY || '').trim());
+  if (!cloud) return { ok: true, skipped: false, open: [], cloud };
+  const open = openAccountItems(tr);
+  if (open.length === 0) return { ok: true, skipped: false, open, cloud };
+  if (String(env.ALLOW_EMPTY_LEGAL || '') === '1') return { ok: false, skipped: true, open, cloud };
+  throw new Error(`[legal-guard] src/locales/tr.json ${ACCOUNT_LEGAL_KEY}: madde #${open.map((i) => i + 1).join(', #')} boş ya da yer tutucu ([…]) içeriyor. Giriş açık (VITE_SUPABASE_URL) bir yayın derlemesi bu metin tamamlanmadan yapılamaz. Geliştirme/test derlemesi için: ALLOW_EMPTY_LEGAL=1`);
+}
+
 // Vite plugin: runs only for `vite build`
 export function legalGuardPlugin(tr, env = process.env) {
   return {
@@ -27,6 +45,8 @@ export function legalGuardPlugin(tr, env = process.env) {
     buildStart() {
       const r = checkLegal(tr, env);   // throws -> build fails
       if (r.skipped) this.warn(`[legal-guard] ${LEGAL_KEY} içinde boş madde var (#${r.empty.map((i) => i + 1).join(', #')}); ALLOW_EMPTY_LEGAL=1 olduğu için derleme sürüyor. BU DERLEME YAYINLANMAMALI.`);
+      const a = checkAccountLegal(tr, env);
+      if (a.skipped) this.warn(`[legal-guard] ${ACCOUNT_LEGAL_KEY} içinde yer tutucu var (#${a.open.map((i) => i + 1).join(', #')}); ALLOW_EMPTY_LEGAL=1 olduğu için giriş açık derleme sürüyor. BU DERLEME YAYINLANMAMALI.`);
     }
   };
 }

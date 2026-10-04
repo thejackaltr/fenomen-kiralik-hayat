@@ -33,6 +33,12 @@ Hedef: kiralık hayattan gerçek eşyalara ve yatırımlara geçmek.
 - **Sayaç bilgilendirmesi**: "Tamam" ve "Kapat" aynı sınıfla, eşit görsel ağırlıkta (KVKK). `telemetry.details` içindeki boş madde ekranda paragraf oluşturmaz.
 - **Tek tıkla taşıma**: eski adreste `MOVE.startDate` ayarlanınca 60 gün (`MOVE.graceDays`) oyun + "taşındı" bandı, sonra yönlendirme sayfası. Kayıt `#import=` içinde (deflate-raw + base64url, en çok `MOVE.maxHashChars` = 16 KB; üstünde yalnızca "Kaydı indir"). Eski kayıt silinmez, `fenomen_migrated_at` ile işaretlenir; yönlendirme sayfası kendi service worker'ını ve `fenomen-*` önbelleklerini siler. Yeni adres içe aktarır, `#`'yı `history.replaceState` ile temizler; bu cihazda dolu kayıt varsa seçim penceresi çıkar, seçilmeyen yedekte kalır.
 
+## v2.2 kapsamı (istemci): isteğe bağlı giriş + bulut kayıt
+- **Giriş isteğe bağlı**: e-posta + 6 haneli kod (Supabase GoTrue, SDK yok: `src/cloud/api.js`). Girişsiz oyun hiç değişmez. Giriş yalnızca `CLOUD.loginOrigin` (fenomen.teserix.com) adresinde ve `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` derlemeye verildiyse görünür; boşsa hiçbir istek gitmez. Eski adres (github.io) girişi göstermez, Ayarlar'da "yeni adrese geç" notu çıkar (Pages'e env eklenmez).
+- **Bulut kayıt** (`src/cloud/sync.js`, kurallar `src/logic/cloud.js`): cihaz kaydı esas kalır; buluta `CLOUD.syncEverySec`'te bir (değiştiyse), sayfa gizlenince / kapanınca hemen (keepalive) ve video yayınlanınca kısa süre sonra (`pushDelayMs` 2 sn, art arda olanlar tek istek, son yazımdan en az `pushGapMs` 15 sn sonra) yazılır. Revision ile iyimser kilit (sözleşme: `supabase/CONTRACT-v2.2.md`). Bulut boş → yükle; ilk videosu yayınlanmamış cihaz → bulut kaydı yedeksiz yüklenir; farklı iki kayıt → v2.1 seçim ekranı (meta, metaLast, "Önerilen": satış > toplam Şöhret > takipçi); seçilmeyenin kodu bir kez gösterilir. Başka cihazda sıfırlanan kayıt ezilmez.
+- **Baştan başla (girişli)** `rpc/fenomen_reset_save` (sunucuda 30 gün yedek, oyuncu geri yükleyemez); **Hesabımı sil** `rpc/fenomen_delete_my_account`; çıkış ve silme cihaz kaydını bırakır. Sayaç ve Umami hesaba bağlanmaz.
+- Giriş açık bir derleme `account.privacy.details`'te `[yer tutucu]` kaldıkça durur (`tools/legal-guard.mjs`). Testler sahte Supabase ile: `ONLY=v22 npm run smoke` (`tests/smoke/fake-supabase.mjs`).
+
 ## Geliştirme
 ```bash
 npm ci

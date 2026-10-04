@@ -30,10 +30,25 @@ export async function prepareMove(storage, telState, { now = Date.now(), maxChar
 export function markMigrated(storage, now = Date.now()) { try { storage.setItem(MIGRATED_KEY, String(now)); } catch (e) { /* ignore */ } }
 // self-removing service worker: unregister ours (scope = this app's folder) and drop our caches only
 // (GitHub Pages user sites share one origin with the owner's other projects — never touch their SWs/caches)
-export async function removeServiceWorker(win) {
+// Order matters: the worker still controls this page and caches every miss with a fire-and-forget cache.put(). So it
+// is first told to stop caching and to finish its in-flight writes ('stopCaching' -> 'stopped', sw.template.js), and
+// only then are its caches deleted; otherwise a late put re-creates the deleted cache. An older worker without that
+// handler does not answer: we go on after stopWaitMs.
+export async function removeServiceWorker(win, { stopWaitMs = 1500 } = {}) {
   try {
     const sw = win.navigator && win.navigator.serviceWorker;
-    if (sw && sw.getRegistrations) { const base = new URL('./', win.location.href).href; for (const r of await sw.getRegistrations()) if (r.scope.startsWith(base)) await r.unregister(); }
+    const base = new URL('./', win.location.href).href;
+    const ctl = sw && sw.controller;
+    if (ctl && String(ctl.scriptURL || '').startsWith(base) && typeof win.MessageChannel === 'function') {
+      await new Promise((done) => {
+        const ch = new win.MessageChannel();
+        const finish = () => { clearTimeout(timer); try { ch.port1.close(); } catch (e) { /* ignore */ } done(); };
+        const timer = setTimeout(finish, stopWaitMs);
+        ch.port1.onmessage = finish;
+        try { ctl.postMessage('stopCaching', [ch.port2]); } catch (e) { finish(); }
+      });
+    }
+    if (sw && sw.getRegistrations) { for (const r of await sw.getRegistrations()) if (r.scope.startsWith(base)) await r.unregister(); }
   } catch (e) { /* ignore */ }
   try { if (win.caches) for (const k of await win.caches.keys()) if (k.startsWith('fenomen-')) await win.caches.delete(k); } catch (e) { /* ignore */ }
 }

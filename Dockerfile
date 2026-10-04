@@ -10,6 +10,12 @@ ARG VITE_UMAMI_SRC=
 ARG VITE_UMAMI_WEBSITE_ID=
 ARG VITE_UMAMI_DOMAINS=
 ENV VITE_UMAMI_SRC=$VITE_UMAMI_SRC VITE_UMAMI_WEBSITE_ID=$VITE_UMAMI_WEBSITE_ID VITE_UMAMI_DOMAINS=$VITE_UMAMI_DOMAINS
+# v2.2 optional login + cloud save (Fenomen's own Supabase, e.g. https://fenomen-api.teserix.com + its public anon key).
+# Empty = login hidden, guest play only. The anon key is public by design (RLS protects the rows); never the service key.
+# With both set, the build fails while tr.json account.privacy.details still has a [placeholder] (tools/legal-guard.mjs).
+ARG VITE_SUPABASE_URL=
+ARG VITE_SUPABASE_ANON_KEY=
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 RUN npm run build
 
 FROM nginx:1.27-alpine

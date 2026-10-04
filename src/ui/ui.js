@@ -13,6 +13,7 @@ import { Sound } from './sound.js';
 import { showDetails, dismissNoticeBand } from './privacy.js';
 import { analytics } from '../analytics.js';
 import { exportSave, openImport } from './savefile.js';
+import { accountSection, privacyLink, confirmResetSignedIn } from './account.js';
 
 // Element.append(null) would print "null": always go through ap()
 function ap(el, ...k) { el.append(...k.filter((x) => x != null && x !== false)); return el; }
@@ -571,6 +572,8 @@ export class UI {
       if (o.tools) ap(box, h('h3', { text: t('settings.saveTitle') }), h('div', { class: 'row' },
         h('button', { class: 'btn', 'data-test': 'save-export', onclick: () => { close(); exportSave(this, o.tools); } }, t('saveFile.export')),
         h('button', { class: 'btn', 'data-test': 'save-import', onclick: () => { close(); openImport(this, o.tools); } }, t('saveFile.import'))));
+      // v2.2 "Bulut kayıt" (optional login); nothing here when the cloud is not configured for this address
+      if (o.account) ap(box, ...accountSection(this, o.account, close));
       if (o.tel) {
         const tel = o.tel;
         const box2 = h('input', { type: 'checkbox', 'data-test': 'tel-toggle', checked: tel.enabled(), onchange: (e) => {
@@ -581,12 +584,15 @@ export class UI {
         ap(box, h('h3', { text: t('settings.privacy') }), h('label', { class: 'toggle-row' }, box2, h('span', { text: t('settings.telemetry') })),
           h('p', { class: 'muted small' }, t('settings.telemetryHint'), ' ', h('button', { class: 'link', 'data-test': 'settings-tel-details', onclick: () => { close(); showDetails(this); } }, t('telemetry.detailsLink'))));
       }
+      if (o.account) ap(box, privacyLink(this, o.account, close));
       ap(box, h('p', { class: 'muted', text: t('settings.credits') }), h('p', { class: 'muted small', text: t('settings.version', { v: o.version || '' }) }),
         h('button', { class: 'btn danger', 'data-test': 'reset', onclick: () => { close(); this.confirmReset(); } }, t('settings.reset')),
         h('button', { class: 'btn primary', onclick: close }, t('settings.close')));
     });
   }
   confirmReset() {
+    const acc = this.opts.account;
+    if (acc && acc.available && acc.sync.signedIn()) { confirmResetSignedIn(this, acc); return; }   // v2.2: server backup + reset
     this.showModal((box, close) => ap(box, h('p', { text: t('settings.resetConfirm') }), h('div', { class: 'row end' },
       h('button', { class: 'btn', onclick: close }, t('settings.no')),
       h('button', { class: 'btn danger', 'data-test': 'reset-yes', onclick: () => { close(); this.ctrl.reset(); } }, t('settings.yes')))));

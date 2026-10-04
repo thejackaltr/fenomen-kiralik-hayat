@@ -46,3 +46,17 @@ export function fmtDay(ts) {
   const parts = new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'short', year: 'numeric' }).formatToParts(new Date(ts));
   return parts.map((p) => (p.type === 'month' ? p.value.replace(/\.$/, '') : p.value)).join('');
 }
+// v2.2 cloud choice "{d}": short date and time, e.g. tr "28 Eyl 19:40" (no relative wording: there is no text for it).
+// null/0/NaN -> the given fallback key.
+export function fmtStamp(ts, fallbackKey = 'sync.conflict.dateUnknown') {
+  if (typeof ts !== 'number' || !isFinite(ts) || ts <= 0) return t(fallbackKey);
+  const loc = locale() === 'tr' ? 'tr-TR' : locale();
+  const parts = new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(ts));
+  const g = (k) => (parts.find((p) => p.type === k) || {}).value || '';
+  return g('day') + ' ' + g('month').replace(/\.$/, '') + ' ' + g('hour') + ':' + g('minute');
+}
+// "Buluta kaydedildi · {t}": hh:mm
+export function fmtClock(ts) {
+  const loc = locale() === 'tr' ? 'tr-TR' : locale();
+  return new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(ts));
+}

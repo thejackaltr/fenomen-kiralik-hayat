@@ -2,6 +2,9 @@
 // server (vite preview refuses unknown Host headers) and opens it as http://fenomen.teserix.com/ (host-resolver-rules -> local preview; the analytics module refuses
 // localhost). analiz.teserix.com is never contacted: its script is answered with a fake tracker.
 // Usage: npm run smoke:umami   (PORT=4189 by default; use a free port, e.g. PORT=4193 npm run smoke:umami)
+// v2.2: "[privacy-net] (e)" signs in with the FAKE Supabase (tests/smoke/fake-supabase.mjs, routes only) and proves the
+// account changes nothing there: zero Umami requests before the notice and after "Kapat", no e-mail / account id / token
+// in any Umami request when stats are on.
 // v2.1: also runs the "[privacy-net]" section: real request capture proving ZERO requests to the Umami host before the
 // notice, after "Kapat", after switching off in Settings and on reload while off (+ a positive control when on).
 import { chromium } from 'playwright-core';
@@ -9,6 +12,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { createFakeSupabase, FAKE_URL, FAKE_KEY } from './fake-supabase.mjs';
 
 const PORT = +(process.env.PORT || 4189);
 const OUT = 'dist-umami';
@@ -112,17 +116,21 @@ async function privacyNet() {
     '["pushState","replaceState"].forEach(function(k){var o=history[k];history[k]=function(){var r=o.apply(this,arguments);pv();return r;};});' +
     'window.addEventListener("popstate",pv);pv();})();';
   const isUmami = (u) => { try { const h = new URL(u).hostname; return h === UMAMI_HOST || h.endsWith('.' + UMAMI_HOST); } catch (e) { return false; } };
-  async function context() {
+  async function context(fake = null) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'tr-TR' });
+    if (fake) {
+      await ctx.route(FAKE_URL + '/**', (r) => fake.handle(r));
+      await ctx.addInitScript((c) => { window.__FENOMEN_CFG__ = c; }, { cloudUrl: FAKE_URL, cloudKey: FAKE_KEY, loginOrigin: new URL(BASE).origin, cloudResendSec: 0, cloudSyncSec: 3600 });
+    }
     const all = [];                                        // every request of the context (pages, workers, subresources)
     ctx.on('request', (r) => all.push(r.url()));
-    const routed = [];
-    await ctx.route((u) => isUmami(u.href), (r) => { routed.push(r.request().url()); const u = new URL(r.request().url());
+    const routed = [], bodies = [];
+    await ctx.route((u) => isUmami(u.href), (r) => { routed.push(r.request().url()); bodies.push(String(r.request().postData() || '') + ' ' + JSON.stringify(r.request().headers())); const u = new URL(r.request().url());
       return u.pathname.endsWith('.js') ? r.fulfill({ status: 200, contentType: 'application/javascript', body: FAKE_REAL }) : r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
     const p = await ctx.newPage(); const errors = []; p.on('pageerror', (e) => errors.push(e.message));
     const count = () => ({ seen: all.filter(isUmami).length, routed: routed.length });
     const timing = () => p.evaluate((h) => performance.getEntriesByType('resource').filter((e) => { try { return new URL(e.name).hostname === h; } catch (x) { return false; } }).length, UMAMI_HOST);
-    return { ctx, p, all, routed, errors, count, timing };
+    return { ctx, p, all, routed, bodies, errors, count, timing };
   }
   const settle = (p) => p.waitForTimeout(800);
   const events = async (p) => {                            // Umami-tracked game events + SPA navigation (pageviews)
@@ -178,6 +186,38 @@ async function privacyNet() {
     const back = T.count();
     ok(TAG + 'switched back on: requests resume (script + sends)', back.seen > rl.seen && back.routed > rl.routed, JSON.stringify({ rl, back }));
     ok(TAG + 'no page errors', T.errors.length === 0, T.errors.join(' | '));
+    await T.ctx.close();
+  }
+  // (e) v2.2: signed in (FAKE Supabase). The account is not tied to the stats: same zero rule, nothing personal on the wire.
+  const signIn = async (T, fake, email) => {
+    await T.p.click('[data-test=settings-open]'); await T.p.click('[data-test=account-signin]'); await T.p.fill('[data-test=login-email]', email); await T.p.click('[data-test=login-send]');
+    await T.p.waitForSelector('[data-test=code-modal]'); await T.p.fill('[data-test=code-input]', fake.codeOf(email)); await T.p.click('[data-test=code-verify]');
+    await T.p.waitForSelector('[data-test=code-modal]', { state: 'detached' }); await T.p.waitForFunction(() => !window.__fenomen.account.sync.busy()); await settle(T.p);
+  };
+  const cloudPush = async (p) => { await p.evaluate(() => { window.__fenomen.ctrl.state.money += 1000; window.__fenomen.ctrl.save(); return window.__fenomen.account.sync.push(); }); await settle(p); };
+  {
+    const fake = createFakeSupabase({ resendSec: 0 }), T = await context(fake);
+    await T.p.goto(BASE, { waitUntil: 'load' }); await T.p.waitForSelector('[data-test=tel-banner]'); await createChar(T.p);
+    await signIn(T, fake, 'gizli@example.com'); await cloudPush(T.p); await events(T.p);
+    await T.p.reload({ waitUntil: 'load' }); await T.p.waitForSelector('[data-test=tel-banner]'); await settle(T.p); await cloudPush(T.p);
+    const c = T.count();
+    ok(TAG + '(e1) signed in, notice not answered: ZERO requests to ' + UMAMI_HOST + ' (login, cloud writes, events, reload)', zero(c) && (await T.timing()) === 0 && !!fake.rowFor('gizli@example.com') && fake.rowFor('gizli@example.com').revision >= 2, JSON.stringify({ c, rev: fake.rowFor('gizli@example.com') && fake.rowFor('gizli@example.com').revision }));
+    await T.p.click('[data-test=tel-off]'); await settle(T.p); await events(T.p); await cloudPush(T.p);
+    await T.p.reload({ waitUntil: 'load' }); await T.p.waitForSelector('[data-test=creator], [data-test=shoot]'); await events(T.p); await cloudPush(T.p);
+    const c2 = T.count();
+    ok(TAG + '(e2) signed in, after "Kapat": ZERO requests to ' + UMAMI_HOST + ' (events, cloud writes, reload)', zero(c2) && (await T.timing()) === 0, JSON.stringify(c2));
+    ok(TAG + '(e) no page errors', T.errors.length === 0, T.errors.join(' | '));
+    await T.ctx.close();
+  }
+  {
+    const fake = createFakeSupabase({ resendSec: 0 }), T = await context(fake);
+    await T.p.goto(BASE, { waitUntil: 'load' }); await T.p.click('[data-test=tel-ok]'); await createChar(T.p);
+    await signIn(T, fake, 'acik@example.com'); await cloudPush(T.p); await events(T.p);
+    const uid = fake.userId('acik@example.com'), tok = (fake.log.find((x) => x.auth) || {}).auth || 'Bearer none';
+    const leak = T.bodies.filter((b) => b.includes('acik@example.com') || b.includes(uid) || b.includes(tok.slice(7)) || /authorization/i.test(b));
+    ok(TAG + '(e3) signed in, stats on: Umami still works, and no e-mail / account id / token / Authorization in any Umami request', T.routed.length >= 3 && leak.length === 0 && !!uid, JSON.stringify({ n: T.routed.length, leak: leak.slice(0, 2) }));
+    const cloudCalls = fake.log.filter((x) => x.path.startsWith('/rest/') || x.path.startsWith('/auth/'));
+    ok(TAG + '(e3) the cloud never receives Umami / counter data (only auth + fenomen_saves)', cloudCalls.every((x) => /^\/(auth\/v1\/(otp|verify|token|logout)|rest\/v1\/fenomen_saves)$/.test(x.path)), cloudCalls.map((x) => x.path).join(','));
     await T.ctx.close();
   }
 }

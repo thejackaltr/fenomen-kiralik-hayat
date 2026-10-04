@@ -5,9 +5,12 @@
 //   origins through window.__FENOMEN_CFG__ (see src/config.js), injected with an init script.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
+import { runV22, shotsV22 } from './v22.mjs';
 const TR = JSON.parse(fs.readFileSync(new URL('../../src/locales/tr.json', import.meta.url), 'utf8'));
 const BASE = process.env.BASE || 'http://localhost:4180/';
 const SHOTS = process.env.SHOTS === '1';
+// SECTIONS=v21-C,v22-B (with ONLY=v21 / v22): run only these blocks (repeat a single flow, e.g. to hunt flakiness)
+const want = (k) => !process.env.SECTIONS || process.env.SECTIONS.split(',').includes(k);
 const exe = process.env.CHROME || '/usr/bin/google-chrome';
 const results = []; let failed = 0;
 const ok = (name, cond, extra) => { results.push((cond ? 'PASS ' : 'FAIL ') + name + (extra ? ' — ' + extra : '')); if (!cond) failed++; };
@@ -381,7 +384,7 @@ async function runV21() {
   const done = async (T, k) => { const real = T.errors.filter((e) => !/favicon/.test(e)); ok(tagOf(k) + 'no console errors/warnings', real.length === 0, real.slice(0, 4).join(' | ')); await T.ctx.close(); };
 
   // ---- A: counter notice band + Settings switch (mobile)
-  {
+  if (want('v21-A')) {
     const T = await newCtx('mobile', cfgFor({})), tag = tagOf('sayaç');
     await T.p.goto(NEW, { waitUntil: 'load' }); await T.p.waitForSelector('[data-test=creator]');
     ok(tag + 'first launch shows the notice band (Tamam / Kapat equal + Ayrıntılar)', await T.S(() => { const ok = document.querySelector('[data-test=tel-ok]').getBoundingClientRect(), off = document.querySelector('[data-test=tel-off]').getBoundingClientRect(); return !!document.querySelector('[data-test=tel-banner]') && Math.abs(ok.width - off.width) < 2 && Math.abs(ok.height - off.height) < 2 && !!document.querySelector('[data-test=tel-details]'); }));
@@ -419,7 +422,7 @@ async function runV21() {
     await done(T, 'sayaç');
   }
   // ---- A2: "Kapat" on the notice
-  {
+  if (want('v21-A2')) {
     const T = await newCtx('desktop', cfgFor({})), tag = tagOf('sayaç kapat');
     await T.p.goto(NEW, { waitUntil: 'load' }); await T.p.waitForSelector('[data-test=tel-banner]');
     await T.tap('[data-test=tel-off]');
@@ -431,7 +434,7 @@ async function runV21() {
     await done(T, 'sayaç kapat');
   }
   // ---- B: export / import save file (+ code)
-  {
+  if (want('v21-B')) {
     const T = await newCtx('desktop', cfgFor({})), tag = tagOf('kayıt dosyası');
     await T.ctx.addInitScript(NOTICE_SEEN);
     await T.p.goto(NEW, { waitUntil: 'load' }); await create(T, 'Dosya Kanalı'); await setFollowers(T, 12345);
@@ -448,7 +451,7 @@ async function runV21() {
     await T.p.setInputFiles('[data-test=import-file]', file);
     await T.p.waitForSelector('[data-test=import-confirm]', { timeout: 8000 });
     const conf = await T.S(() => document.querySelector('[data-test=import-confirm]').textContent);
-    ok(tag + 'import asks first and shows both saves', conf.includes('yerine geçecek') && /Yüklenecek kayıt · 12,3\d?\sB takipçi · Son oynama: \d+ Eylül 2026/.test(conf) && conf.includes('Şimdiki kayıt · 5 takipçi'), conf.slice(0, 160));
+    ok(tag + 'import asks first and shows both saves', conf.includes('yerine geçecek') && /Yüklenecek kayıt · 12,3\d?\sB takipçi · Son oynama: \d+ [A-ZÇĞİÖŞÜ][a-zçğıöşü]+ \d{4}/.test(conf) && conf.includes('Şimdiki kayıt · 5 takipçi'), conf.slice(0, 260));   // date = export time (was hardcoded "Eylül 2026")
     await T.tap('[data-test=import-yes]');
     await T.p.waitForTimeout(300);
     ok(tag + 'import restores the exported save', await T.S(() => { const s = window.__fenomen.ctrl.state; return Math.floor(s.followers) >= 12345 && s.char.channel === 'Dosya Kanalı'; }));
@@ -481,7 +484,7 @@ async function runV21() {
   }
   if (!OLD) { ok('[v2.1] second origin for the move tests (set OLD_BASE)', false); return; }
   // ---- C: old address redirect page: SW + caches removed, auto redirect, import on the new address
-  {
+  if (want('v21-C')) {
     const T = await newCtx('desktop', cfgFor({ moveMode: 'none' })), tag = tagOf('taşıma');
     await T.ctx.addInitScript(NOTICE_SEEN);
     await T.p.goto(OLD, { waitUntil: 'load' }); await create(T, 'Eski Adres');
@@ -509,7 +512,7 @@ async function runV21() {
     await done(T, 'taşıma');
   }
   // ---- D: oversize save -> no auto redirect, only "Kaydı indir"
-  {
+  if (want('v21-D')) {
     const T = await newCtx('mobile', cfgFor({ moveMode: 'redirect', redirectDelayMs: 600, maxHashChars: 200 })), tag = tagOf('taşıma büyük');
     const OLD_O = new URL(OLD).origin;
     const save = JSON.parse(fs.readFileSync(new URL('../fixtures/save_v1.json', import.meta.url), 'utf8'));
@@ -524,7 +527,7 @@ async function runV21() {
     await done(T, 'taşıma büyük');
   }
   // ---- E/F: new address: broken #import -> import.fail; existing save -> conflict choice
-  {
+  if (want('v21-E/F')) {
     const T = await newCtx('desktop', cfgFor({})), tag = tagOf('içe aktarma');
     await T.ctx.addInitScript(NOTICE_SEEN);
     await T.p.goto(NEW, { waitUntil: 'load' }); await create(T, 'Bu Cihaz'); await setFollowers(T, 777);
@@ -558,7 +561,7 @@ async function runV21() {
     await done(T, 'içe aktarma');
   }
   // ---- G: old address, grace period: game playable + "moved" band with one-click move
-  {
+  if (want('v21-G')) {
     const T = await newCtx('desktop', cfgFor({ moveMode: 'banner' })), tag = tagOf('taşıma bandı');
     await T.ctx.addInitScript(NOTICE_SEEN);
     await T.p.goto(OLD, { waitUntil: 'load' }); await T.p.waitForSelector('[data-test=move-band]');
@@ -787,10 +790,12 @@ async function installability() {
   await ctx.close();
 }
 try {
-  if (process.env.ONLY === 'v21') { await runV21(); await runV211(); }      // quick loop while working on the v2.1 flows
+  if (process.env.ONLY === 'v21') { await runV21(); if (want('v211')) await runV211(); }      // quick loop while working on the v2.1 flows
   else if (process.env.ONLY === 'v211') await runV211();                    // notice band + pending milestones only
   else if (process.env.ONLY === 'v214') await runV214();                    // short landscape layout only
-  else { await run('mobile'); await run('desktop'); await runV2('mobile'); await runV2('desktop'); await runV21(); await runV211(); await runV214(); await installability(); }
+  else if (process.env.ONLY === 'v22') await runV22({ browser, BASE, OLD: await secondOrigin(), ok });   // login + cloud save (fake Supabase)
+  else if (process.env.ONLY === 'v22shots') { const f = await shotsV22({ browser, BASE, OLD: await secondOrigin(), dir: process.env.SHOTS22 || '/tmp' }); ok('[v2.2 shots] ' + f.length + ' screenshots', f.length > 0, f.join(' ')); }
+  else { await run('mobile'); await run('desktop'); await runV2('mobile'); await runV2('desktop'); await runV21(); await runV211(); await runV214(); await runV22({ browser, BASE, OLD: await secondOrigin(), ok }); await installability(); }
 }
 catch (e) { ok('smoke crashed: ' + e.message, false); }
 await browser.close();

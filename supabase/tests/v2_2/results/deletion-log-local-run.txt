@@ -1,0 +1,49 @@
+# 2026-10-03 03:15 TSİ — code 72a860d + this commit. FD_MODE=local: throwaway PostgreSQL 17.11 (Debian, box), database fd_dl + auth_schema_fixture.sql
+== mode: local cluster (postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1))
+
+######## T. files
+PASS  T1 counts query in reapply (2) / verify (1) byte-identical to the info@ preflight / delete / verify one
+PASS  T2 reapply: deletes only via _fenomen_delete_user(uid, original ref), ends with commit; verify: no write statement, ends with rollback
+PASS  T3 export: read-only transaction (begin transaction read only ... rollback), no write statement
+
+######## B. before the backup: setup, D deletes itself (Hesabımı sil), dump
+PASS  B1 D deleted itself BEFORE the backup (JWT without session_id): on the deletion list as self:session:no-session
+PASS  B2 backup = pg_dump -Fc of the whole database (292331 bytes): A, B, C present, D gone, deletion list = D
+
+######## S. deletes AFTER the backup (info@ for A, Hesabımı sil for B), exported after each
+PASS  S1 A deleted via info@ (preflight token f4ec24b0d644): deletion list info:FN-DL-TEST-01
+PASS  S2 export #1 after A: 2 rows (D, A) -> fenomen-deletion-log-20261003T001356Z.csv
+PASS  S3 B deleted via Hesabımı sil  -- {"saves": 1, "backups": 1, "deleted": true, "audit_entries": 2}
+PASS  S4 deletion list: A info:FN-DL-TEST-01, B self:session:<session_id>, D self:session:no-session; uid + time + ref only, no e-mail
+PASS  S5 C (other user) unchanged
+
+######## X. export (directory outside the DB): 600, no overwrite, unchanged = no new file, md5, prune
+PASS  X1 export #2 after B: 3 rows -> fenomen-deletion-log-20261003T001357Z.csv (new file; #1 kept)
+PASS  X2 permissions: directory 700, export + .md5 files 600
+PASS  X3 md5sum -c OK; CSV user_id,deleted_at_utc,approval_ref; uids A, B, D; no e-mail
+PASS  X4 export again without a change: unchanged, no new file
+PASS  X5 prune: own export older than 45 days (+ .md5) removed; recent exports and other files kept
+PASS  X6 exports changed nothing in the DB (3 list rows)
+
+######## R. restore the backup taken BEFORE the deletes (drop database, pg_restore)
+PASS  R1 restored (exit 0): A and B are BACK, D stays deleted, the DB deletion list lost A and B (the reason for the export)
+PASS  R2 verify on the restored DB fails (exit 1): A and B have rows again, not listed
+PASS  R3 export with different content (restored list) under an existing file name: refused (exit 4), existing export + md5 unchanged (no overwrite)
+PASS  R4 a scheduled export after the restore writes a NEW file (1 row) and warns: 2 uids missing; older exports kept
+
+######## A. reapply from the exports, verify, second run = no-op
+PASS  A1 changed export (md5 mismatch): refused (exit 3), nothing changed
+PASS  A2 export with an invalid line (e-mail in the ref, valid md5): refused (exit 1), nothing changed (also not C)
+PASS  A3 reapply with all exports (3 files incl. the post-restore one, 6 lines -> 3 uids): A and B re-deleted, D skipped (nothing to delete)  -- fenomen deletion list reapply OK: 6 line(s), 3 uid(s); deletion list rows restored 2; re-deleted 2 (auth.users 2, fenomen_saves 2, fenomen_save_backups 3, audit_log_entries 5); skipped (nothing to delete) 1
+PASS  A4 verify: 3 uids, 0 rows left in every counted table, all 3 on the deletion list
+PASS  A5 info@ verify OK for A and B too
+PASS  A6 deletion list identical to before the restore (uid, ref, deleted_at to the microsecond); only C left of A/B/C/D
+PASS  A7 every auth.* / fenomen_* table byte-identical to the state before the restore
+PASS  A8 C (other user) unchanged from the start
+PASS  A9 second reapply: no-op (restored 0, re-deleted 0, skipped 3; nothing changed)
+PASS  A10 export after the reapply: same 3 rows as before the restore
+
+######## SUMMARY
+T=3 B=2 S=5 X=6 R=4 A=10 
+deletion list checks: 30/30 PASS
+RESULT: ALL PASS

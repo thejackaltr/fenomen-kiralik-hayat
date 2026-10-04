@@ -42,9 +42,10 @@ export class Controller {
     this.save();
   }
   save() { this.state.lastSeen = Date.now(); return save(this.storage, this.state); }
-  reset() { try { this.storage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } this.state = G.newGame(Date.now()); this.emit('reset'); this.emit('wiped'); }
+  // next: a prepared new game (v2.2 signed-in reset: the same state that went to the cloud) -> stored at once
+  reset(next = null) { try { this.storage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } this.state = next || G.newGame(Date.now()); if (next) save(this.storage, this.state); this.emit('reset'); this.emit('wiped'); }
   // "Kanalı Sat": swap in the brand-new account (keeps Şöhret/tree/achievements), then the UI shows the creator again
-  sell() { const ns = G.sellChannel(this.state, Date.now()); if (!ns) return null; this.state = ns; this.state.events.length = 0; this.save(); this.emit('sold', ns.lastSale); return ns.lastSale; }
+  sell() { const ns = G.sellChannel(this.state, Date.now()); if (!ns) return null; if (this.state.resetAt) ns.resetAt = this.state.resetAt; this.state = ns; this.state.events.length = 0; this.save(); this.emit('sold', ns.lastSale); return ns.lastSale; }
   // actions -> { ok }
   act(fn, ...args) { const ok = fn(this.state, ...args); this.drain(); if (ok) { this.emit('change'); this.save(); } return ok; }
   create(opts, path) { G.createCharacter(this.state, opts); const ok = G.choosePath(this.state, path); if (ok) { this.state.lastSeen = Date.now(); this.save(); this.emit('created', { path }); this.emit('change'); } return ok; }

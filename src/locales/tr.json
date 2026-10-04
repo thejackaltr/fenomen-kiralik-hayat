@@ -421,7 +421,7 @@
     "install": "Uygulamayı yükle",
     "iosInstall": "Yüklemek için Paylaş > Ana Ekrana Ekle'ye dokun.",
     "version": "Sürüm {v}",
-    "credits": "Tüm görseller kodla üretildi. Oyun kaydın yalnızca bu cihazda tutulur.",
+    "credits": "Tüm görseller kodla üretildi. Giriş yapmazsan oyun kaydın yalnızca bu cihazda tutulur. Giriş yaparsan kaydın oynarken düzenli olarak buluta gider; sekmeyi kapattığında ya da oyunu arka plana aldığında da gönderilir.",
     "close": "Kapat",
     "saveTitle": "Kayıt",
     "privacy": "Gizlilik",
@@ -567,5 +567,134 @@
     "downloaded": "Yedek dosyası indirildi.",
     "cancelled": "İçe aktarma iptal edildi. Hiçbir şey değişmedi.",
     "fileName": "fenomen-yedek-{d}.json"
+  },
+  "account": {
+    "privacy": {
+      "title": "Hesap ve bulut kayıt hakkında",
+      "detailsLink": "Ayrıntılar",
+      "details": [
+        "Giriş yaparsan iki şey tutarız: e-posta adresin ve bulut kaydın. Bulut kaydınla birlikte son kaydetme zamanı ve cihaz türü (mobil ya da masaüstü) de tutulur.",
+        "E-posta adresini yalnızca sana giriş kodu göndermek için kullanırız. Reklam ya da tanıtım e-postası göndermeyiz. Bulut kaydını, oyuna başka bir cihazda aynı kayıttan devam edebilmen için tutarız.",
+        "Bunları, senin istediğin bulut kayıt hizmetini sunabilmek için işleriz (KVKK madde 5/2-c). E-posta adresini sen yazarsın. Giriş yaptığın sürece bulut kaydın oyundan otomatik gönderilir.",
+        "Bilgiler Fenomen'in kendi sunucusunda (fenomen-api.teserix.com) tutulur. Sunucu, bağlantı sırasında IP adresini teknik kayıtlarda görebilir. Bu teknik kayıtlar [TEKNİK KAYIT SAKLAMA SÜRESİ — avukat belirleyecek] sonra silinir.",
+        "Giriş kodu e-postalarını Resend adlı e-posta gönderim hizmeti gönderir. E-posta adresin bu hizmete yalnızca kodu gönderebilmek için iletilir. Gönderim Türkiye dışında, İrlanda'daki sunuculardan (AWS eu-west-1) yapılır. Yani e-posta adresin bu iş için yurt dışına aktarılır. Aktarımın dayanağı: [YURT DIŞI AKTARIM DAYANAĞI — Aryen/avukat belirleyecek]",
+        "Aşama sayacı ve ziyaret sayımı hesabına bağlanmaz. Giriş yapsan da bu sayımlara e-postan ya da hesap bilgin gitmez, ikisi de isimsiz kalır.",
+        "24 ay boyunca giriş yapılmazsa hesabın ve bulut kaydın silinir; cihazındaki kayıt yerinde kalır. Varsa baştan başlamadan önce alınan oyun içi yedek de bunlarla birlikte silinir. Bu veriler güvenlik yedeklerinde bir süre daha kalabilir; bu yedekler yalnızca arıza durumunda geri yükleme için kullanılır.",
+        "“Kaydı sil ve baştan başla”yı seçersen buluttaki eski kaydın 30 gün yedek olarak saklanır, sonra silinir.",
+        "Hesabını istediğin zaman Ayarlar'daki “Hesabımı sil” düğmesiyle silebilirsin. Hesabın, e-posta adresin, bulut kaydın, varsa oyun içi “Baştan başla” yedeklerin ve giriş kayıtların sunucudan hemen silinir. Bu veriler güvenlik yedeklerinde bir süre daha kalabilir; bu yedekler yalnızca arıza durumunda geri yükleme için kullanılır. Diğer cihazlarda açık olan oturumun kısa süre içinde geçersiz olur. Sunucu kayıtlarında ve e-posta gönderim kayıtlarında kalan kopyalar hemen silinemez; bunlar yukarıdaki teknik kayıtlar maddesindeki sürenin sonunda silinir. Bu cihazdaki kaydın silinmez. Aynı cihazda yeniden giriş yaparsan yeni bir hesap açılır ve bu kayıt ona yüklenir. Kaydı bu cihazdan da silmek istersen tarayıcında bu sitenin verilerini temizle.",
+        "Hesabın silindiğinde ayrı bir listede yalnızca hesap kimliğini, silme zamanını ve silmenin nasıl yapıldığını gösteren bir referansı tutarız. Hesabını uygulamadan sildiysen bu referans, silmeyi yaptığın oturumun kimliğidir. E-posta adresin bu listede yer almaz. Bu liste, bir arıza sonrası yedekten geri yükleme yaparsak silinen hesabın yeniden silinmesi için kullanılır.",
+        "Bu bilgilerin veri sorumlusu Teserix Bilişim ve Dijital Çözümler. KVKK'nın 11. maddesindeki haklarını kullanmak için info@teserix.com adresine yazabilirsin."
+      ]
+    },
+    "menu": "Bulut kayıt",
+    "title": "Bulut kayıt",
+    "guestNote": "Giriş yapmadan da oynayabilirsin. Kaydın bu cihazda tutulur.",
+    "signedIn": "{email} ile giriş yaptın.",
+    "signIn": "Giriş yap",
+    "signOut": "Çıkış yap",
+    "signedOut": "Çıkış yaptın. Kaydın bu cihazda duruyor.",
+    "signedOutByServer": "Oturumun kapandı. Kaydın bu cihazda duruyor.",
+    "delete": {
+      "button": "Hesabımı sil",
+      "title": "Hesabın silinsin mi?",
+      "body": "Hesabın, e-posta adresin, bulut kaydın ve varsa oyun içi “Baştan başla” yedeklerin sunucudan silinir. Bu veriler güvenlik yedeklerinde bir süre daha kalabilir; bu yedekler yalnızca arıza durumunda geri yükleme için kullanılır. Diğer cihazlardaki oturumun da kısa sürede kapanır. Bu cihazdaki kaydın kalır; yeniden giriş yaparsan yeni hesabına yüklenir.",
+      "yes": "Evet, sil",
+      "no": "Vazgeç",
+      "deleting": "Siliniyor…",
+      "done": "Hesabın silindi. Kaydın bu cihazda duruyor, girişsiz devam edebilirsin.",
+      "failed": "Hesabın şu an silinemedi. Bağlantını kontrol edip tekrar dene.",
+      "signedOut": "Oturumun kapanmış. Hesabını silmek için önce yeniden giriş yap."
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Kaydını buluta al",
+      "body": "İstersen e-postanla giriş yap. Böylece kaydın bulutta da durur ve başka bir cihazda kaldığın yerden devam edebilirsin.",
+      "optional": "Giriş yapmak zorunda değilsin. Giriş yapmazsan oyunda hiçbir şey değişmez, kaydın bu cihazda tutulur.",
+      "age": "13 yaşından küçüksen bu adımı bir yetişkinle birlikte yap.",
+      "emailLabel": "E-posta adresin",
+      "emailPlaceholder": "ornek@eposta.com",
+      "privacySummary": "E-postan yalnızca giriş kodu için. Aşama sayacı ve ziyaret sayımı hesaba bağlanmaz.",
+      "send": "Kod gönder",
+      "sending": "Gönderiliyor…",
+      "sendIn": "Kod gönder ({s} sn)",
+      "later": "Şimdi değil",
+      "badEmail": "Geçerli bir e-posta adresi yaz.",
+      "sendFail": "Kod gönderilemedi. Adresi kontrol edip tekrar dene.",
+      "rateLimit": "Çok fazla deneme oldu. Biraz bekleyip tekrar dene.",
+      "netOrRate": "Bağlantı kurulamadı ya da kısa sürede çok fazla deneme oldu. 10 saniye bekleyip tekrar dene.",
+      "quotaFull": "Şu an kod gönderemiyoruz. Girişsiz oynamaya devam et, kaydın bu cihazda tutulur. Girişi sonra tekrar dene.",
+      "sendError": "Kod şu an gönderilemedi. Biraz sonra tekrar dene."
+    },
+    "code": {
+      "title": "Kodu yaz",
+      "sent": "Kodu şu adrese gönderdik: {email}",
+      "spam": "Gelmediyse spam klasörüne de bak.",
+      "label": "6 haneli kod",
+      "verify": "Giriş yap",
+      "verifying": "Kontrol ediliyor…",
+      "verifyIn": "Giriş yap ({s} sn)",
+      "resend": "Kodu tekrar gönder",
+      "resendIn": "Kodu tekrar gönder ({s} sn)",
+      "resent": "Yeni kodu gönderdik.",
+      "changeEmail": "Başka adres kullan",
+      "badCode": "Kod 6 haneli olmalı, yalnızca rakam.",
+      "wrongCode": "Kod hatalı ya da süresi dolmuş. Yeni kod iste.",
+      "rateLimit": "Çok fazla deneme oldu. Biraz bekleyip tekrar dene.",
+      "offline": "İnternet yok. Bağlanınca tekrar dene.",
+      "unreachable": "Sunucuya şu an ulaşılamıyor. Biraz sonra tekrar dene."
+    },
+    "moveDomain": {
+      "text": "Giriş ve bulut kayıt yeni adreste. Giriş yapmak için yeni adrese geç. Burada girişsiz oynamaya devam edebilirsin.",
+      "saveHint": "Buradaki kaydın yeni adrese kendiliğinden geçmez. Taşımak için burada “Kaydı dışa aktar”ı, yeni adreste “Kaydı içe aktar”ı kullan.",
+      "linkLabel": "Yeni adrese git"
+    }
+  },
+  "sync": {
+    "uploaded": "Giriş yaptın. Kaydın artık bulutta da duruyor.",
+    "cloudLoaded": "Buluttaki kaydın yüklendi.",
+    "saving": "Buluta kaydediliyor…",
+    "saved": "Buluta kaydedildi · {t}",
+    "offline": "İnternet yok, oyun bu cihazda kaydediliyor. Bağlanınca buluta da kaydedilir.",
+    "unreachable": "Buluta şu an ulaşılamıyor, oyun bu cihazda kaydediliyor.",
+    "conflict": {
+      "title": "İki farklı kayıt var",
+      "body": "Buluttaki kayıt bu cihazdakinden farklı. Hangisiyle devam edeceğini seç.",
+      "bodyNewer": "Başka bir cihazda ya da sekmede oynadın. Hangi kayıtla devam edeceğini seç.",
+      "optCloud": "Buluttaki kayıt",
+      "optDevice": "Bu cihazdaki kayıt",
+      "meta": "{f} takipçi · {v} ¤ · {n} Şöhret · {k} satış",
+      "metaLast": "{c} · {d}",
+      "deviceMobile": "Mobil",
+      "deviceDesktop": "Masaüstü",
+      "recommended": "Önerilen",
+      "useCloud": "Buluttakini seç",
+      "useDevice": "Bu cihazdakini seç",
+      "keepTitle": "Diğer kaydı saklamak ister misin?",
+      "keepBody": "Seçmediğin kayıt silinecek. İstersen önce kayıt kodunu kopyala. Bu kodla kaydı sonra Ayarlar'daki “Kaydı içe aktar” ile yükleyebilirsin.",
+      "keepTitleReset": "Bu cihazdaki kaydı saklamak ister misin?",
+      "keepBodyReset": "Kaydın başka bir cihazda sıfırlandı. Bu cihazdaki kayıt silinecek, içinde buluta gitmemiş ilerleme var. İstersen önce kayıt kodunu kopyala. Bu kodla kaydı sonra Ayarlar'daki “Kaydı içe aktar” ile yükleyebilirsin.",
+      "keepCopy": "Kodu kopyala",
+      "keepCopied": "Kod kopyalandı",
+      "keepContinue": "Devam et",
+      "dateUnknown": "bilinmiyor"
+    }
+  },
+  "reset": {
+    "confirmSignedIn": "Emin misin? Tüm ilerleme bu cihazdan ve buluttan silinecek.",
+    "backupNote": "Buluttaki eski kaydın 30 gün yedek olarak saklanır, sonra silinir.",
+    "otherDevice": "Kaydın başka bir cihazda sıfırlandı. Güncel kayıt yüklendi.",
+    "failed": "Kayıt şu an sıfırlanamadı. Bağlantını kontrol edip tekrar dene."
+  },
+  "email": {
+    "from": "\"Fenomen: Kiralık Hayat\" <fenomen@teserix.com>",
+    "codeNew": {
+      "subject": "Fenomen: Kiralık Hayat ilk giriş kodun",
+      "body": "Merhaba,\n\nFenomen: Kiralık Hayat'a hoş geldin! İlk giriş kodun:\n\n{kod}\n\nBu kodu oyundaki kod ekranına yaz. Kod 10 dakika içinde geçerli. Süresi dolarsa oyundan yeni kod isteyebilirsin.\n\nBu kodu sen istemediysen bu e-postayı yok sayabilirsin.\n\nBu e-posta yalnızca giriş kodun için gönderildi.\n\nFenomen: Kiralık Hayat"
+    },
+    "codeReturning": {
+      "subject": "Fenomen: Kiralık Hayat giriş kodun",
+      "body": "Merhaba,\n\nFenomen: Kiralık Hayat giriş kodun:\n\n{kod}\n\nBu kodu oyundaki kod ekranına yaz. Kod 10 dakika içinde geçerli. Süresi dolarsa oyundan yeni kod isteyebilirsin.\n\nBu kodu sen istemediysen bu e-postayı yok sayabilirsin.\n\nBu e-posta yalnızca giriş kodun için gönderildi.\n\nFenomen: Kiralık Hayat"
+    }
   }
 }
