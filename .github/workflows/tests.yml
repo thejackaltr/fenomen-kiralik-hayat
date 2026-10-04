@@ -1,0 +1,43 @@
+# PR'larda hızlı testler: yalnız ağsız ve tarayıcısız setler (birim testleri + derleme).
+# Dışarıda kalanlar: tests/smoke/smoke.mjs ve tests/smoke/umami.mjs (Playwright/Chromium + yerel sunucu, uzun sürer),
+# supabase/ altındaki SQL/stack testleri (Docker + Supabase imajı ister). Canlı sunuculara (Supabase, fenomen-api,
+# teserix.com, Umami) istek atan bir adım yok. Dağıtım pages.yml'dadır; bu iş akışı hiçbir şey yayınlamaz.
+name: Testler (PR)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Birim testleri + derleme
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # pages.yml ile aynı Node sürümü (package.json'da engines / .nvmrc yok)
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Bağımlılıklar (npm ci)
+        run: npm ci
+
+      - name: Birim testleri (node --test tests/unit/*.test.mjs)
+        run: npm test
+
+      # Derleme hatasını PR'da yakalamak için; Umami değişkenleri verilmez, çıktı yüklenmez/yayınlanmaz.
+      - name: Derleme (vite build, yayın yok)
+        run: npm run build
