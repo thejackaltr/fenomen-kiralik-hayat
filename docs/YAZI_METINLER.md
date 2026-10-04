@@ -39,7 +39,7 @@ Yazı r11 (2026-10-03) metinleri anahtar adlarıyla aynen alındı (settings.cre
 - `auth.login.later`: Şimdi değil
 - `auth.login.badEmail`: Geçerli bir e-posta adresi yaz.
 - `auth.login.sendFail`: Kod gönderilemedi. Adresi kontrol edip tekrar dene.
-- `auth.login.rateLimit`: Çok fazla deneme oldu. Birkaç dakika sonra tekrar dene.
+- `auth.login.rateLimit`: Çok fazla deneme oldu. Biraz bekleyip tekrar dene.
 - `auth.login.netOrRate`: Bağlantı kurulamadı ya da kısa sürede çok fazla deneme oldu. 10 saniye bekleyip tekrar dene.
 - `auth.login.quotaFull`: Şu an kod gönderemiyoruz. Girişsiz oynamaya devam et, kaydın bu cihazda tutulur. Girişi sonra tekrar dene.
 - `auth.login.sendError`: Kod şu an gönderilemedi. Biraz sonra tekrar dene.
@@ -56,7 +56,7 @@ Yazı r11 (2026-10-03) metinleri anahtar adlarıyla aynen alındı (settings.cre
 - `auth.code.changeEmail`: Başka adres kullan
 - `auth.code.badCode`: Kod 6 haneli olmalı, yalnızca rakam.
 - `auth.code.wrongCode`: Kod hatalı ya da süresi dolmuş. Yeni kod iste.
-- `auth.code.rateLimit`: Çok fazla deneme oldu. Birkaç dakika sonra tekrar dene.
+- `auth.code.rateLimit`: Çok fazla deneme oldu. Biraz bekleyip tekrar dene.
 - `auth.code.offline`: İnternet yok. Bağlanınca tekrar dene.
 - `auth.code.unreachable`: Sunucuya şu an ulaşılamıyor. Biraz sonra tekrar dene.
 - `auth.moveDomain.text`: Giriş ve bulut kayıt yeni adreste. Giriş yapmak için yeni adrese geç. Burada girişsiz oynamaya devam edebilirsin.

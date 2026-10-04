@@ -154,6 +154,10 @@ test('429 / network error messages: the status decides, never the body (HTML / p
   assert.equal(t('auth.code.resendIn', { s: 4 }), 'Kodu tekrar gönder (4 sn)');
   assert.equal(t('auth.login.sendIn', { s: 4 }), 'Kod gönder (4 sn)');
   assert.equal(t('auth.code.verifyIn', { s: 10 }), 'Giriş yap (10 sn)');
+  // Yazı giriş butonları r1: rateLimit no longer says "Birkaç dakika" (the lock is at most 120 s, countdown on the button); same text on both screens, distinct from netOrRate
+  assert.equal(t('auth.login.rateLimit'), 'Çok fazla deneme oldu. Biraz bekleyip tekrar dene.');
+  assert.equal(t('auth.code.rateLimit'), t('auth.login.rateLimit'));
+  assert.notEqual(t('auth.login.rateLimit'), t('auth.login.netOrRate'));
 });
 test('api: 429 with a non-JSON body keeps the status; unreadable body too; a TypeError is one network error, our timeout is marked', async () => {
   const one = (resp) => { const calls = []; return { calls, fetchFn: async (url, init) => { calls.push(url); return typeof resp === 'function' ? resp(init) : resp; } }; };
