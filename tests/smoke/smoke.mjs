@@ -16,6 +16,8 @@ const shot = async (p, name) => { if (SHOTS) await p.screenshot({ path: 'screens
 const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
 // v1/v2 runs predate the counter notice: answer it up front so the band never covers what they tap
 const NOTICE_SEEN = () => { try { if (!localStorage.getItem('fenomen_tel_notice')) localStorage.setItem('fenomen_tel_notice', '1'); } catch (e) { /* ignore */ } };
+// Turkish month names (tr-TR 'long'), for expectations derived from a timestamp instead of a hard-coded month
+const TR_MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 const TEXT_HOOK = () => {   // record every string drawn on canvases (to check the KİRALIK layer rules)
   window.__texts = [];
   const f = CanvasRenderingContext2D.prototype.fillText;
@@ -448,7 +450,11 @@ async function runV21() {
     await T.p.setInputFiles('[data-test=import-file]', file);
     await T.p.waitForSelector('[data-test=import-confirm]', { timeout: 8000 });
     const conf = await T.S(() => document.querySelector('[data-test=import-confirm]').textContent);
-    ok(tag + 'import asks first and shows both saves', conf.includes('yerine geçecek') && /Yüklenecek kayıt · 12,3\d?\sB takipçi · Son oynama: \d+ Eylül 2026/.test(conf) && conf.includes('Şimdiki kayıt · 5 takipçi'), conf.slice(0, 160));
+    // "Son oynama" = the exported file's own lastSeen, not a fixed month: day/month/year read in the page's time zone
+    // (the app formats it there), month spelled with a fixed Turkish table -> passes in any month/year.
+    const lp = await T.S((ts) => { const d = new Date(ts); return { d: d.getDate(), m: d.getMonth(), y: d.getFullYear() }; }, env.save.lastSeen);
+    const wantLast = 'Son oynama: ' + lp.d + ' ' + TR_MONTHS[lp.m] + ' ' + lp.y;
+    ok(tag + 'import asks first and shows both saves', conf.includes('yerine geçecek') && new RegExp('Yüklenecek kayıt · 12,3\\d?\\sB takipçi · ' + wantLast + '\\b').test(conf) && conf.includes('Şimdiki kayıt · 5 takipçi'), wantLast + ' | ' + conf.slice(0, 160));
     await T.tap('[data-test=import-yes]');
     await T.p.waitForTimeout(300);
     ok(tag + 'import restores the exported save', await T.S(() => { const s = window.__fenomen.ctrl.state; return Math.floor(s.followers) >= 12345 && s.char.channel === 'Dosya Kanalı'; }));
